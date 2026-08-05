@@ -1,0 +1,61 @@
+schema-version: 1
+
+asset-profiles:
+  itemerness:vanilla:
+    capabilities: []
+
+  itemerness:example-pack-v1:
+    capabilities:
+      - itemerness:native-tooltip-style-v1
+      - itemerness:segmented-frame-v1
+      - itemerness:signed-advance-v1
+      - itemerness:bitmap-canvas-v1
+    metrics-revision: itemerness:example-pack-v1
+    fallback: itemerness:vanilla
+
+# Replace this disabled example with the exact UUID and SHA-1 used by the server resource-pack push.
+resource-pack-bindings:
+  itemerness:example-pack-v1:
+    enabled: false
+    pack-id: 00000000-0000-0000-0000-000000000001
+    sha1: "0000000000000000000000000000000000000001"
+    asset-profile: itemerness:example-pack-v1
+
+bitmaps:
+  canvas.aurora.panel:
+    baseline-variant: canvas.aurora.panel
+    texture: itemerness:font/canvas/aurora_panel.png
+    source-width-pixels: 176
+    source-height-pixels: 96
+    render-width-pixels: 176
+    render-height-pixels: 96
+    ascent-pixels: 94
+    visual-bounds: {left: 0, right: 176, top: -94, bottom: 2}
+
+  canvas.aurora.horizontal-rule:
+    baseline-variant: canvas.aurora.rule
+    texture: itemerness:font/canvas/aurora_horizontal_rule.png
+    source-width-pixels: 140
+    source-height-pixels: 2
+    render-width-pixels: 140
+    render-height-pixels: 2
+    ascent-pixels: 1
+    visual-bounds: {left: 0, right: 140, top: -1, bottom: 1}
+
+  canvas.aurora.emblem:
+    baseline-variant: canvas.aurora.emblem
+    texture: itemerness:font/canvas/aurora_emblem.png
+    source-width-pixels: 16
+    source-height-pixels: 16
+    render-width-pixels: 16
+    render-height-pixels: 16
+    ascent-pixels: 16
+    visual-bounds: {left: 0, right: 16, top: -16, bottom: 0}
+
+  frame.segment.body-fill:
+    texture: itemerness:font/frame/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8

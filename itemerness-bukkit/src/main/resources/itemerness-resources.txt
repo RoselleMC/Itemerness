@@ -1,0 +1,20 @@
+# Files copied into plugins/Itemerness on first enable.
+access.yml
+data-keys/common.yml
+viewer-facts/common.yml
+formats/default.yml
+items/examples.yml
+layouts/plain.yml
+layouts/equipment.yml
+layouts/bitmap-canvas.yml
+themes/default.yml
+themes/vanilla-frame.yml
+themes/ember.yml
+themes/segmented.yml
+themes/aurora-canvas.yml
+assets/fonts.yml
+assets/glyphs.yml
+assets/bitmaps.yml
+locales/en_us.yml
+locales/zh_cn.yml
+examples/canonical-items.snbt

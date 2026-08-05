@@ -1,0 +1,208 @@
+# Disabled reference items. Set enabled to true or copy an entry into another item file.
+schema-version: 1
+namespace: itemerness
+
+items:
+  travel-token:
+    enabled: false
+    base:
+      material: minecraft:paper
+    instance:
+      mode: fungible
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:region: example:harbor
+        example:charges: 3
+    presentation:
+      layout: itemerness:plain
+      theme: itemerness:vanilla-frame
+      name:
+        message: item.travel-token.name
+      blocks:
+        - type: field
+          icon: icon.region
+          label: data.region.label
+          data: example:region
+          format: itemerness:key-message
+        - type: field
+          icon: icon.charges
+          label: data.charges.label
+          data: example:charges
+          format: itemerness:integer
+        - type: description
+          message: item.travel-token.description
+
+  ember-blade:
+    enabled: false
+    base:
+      material: minecraft:netherite_sword
+    definition-data:
+      example:required-level: 12
+    instance:
+      mode: unique
+      id-generator: uuid-v4
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:quality: example:rare
+        example:bound: false
+        example:tags:
+          - example:weapon
+          - example:fire
+        example:sockets:
+          - type: example:gem
+            accepted:
+              - example:fire-gem
+            inserted: null
+      generate-on-create:
+        itemerness:created-at:
+          generator: unix-millis
+        example:attack-damage:
+          generator: random-decimal
+          minimum: 34.0
+          maximum: 42.0
+          scale: 1
+    presentation:
+      layout: itemerness:equipment
+      theme: itemerness:ember
+      name:
+        message: item.ember-blade.name
+      blocks:
+        - type: field
+          id: attack-damage
+          icon: icon.attack
+          label: data.attack-damage.label
+          data: example:attack-damage
+          format: itemerness:decimal-one
+        - type: field
+          id: quality
+          icon: icon.quality
+          label: data.quality.label
+          data: example:quality
+          format: itemerness:key-message
+        - type: conditional
+          id: level-requirement
+          condition:
+            operator: less-than
+            left:
+              fact: example:level
+            right:
+              data: example:required-level
+          then:
+            - type: field
+              style: requirement-unmet
+              label: data.required-level.label
+              data: example:required-level
+              format: itemerness:integer
+          otherwise:
+            - type: field
+              style: requirement-met
+              label: data.required-level.label
+              data: example:required-level
+              format: itemerness:integer
+        - type: repeat
+          id: sockets
+          data: example:sockets
+          maximum-elements: 8
+          template:
+            type: compound-field
+            icon: icon.socket
+            label: data.socket.label
+            value-path: inserted
+            missing-message: data.socket.empty
+        - type: description
+          message: item.ember-blade.description
+          wrapping: body
+
+  survey-codex:
+    enabled: false
+    base:
+      material: minecraft:book
+    instance:
+      mode: unique
+      id-generator: uuid-v4
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:region: example:aurora-expanse
+        example:custom-label: "Expedition 7"
+        example:metadata:
+          completion: 0.625
+          discovered: 18
+          total: 32
+    presentation:
+      layout: itemerness:bitmap-canvas
+      theme: itemerness:aurora-canvas
+      name:
+        message: item.survey-codex.name
+      blocks:
+        - type: text
+          anchor: subtitle
+          data: example:custom-label
+        - type: field
+          anchor: region
+          icon: icon.region
+          label: data.region.label
+          data: example:region
+          format: itemerness:key-message
+        - type: description
+          anchor: body
+          message: item.survey-codex.description
+          wrapping: canvas-body
+
+  nested-satchel:
+    enabled: false
+    base:
+      material: minecraft:bundle
+    instance:
+      mode: unique
+      id-generator: uuid-v4
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:quality: example:uncommon
+    contents:
+      - item: itemerness:travel-token
+        amount: 2
+    presentation:
+      layout: itemerness:plain
+      theme: itemerness:default
+      nested-items: recursive
+      name:
+        message: item.nested-satchel.name
+      blocks:
+        - type: nested-item-list
+        - type: description
+          message: item.nested-satchel.description
+
+  framed-relic:
+    enabled: false
+    base:
+      material: minecraft:echo_shard
+    instance:
+      mode: fungible
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:quality: example:epic
+        example:region: example:ancient-vault
+    presentation:
+      layout: itemerness:equipment
+      theme: itemerness:segmented
+      name:
+        message: item.framed-relic.name
+      blocks:
+        - type: field
+          icon: icon.quality
+          label: data.quality.label
+          data: example:quality
+          format: itemerness:key-message
+        - type: field
+          icon: icon.region
+          label: data.region.label
+          data: example:region
+          format: itemerness:key-message
+        - type: description
+          message: item.framed-relic.description
+          wrapping: body

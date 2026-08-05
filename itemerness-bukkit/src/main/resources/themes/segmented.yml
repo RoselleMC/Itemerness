@@ -1,0 +1,41 @@
+schema-version: 1
+
+themes:
+  itemerness:segmented:
+    renderer: segmented-frame
+    requires-resource-pack: true
+    requires-capabilities:
+      - itemerness:segmented-frame-v1
+    vanilla-tooltip-lines: require-managed
+    fallback: itemerness:vanilla-frame
+    fonts:
+      text: itemerness:body
+      icons: itemerness:icons
+      frame: itemerness:frame
+    frame:
+      width: layout
+      minimum-width-pixels: 140
+      maximum-width-pixels: 220
+      left-padding-pixels: 12
+      right-padding-pixels: 12
+      top:
+        left: frame.segment.top-left
+        fill: frame.segment.top-fill
+        right: frame.segment.top-right
+      body:
+        left: frame.segment.body-left
+        fill: frame.segment.body-fill
+        right: frame.segment.body-right
+      connector:
+        left: frame.segment.connector-left
+        fill: frame.segment.connector-fill
+        right: frame.segment.connector-right
+      bottom:
+        left: frame.segment.bottom-left
+        fill: frame.segment.bottom-fill
+        right: frame.segment.bottom-right
+      fill-mode: exact-pixel
+      height-mode: repeat-for-rendered-lines
+    wrapping:
+      enforce-frame-width: true
+      overflow: wrap

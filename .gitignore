@@ -1,0 +1,13 @@
+.gradle/
+.idea/
+.kotlin/
+build/
+out/
+*/build/
+*.iml
+*.log
+.DS_Store
+
+# Local Minecraft test servers and their generated data
+run/
+runs/

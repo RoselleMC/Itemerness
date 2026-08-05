@@ -1,0 +1,24 @@
+schema-version: 1
+
+themes:
+  itemerness:default:
+    renderer: plain
+    requires-resource-pack: false
+    vanilla-tooltip-lines: preserve
+    fonts:
+      text: minecraft:default
+    icons:
+      unsupported-token: omit
+    styles:
+      item-name:
+        color: white
+      label:
+        color: gray
+      value:
+        color: white
+      requirement-met:
+        color: green
+      requirement-unmet:
+        color: red
+      description:
+        color: dark_gray

@@ -1,0 +1,86 @@
+# Internal coverage manifest. This file is packaged but is not copied as user configuration.
+schema-version: 1
+minecraft-version: "26.1.2"
+adapter-module: itemerness-nms-26_1_2
+coverage-status: design-seed
+release-gate-enabled: false
+release-gate-requirement: generated-exhaustive-carrier-scan
+
+pipeline:
+  packet-stage: decoded
+  insert-before: packet_handler
+  install-and-remove-on-channel-event-loop: true
+  recurse-clientbound-bundle-packets: true
+
+outbound:
+  direct-item-stacks:
+    classification: required
+    packets:
+      - ClientboundContainerSetContentPacket
+      - ClientboundContainerSetSlotPacket
+      - ClientboundSetCursorItemPacket
+      - ClientboundSetPlayerInventoryPacket
+      - ClientboundSetEquipmentPacket
+      - ClientboundMerchantOffersPacket
+  typed-payload-item-stacks:
+    classification: required
+    packets:
+      - ClientboundSetEntityDataPacket
+      - ClientboundLevelParticlesPacket
+  component-hover-items:
+    classification: required
+    packets:
+      - ClientboundSystemChatPacket
+      - ClientboundDisguisedChatPacket
+      - ClientboundPlayerChatPacket
+      - ClientboundSetActionBarTextPacket
+      - ClientboundSetTitleTextPacket
+      - ClientboundSetSubtitleTextPacket
+      - ClientboundBossEventPacket
+      - ClientboundTabListPacket
+      - ClientboundOpenScreenPacket
+      - ClientboundSetObjectivePacket
+      - ClientboundSetPlayerTeamPacket
+      - ClientboundCommandSuggestionsPacket
+      - ClientboundMapItemDataPacket
+      - ClientboundPlayerInfoUpdatePacket
+      - ClientboundUpdateAdvancementsPacket
+      - ClientboundShowDialogPacket
+    traversal: Component/HoverEvent.ShowItem
+  registry-or-recipe-items:
+    classification: required
+    packets:
+      - ClientboundUpdateRecipesPacket
+      - ClientboundRecipeBookAddPacket
+      - ClientboundPlaceGhostRecipePacket
+  nested-data-components:
+    classification: required
+    components:
+      - minecraft:bundle_contents
+      - minecraft:container
+      - minecraft:charged_projectiles
+      - minecraft:use_remainder
+
+inbound:
+  hashed-untrusted-view:
+    classification: required
+    packets:
+      - ServerboundContainerClickPacket
+  full-untrusted-item-stack:
+    classification: required
+    packets:
+      - ServerboundSetCreativeModeSlotPacket
+
+known-unsupported:
+  untyped-block-entity-item-nbt:
+    classification: unsupported-known
+    packets:
+      - ClientboundBlockEntityDataPacket
+      - ClientboundLevelChunkWithLightPacket
+    release-gate: audit-before-projection-completeness-claim
+
+fixed-failure-policy:
+  missing-required-surface: disable-plugin
+  outbound-projection-error: send-canonical
+  unknown-container-hash: pass-through-for-vanilla-resync
+  unknown-managed-creative-item: reject-and-enqueue-owning-context-resync

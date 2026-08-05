@@ -1,0 +1,229 @@
+# Typed values stored under minecraft:custom_data.itemerness.data.
+schema-version: 1
+id: itemerness:common
+
+keys:
+  itemerness:created-at:
+    type: long
+    scope: instance
+    affects-stacking: true
+    presentation-readable: true
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - internal
+    placeholder-api:
+      exposed: false
+
+  example:quality:
+    type: namespaced-key
+    scope: instance
+    default: example:common
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      allowed:
+        - example:common
+        - example:uncommon
+        - example:rare
+        - example:epic
+    read-sources:
+      - canonical-nbt
+      - pdc:
+          key: legacyitems:quality
+          mode: fallback-read-only
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:key-message
+
+  example:attack-damage:
+    type: decimal
+    scope: instance
+    default: 1.0
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      minimum: 0.0
+      maximum: 1000000.0
+      scale: 2
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:decimal-one
+
+  example:required-level:
+    type: integer
+    scope: definition
+    default: 1
+    affects-stacking: false
+    presentation-readable: true
+    constraints:
+      minimum: 1
+      maximum: 1000
+    read-sources:
+      - catalog-definition
+    access:
+      read: public
+      write:
+        - definition
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:integer
+
+  example:bound:
+    type: boolean
+    scope: instance
+    default: false
+    affects-stacking: true
+    presentation-readable: true
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:boolean
+
+  example:bound-player:
+    type: uuid
+    scope: instance
+    nullable: true
+    affects-stacking: true
+    presentation-readable: false
+    read-sources:
+      - canonical-nbt
+    access:
+      read: owner-only
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: false
+
+  example:charges:
+    type: integer
+    scope: instance
+    default: 0
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      minimum: 0
+      maximum: 9999
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:integer
+
+  example:region:
+    type: namespaced-key
+    scope: instance
+    nullable: true
+    affects-stacking: true
+    presentation-readable: true
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+      formatter: itemerness:key-message
+
+  example:custom-label:
+    type: string
+    scope: instance
+    nullable: true
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      maximum-codepoints: 128
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: true
+
+  example:tags:
+    type: list<namespaced-key>
+    scope: instance
+    default: []
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      maximum-elements: 32
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: false
+
+  example:sockets:
+    type:
+      kind: list
+      element:
+        kind: compound
+        fields:
+          type:
+            type: namespaced-key
+          accepted:
+            type: list<namespaced-key>
+          inserted:
+            type: namespaced-key
+            nullable: true
+    scope: instance
+    default: []
+    affects-stacking: true
+    presentation-readable: true
+    constraints:
+      maximum-elements: 8
+      maximum-depth: 4
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: false
+
+  example:metadata:
+    type: compound
+    scope: instance
+    default: {}
+    affects-stacking: true
+    presentation-readable: false
+    constraints:
+      maximum-entries: 32
+      maximum-depth: 4
+    read-sources:
+      - canonical-nbt
+    access:
+      read: owner-only
+      write:
+        - plugin:ExampleConsumer
+    placeholder-api:
+      exposed: false

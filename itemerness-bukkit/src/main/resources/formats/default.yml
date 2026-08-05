@@ -1,0 +1,36 @@
+schema-version: 1
+
+formats:
+  itemerness:integer:
+    type: integer
+    pattern: "0"
+
+  itemerness:decimal-one:
+    type: decimal
+    pattern: "0.0"
+
+  itemerness:percent-one:
+    type: decimal
+    multiply: 100
+    pattern: "0.0"
+    suffix-message: format.percent-suffix
+
+  itemerness:boolean:
+    type: boolean
+    true-message: format.boolean.true
+    false-message: format.boolean.false
+
+  itemerness:key-path:
+    type: namespaced-key
+    mode: path
+
+  itemerness:key-message:
+    type: namespaced-key
+    mode: message
+    message-pattern: "value.{namespace}.{path}"
+    missing-value: path
+
+  itemerness:key-list:
+    type: list<namespaced-key>
+    element-format: itemerness:key-message
+    separator-message: format.list-separator

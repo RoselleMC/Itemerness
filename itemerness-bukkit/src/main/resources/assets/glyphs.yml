@@ -1,0 +1,129 @@
+# Raw codepoint assignments are isolated in this registry.
+schema-version: 1
+
+glyphs:
+  icon.attack:
+    font: itemerness:icons
+    codepoint: U+E001
+    advance-pixels: 9
+    visual-bounds: {left: 0, right: 8, top: -8, bottom: 0}
+
+  icon.quality:
+    font: itemerness:icons
+    codepoint: U+E002
+    advance-pixels: 9
+    visual-bounds: {left: 0, right: 8, top: -8, bottom: 0}
+
+  icon.region:
+    font: itemerness:icons
+    codepoint: U+E003
+    advance-pixels: 9
+    visual-bounds: {left: 0, right: 8, top: -8, bottom: 0}
+
+  icon.charges:
+    font: itemerness:icons
+    codepoint: U+E004
+    advance-pixels: 9
+    visual-bounds: {left: 0, right: 8, top: -8, bottom: 0}
+
+  icon.socket:
+    font: itemerness:icons
+    codepoint: U+E005
+    advance-pixels: 9
+    visual-bounds: {left: 0, right: 8, top: -8, bottom: 0}
+
+  frame.segment.top-left:
+    font: itemerness:frame
+    codepoint: U+E101
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.top-fill:
+    font: itemerness:frame
+    codepoint: U+E102
+    advance-pixels: 1
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.segment.top-right:
+    font: itemerness:frame
+    codepoint: U+E103
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.body-left:
+    font: itemerness:frame
+    codepoint: U+E104
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.body-fill:
+    font: itemerness:frame
+    codepoint: U+E105
+    advance-pixels: 1
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.segment.body-right:
+    font: itemerness:frame
+    codepoint: U+E106
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.connector-left:
+    font: itemerness:frame
+    codepoint: U+E107
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.connector-fill:
+    font: itemerness:frame
+    codepoint: U+E108
+    advance-pixels: 1
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.segment.connector-right:
+    font: itemerness:frame
+    codepoint: U+E109
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E10A
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+  frame.segment.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E10B
+    advance-pixels: 1
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.segment.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E10C
+    advance-pixels: 4
+    visual-bounds: {left: 0, right: 4, top: -8, bottom: 2}
+
+  canvas.aurora.background:
+    font: itemerness:canvas
+    codepoint: U+E201
+    bitmap: canvas.aurora.panel
+    advance-pixels: 176
+    visual-bounds: {left: 0, right: 176, top: -94, bottom: 2}
+  canvas.aurora.horizontal-rule:
+    font: itemerness:canvas
+    codepoint: U+E202
+    bitmap: canvas.aurora.horizontal-rule
+    advance-pixels: 140
+    visual-bounds: {left: 0, right: 140, top: -1, bottom: 1}
+  canvas.aurora.emblem:
+    font: itemerness:canvas
+    codepoint: U+E203
+    bitmap: canvas.aurora.emblem
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 16, top: -16, bottom: 0}
+
+spacing:
+  negative:
+    font: itemerness:spacing
+    codepoint-range:
+      first: U+F0000
+      last: U+F00FF
+    minimum-advance-pixels: -256
+    maximum-advance-pixels: -1
+  positive:
+    font: itemerness:spacing
+    codepoint-range:
+      first: U+F0100
+      last: U+F01FF
+    minimum-advance-pixels: 1
+    maximum-advance-pixels: 256

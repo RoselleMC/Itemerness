@@ -1,0 +1,25 @@
+# Itemerness configuration
+config-version: 3
+
+catalog:
+  default-namespace: itemerness
+
+# Leave both values empty to use only the local catalog. The token is a secret
+# issued by the deployed editor and identifies this server connection.
+editor:
+  url: ""
+  token: ""
+
+# Canonical state is always direct NBT under minecraft:custom_data.itemerness.
+# Canonical Lore is always empty. These invariants are intentionally not configurable.
+canonical-item:
+  pending-name:
+    text: "[{item-id}]"
+    color: dark_gray
+
+locale:
+  default: en_us
+
+presentation:
+  default-layout: itemerness:plain
+  default-theme: itemerness:default

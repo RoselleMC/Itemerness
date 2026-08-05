@@ -1,0 +1,33 @@
+schema-version: 1
+locale: zh_cn
+fallback: en_us
+
+messages:
+  item.travel-token.name: "港口旅行凭证"
+  item.travel-token.description: "前往记录区域时消耗。"
+  item.ember-blade.name: "余烬之刃"
+  item.ember-blade.description: "以余烬灰反复淬炼的长刃。展示配置重载不会重新生成已经落定的攻击数值。"
+  item.survey-codex.name: "勘探手册"
+  item.survey-codex.description: "记录本次远征发现的地标、路线和尚未完成的观察。"
+  item.nested-satchel.name: "叠层行囊"
+  item.nested-satchel.description: "其中包含的 Itemerness 物品会为同一观察者递归生成展示。"
+  item.framed-relic.name: "框饰遗物"
+  item.framed-relic.description: "兼容传统分段外框，但由引擎按实测内容生成，不再手工填充 Lore。"
+  data.region.label: "区域"
+  data.charges.label: "次数"
+  data.attack-damage.label: "攻击伤害"
+  data.quality.label: "品质"
+  data.required-level.label: "需求等级"
+  data.socket.label: "插槽"
+  data.socket.empty: "空"
+  value.example.common: "普通"
+  value.example.uncommon: "罕见"
+  value.example.rare: "稀有"
+  value.example.epic: "史诗"
+  value.example.harbor: "港口"
+  value.example.aurora-expanse: "极光荒原"
+  value.example.ancient-vault: "远古秘库"
+  format.percent-suffix: "%"
+  format.boolean.true: "是"
+  format.boolean.false: "否"
+  format.list-separator: "、"

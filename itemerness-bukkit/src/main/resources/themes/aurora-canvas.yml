@@ -1,0 +1,54 @@
+schema-version: 1
+
+themes:
+  itemerness:aurora-canvas:
+    renderer: bitmap-canvas
+    experimental: true
+    requires-resource-pack: true
+    requires-capabilities:
+      - itemerness:bitmap-canvas-v1
+      - itemerness:signed-advance-v1
+    vanilla-tooltip-lines: require-managed
+    fallback: itemerness:ember
+    tooltip-style: itemerness:transparent-canvas
+    fonts:
+      text: itemerness:body
+      icons: itemerness:icons
+      canvas: itemerness:canvas
+      spacing: itemerness:spacing
+    canvas:
+      composition: bitmap-overlay
+      width-pixels: 176
+      height-pixels: 96
+      maximum-width-pixels: 220
+      maximum-height-pixels: 180
+      normalize-visual-origin: true
+      emit-width-anchor: true
+      reserve-tooltip-lines: 10
+      layers:
+        - asset: canvas.aurora.background
+          anchor: top-left
+          x-pixels: 0
+          baseline-line: 9
+          baseline-variant: canvas.aurora.panel
+          draw-order: 0
+        - asset: canvas.aurora.horizontal-rule
+          anchor: top-left
+          x-pixels: 18
+          baseline-line: 4
+          baseline-variant: canvas.aurora.rule
+          draw-order: 1
+        - asset: canvas.aurora.emblem
+          anchor: top-right
+          x-pixels: -24
+          baseline-line: 2
+          baseline-variant: canvas.aurora.emblem
+          draw-order: 2
+      measured-advance-pixels: 176
+      final-tooltip-width-pixels: 176
+    safety:
+      force-decoration-bold: false
+      require-exact-font-metrics: true
+      reject-negative-final-advance: true
+      reject-out-of-bounds-layer: true
+      maximum-emitted-components: 256

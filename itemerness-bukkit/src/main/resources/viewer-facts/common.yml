@@ -1,0 +1,49 @@
+# Viewer facts are published snapshots. They are never resolved from Bukkit on a network thread.
+schema-version: 1
+
+facts:
+  itemerness:locale:
+    type: locale
+    providers:
+      - api
+      - player-override
+      - client
+    default: en_us
+    cache-key: true
+
+  itemerness:theme:
+    type: namespaced-key
+    providers:
+      - api
+      - player-override
+    default: itemerness:default
+    cache-key: true
+
+  itemerness:resource-pack-ready:
+    type: boolean
+    providers:
+      - bukkit-resource-pack-status
+    default: false
+    cache-key: true
+
+  itemerness:asset-profile:
+    type: namespaced-key
+    providers:
+      - api
+      - bukkit-resource-pack-status
+    default: itemerness:vanilla
+    cache-key: true
+
+  example:level:
+    type: integer
+    providers:
+      - api
+    default: 0
+    cache-key: true
+
+  example:class:
+    type: namespaced-key
+    providers:
+      - api
+    nullable: true
+    cache-key: true

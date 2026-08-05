@@ -1,0 +1,22 @@
+[versions]
+kotlin = "2.4.0"
+shadow = "9.4.2"
+paper = "26.1.2.build.74-stable"
+folia = "26.1.2.build.8-stable"
+canvas = "26.1.2.build.876-stable"
+junit = "5.14.2"
+snakeyaml = "2.6"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
+canvas-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

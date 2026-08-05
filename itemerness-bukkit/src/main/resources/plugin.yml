@@ -1,0 +1,9 @@
+name: Itemerness
+version: ${version}
+main: com.iroselle.itemerness.bukkit.ItemernessPlugin
+description: A Folia- and Canvas-compatible item plugin.
+author: iRoselle
+api-version: '${apiVersion}'
+folia-supported: true
+softdepend:
+  - PlaceholderAPI

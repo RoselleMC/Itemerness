@@ -1,0 +1,38 @@
+schema-version: 1
+
+layouts:
+  itemerness:bitmap-canvas:
+    renderer: bitmap-canvas
+    canvas:
+      width-pixels: 176
+      height-pixels: 96
+      maximum-width-pixels: 220
+      maximum-height-pixels: 180
+      reserve-tooltip-lines: 10
+      clip-policy: reject
+    anchors:
+      subtitle:
+        x: 18
+        y: 17
+        width: 140
+        height: 10
+        overflow: ellipsis
+      region:
+        x: 18
+        y: 33
+        width: 140
+        height: 10
+        overflow: ellipsis
+      body:
+        x: 18
+        y: 51
+        width: 140
+        height: 35
+        overflow: ellipsis
+    wrapping:
+      canvas-body:
+        width-pixels: 140
+        line-height-pixels: 10
+        break-mode: word-then-codepoint
+        maximum-lines: 4
+        overflow: ellipsis

@@ -1,0 +1,35 @@
+# Resource-pack-free frame built from characters bundled with the Minecraft client.
+schema-version: 1
+
+themes:
+  itemerness:vanilla-frame:
+    renderer: vanilla-character-frame
+    requires-resource-pack: false
+    vanilla-tooltip-lines: preserve-outside-frame
+    fallback: itemerness:default
+    fonts:
+      text: minecraft:uniform
+      frame: minecraft:uniform
+    frame:
+      preset: unicode-single
+      scope: managed-lore
+      continuity: ornamental
+      minimum-width-pixels: 80
+      maximum-width-pixels: 220
+      left-padding-pixels: 4
+      right-padding-pixels: 4
+      alignment-tolerance-pixels: 3
+      separators: section-boundaries
+    styles:
+      frame:
+        color: dark_gray
+        bold: false
+        italic: false
+    wrapping:
+      enforce-frame-width: true
+      overflow: wrap
+      maximum-lines: 16
+    safety:
+      bidirectional-layout: fallback
+      unknown-glyph: fallback
+      personal-font-overrides: approximate

@@ -1,0 +1,15 @@
+config-version: 1
+
+# API callers are bound from a real Bukkit Plugin instance before these grants are evaluated.
+api:
+  defaults:
+    identify: allow
+    create: allow
+    read-data: schema-policy
+    edit-data: deny
+    request-refresh: allow
+
+  grants: []
+
+# Grant examples belong in the integration documentation. This local trust file
+# is never supplied or changed by the remote editor.

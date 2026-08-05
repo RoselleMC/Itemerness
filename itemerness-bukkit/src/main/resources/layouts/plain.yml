@@ -1,0 +1,18 @@
+schema-version: 1
+
+layouts:
+  itemerness:plain:
+    content-width:
+      minimum-pixels: 80
+      maximum-pixels: 220
+      strategy: content
+    flow:
+      - source: blocks
+        gap-after-pixels: 0
+    wrapping:
+      body:
+        width: content
+        break-mode: word-then-codepoint
+        preserve-explicit-lines: true
+        maximum-lines: 16
+        overflow: ellipsis

@@ -1,0 +1,27 @@
+schema-version: 1
+
+layouts:
+  itemerness:equipment:
+    content-width:
+      minimum-pixels: 140
+      maximum-pixels: 220
+      strategy: clamp-content
+    flow:
+      - source: blocks
+        gap-after-pixels: 0
+    sections:
+      field:
+        left-padding-pixels: 8
+        icon-gap-pixels: 3
+        value-alignment: right
+      description:
+        left-padding-pixels: 8
+        right-padding-pixels: 8
+        gap-before-pixels: 4
+    wrapping:
+      body:
+        width: content-minus-section-padding
+        break-mode: word-then-codepoint
+        preserve-explicit-lines: true
+        maximum-lines: 12
+        overflow: ellipsis
