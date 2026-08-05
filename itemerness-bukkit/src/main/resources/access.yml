@@ -1,12 +1,14 @@
 config-version: 1
 
-# API callers are bound from a real Bukkit Plugin instance before these grants are evaluated.
+# API callers are bound by Bukkit identity, lifecycle generation and caller class loader before
+# these cooperative governance grants are evaluated.
 api:
   defaults:
     identify: allow
     create: allow
     read-data: schema-policy
     edit-data: deny
+    write-viewer-fact: deny
     request-refresh: allow
 
   grants: []

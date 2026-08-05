@@ -78,9 +78,22 @@ class BundledConfigurationTest {
         validateDataSources(dataKeys)
         validatePlaceholderExposure(dataKeys, formats)
         validateLocalizedNamespacedValues(items, dataKeys, localeMessages)
+        validateViewerFacts(viewerFacts)
         validateThemes(themes, fonts, glyphs, bitmaps, assetProfiles)
         validateResourceFreeFrame(themes)
         validateDefaults(layouts, themes)
+    }
+
+    private fun validateViewerFacts(viewerFacts: Map<String, Any?>) {
+        val theme = mapping(viewerFacts["itemerness:theme"], "viewer theme fact")
+        assertEquals(true, theme["nullable"], "absence must preserve each item's configured theme")
+        assertFalse("default" in theme, "a viewer theme default would override every item theme")
+
+        val resourcePack = mapping(
+            viewerFacts["itemerness:resource-pack-ready"],
+            "resource pack readiness fact",
+        )
+        assertFalse("api" in strings(resourcePack["providers"], "resource pack providers"))
     }
 
     private fun validateDataSources(dataKeys: Map<String, Any?>) {

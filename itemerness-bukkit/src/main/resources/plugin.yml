@@ -7,3 +7,31 @@ api-version: '${apiVersion}'
 folia-supported: true
 softdepend:
   - PlaceholderAPI
+permissions:
+  itemerness.command.reload:
+    description: Reload the complete Itemerness catalog.
+    default: op
+  itemerness.command.validate:
+    description: Validate Itemerness configuration without publishing it.
+    default: op
+  itemerness.command.give:
+    description: Create and give canonical Itemerness items.
+    default: op
+  itemerness.command.inspect:
+    description: Inspect managed item identity and public data.
+    default: op
+  itemerness.command.inspect.raw-nbt:
+    description: Inspect the managed canonical NBT root.
+    default: op
+  itemerness.command.data.read:
+    description: Read typed data from a managed item.
+    default: op
+  itemerness.command.data.write:
+    description: Atomically edit typed instance data on a managed item.
+    default: op
+  itemerness.command.refresh:
+    description: Refresh one player's visible item surfaces.
+    default: op
+  itemerness.command.refresh.all:
+    description: Refresh all online players' visible item surfaces.
+    default: op

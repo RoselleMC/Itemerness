@@ -3,16 +3,23 @@
     id:"minecraft:paper",
     count:1,
     components:{
-      "minecraft:item_name":'{"text":"[itemerness:travel-token]","color":"dark_gray"}',
+      "minecraft:item_name":{text:"[itemerness:travel-token]",color:"dark_gray"},
       "minecraft:custom_data":{
         itemerness:{
           format:1,
           id:"itemerness:travel-token",
           created_against_revision:1L,
+          instance_revision:0L,
           data_schemas:{"itemerness:common":1},
           data:{
+            "itemerness:created-at":1785888000000L,
+            "example:attack-damage":1.0d,
+            "example:bound":0b,
             "example:region":"example:harbor",
-            "example:charges":3
+            "example:charges":3,
+            "example:tags":[],
+            "example:sockets":[],
+            "example:metadata":{}
           }
         }
       }
@@ -22,12 +29,13 @@
     id:"minecraft:netherite_sword",
     count:1,
     components:{
-      "minecraft:item_name":'{"text":"[itemerness:ember-blade]","color":"dark_gray"}',
+      "minecraft:item_name":{text:"[itemerness:ember-blade]",color:"dark_gray"},
       "minecraft:custom_data":{
         itemerness:{
           format:1,
           id:"itemerness:ember-blade",
           created_against_revision:1L,
+          instance_revision:0L,
           data_schemas:{"itemerness:common":1},
           instance_id:[I;305419896,-1698898192,-1894007588,1985229328],
           data:{
@@ -35,13 +43,15 @@
             "example:quality":"example:rare",
             "example:attack-damage":38.7d,
             "example:bound":0b,
+            "example:charges":0,
             "example:tags":["example:weapon","example:fire"],
             "example:sockets":[
               {
                 type:"example:gem",
                 accepted:["example:fire-gem"]
               }
-            ]
+            ],
+            "example:metadata":{}
           }
         }
       }

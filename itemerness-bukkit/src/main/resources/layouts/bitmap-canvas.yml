@@ -13,21 +13,21 @@ layouts:
     anchors:
       subtitle:
         x: 18
-        y: 17
+        y: 16
         width: 140
         height: 10
         overflow: ellipsis
       region:
         x: 18
-        y: 33
+        y: 36
         width: 140
         height: 10
         overflow: ellipsis
       body:
         x: 18
-        y: 51
+        y: 56
         width: 140
-        height: 35
+        height: 40
         overflow: ellipsis
     wrapping:
       canvas-body:

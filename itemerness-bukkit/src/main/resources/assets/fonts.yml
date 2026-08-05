@@ -8,11 +8,9 @@ measurement:
 fonts:
   minecraft:default:
     metrics: builtin:minecraft-default-26.1.2
-    fallback-advance-pixels: 6
 
   minecraft:uniform:
     metrics: builtin:minecraft-uniform-26.1.2
-    fallback: minecraft:default
 
   itemerness:body:
     metrics: manifest:itemerness-body

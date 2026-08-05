@@ -30,6 +30,3 @@ themes:
         color: "#ff6961"
       description:
         color: "#e6c9a8"
-    spacing:
-      frame-to-content-pixels: 3
-      field-gap-pixels: 2

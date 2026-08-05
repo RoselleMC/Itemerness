@@ -7,6 +7,7 @@ folia = "26.1.2.build.8-stable"
 canvas = "26.1.2.build.876-stable"
 junit = "5.14.2"
 snakeyaml = "2.6"
+placeholderapi = "2.12.3"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -17,6 +18,7 @@ junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

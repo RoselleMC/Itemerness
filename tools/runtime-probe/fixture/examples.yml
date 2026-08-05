@@ -1,0 +1,34 @@
+# Replace plugins/Itemerness/items/examples.yml with this fixture before Itemerness starts.
+schema-version: 1
+namespace: itemerness
+
+items:
+  travel-token:
+    enabled: true
+    base:
+      material: minecraft:paper
+      components:
+        minecraft:max_stack_size: 16
+        minecraft:enchantment_glint_override: false
+        minecraft:item_model: minecraft:paper
+    instance:
+      mode: fungible
+      schemas:
+        - itemerness:common@1
+      defaults:
+        example:charges: 3
+      generate-on-create:
+        itemerness:created-at:
+          generator: unix-millis
+    presentation:
+      layout: itemerness:plain
+      theme: itemerness:default
+      name:
+        message: item.travel-token.name
+      blocks:
+        - type: field
+          label: data.charges.label
+          data: example:charges
+          format: itemerness:integer
+        - type: description
+          message: item.travel-token.description

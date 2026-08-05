@@ -17,16 +17,34 @@ data class CanonicalItemSnapshot(
     /** Plain pending-name text retained for catalog-level identity consistency validation. */
     val pendingName: String,
     val createdAgainstRevision: Long,
+    /** Monotonic revision of canonical instance data, starting at zero on creation. */
+    val instanceRevision: Long,
     val dataSchemas: CanonicalDataSchemas,
     val instanceId: UUID?,
     val data: ProjectionCompound,
     val fingerprint: CanonicalItemFingerprint,
+    /**
+     * Whether the exact-version adapter proved that replacing all vanilla tooltip detail lines is
+     * safe for this physical stack.
+     *
+     * This is deliberately false by default. Only an adapter that has inspected both the concrete
+     * item implementation and its effective data components may grant this capability.
+     */
+    val canManageVanillaTooltipLines: Boolean = false,
+    /**
+     * Values resolved from catalog-declared, read-only PDC fallbacks by the exact-version adapter.
+     * Keys are canonical data-key strings. Canonical and definition values still have precedence.
+     */
+    val pdcFallbackData: ProjectionCompound = ProjectionCompound(),
 ) {
     init {
         require(count > 0) { "Canonical item count must be positive" }
         require(pendingName.isNotBlank()) { "Canonical pending name must not be blank" }
         require(createdAgainstRevision >= 0) {
             "Canonical creation revision must not be negative"
+        }
+        require(instanceRevision >= 0) {
+            "Canonical instance revision must not be negative"
         }
     }
 }
@@ -36,7 +54,7 @@ data class CanonicalDataSchemaVersion(
     val version: Int,
 ) {
     init {
-        require(version >= 0) { "Canonical data schema version must not be negative" }
+        require(version > 0) { "Canonical data schema version must be positive" }
     }
 }
 

@@ -8,6 +8,7 @@ dependencies {
     paperweight.paperDevBundle(libs.versions.paper.get())
 
     implementation(project(":itemerness-projection-spi"))
+    implementation(project(":itemerness-bukkit-spi"))
     implementation(libs.kotlin.stdlib)
 
     testImplementation(platform(libs.junit.bom))

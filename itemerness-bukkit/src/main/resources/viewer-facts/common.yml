@@ -16,7 +16,7 @@ facts:
     providers:
       - api
       - player-override
-    default: itemerness:default
+    nullable: true
     cache-key: true
 
   itemerness:resource-pack-ready:

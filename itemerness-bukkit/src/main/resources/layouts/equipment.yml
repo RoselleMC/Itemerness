@@ -17,7 +17,7 @@ layouts:
       description:
         left-padding-pixels: 8
         right-padding-pixels: 8
-        gap-before-pixels: 4
+        gap-before-pixels: 10
     wrapping:
       body:
         width: content-minus-section-padding

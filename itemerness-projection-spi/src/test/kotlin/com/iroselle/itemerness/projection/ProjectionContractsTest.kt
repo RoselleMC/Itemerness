@@ -22,6 +22,7 @@ class ProjectionContractsTest {
             count = 1,
             pendingName = "[itemerness:ember_blade]",
             createdAgainstRevision = 3,
+            instanceRevision = 0,
             dataSchemas = CanonicalDataSchemas(
                 listOf(CanonicalDataSchemaVersion(ItemKey.parse("itemerness:common"), 1)),
             ),
@@ -47,6 +48,7 @@ class ProjectionContractsTest {
         )
 
         assertEquals(ProjectionResult.Rendered(expected), result)
+        assertEquals(false, canonical.canManageVanillaTooltipLines)
     }
 
     @Test

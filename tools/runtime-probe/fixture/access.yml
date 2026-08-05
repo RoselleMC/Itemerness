@@ -1,0 +1,16 @@
+config-version: 1
+
+api:
+  defaults:
+    identify: allow
+    create: allow
+    read-data: schema-policy
+    edit-data: deny
+    write-viewer-fact: deny
+    request-refresh: allow
+
+  grants:
+    - plugin: ExampleConsumer
+      actions: [edit-data]
+      item-namespaces: [itemerness]
+      data-namespaces: [example, itemerness]

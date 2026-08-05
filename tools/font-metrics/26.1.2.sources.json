@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "clientVersion": "26.1.2",
+  "versionManifestEntry": {
+    "time": "2026-08-04T06:37:35+00:00",
+    "releaseTime": "2026-04-09T10:12:23+00:00"
+  },
+  "versionMetadata": {
+    "sha1": "d3fd35143b65049d54ffc0dd8e51bfbad6d958d8",
+    "url": "https://piston-meta.mojang.com/v1/packages/d3fd35143b65049d54ffc0dd8e51bfbad6d958d8/26.1.2.json"
+  },
+  "client": {
+    "sha1": "4e618f09a0c649dde3fdf829df443ce0b8831e65",
+    "url": "https://piston-data.mojang.com/v1/objects/4e618f09a0c649dde3fdf829df443ce0b8831e65/client.jar"
+  },
+  "assetIndex": {
+    "id": "30",
+    "sha1": "3391216608325aaf428712b211476abf6d5ddffa",
+    "url": "https://piston-meta.mojang.com/v1/packages/3391216608325aaf428712b211476abf6d5ddffa/30.json"
+  },
+  "clientResources": {
+    "assets/minecraft/font/default.json": "f4912793eb515fc90c6e3364b66c3a2dff5daf60",
+    "assets/minecraft/font/include/default.json": "83145d6437f85e799ef9b8548e9eb6e5db394c1f",
+    "assets/minecraft/font/include/space.json": "ae441f44efaacd6c15fb2b1217971edd0414617b",
+    "assets/minecraft/font/uniform.json": "a2f7c25adecee4cdf6d033ff427a8d592671d945",
+    "assets/minecraft/textures/font/accented.png": "8ef73dad812e87daeb5edb243788bef9c33c14b4",
+    "assets/minecraft/textures/font/ascii.png": "b015d6cac492732cbbf29ad9a5e0fd463e75b84a",
+    "assets/minecraft/textures/font/nonlatin_european.png": "2f54e2287539b87b3ea7bfc347f3496b31de9d95"
+  },
+  "assetResources": {
+    "minecraft/font/include/unifont.json": "402ded0eebd448033ef415e861a17513075f80e7",
+    "minecraft/font/unifont.zip": "ccd5ac4767ce0a9c71d1dd62f2dc25449789b5dd"
+  },
+  "fontOptions": {
+    "jp": false,
+    "uniform": false
+  }
+}

@@ -73,6 +73,8 @@ class RenderedDisplay(
     lore: Collection<RenderedText> = emptyList(),
     val tooltipStyle: ItemKey? = null,
     val itemModel: ItemKey? = null,
+    /** True when the adapter must suppress component-provided lines outside managed Lore. */
+    val managesVanillaTooltipLines: Boolean = false,
 ) {
     val lore: List<RenderedText> = java.util.List.copyOf(lore)
 
@@ -100,19 +102,21 @@ class RenderedDisplay(
             displayName == other.displayName &&
             lore == other.lore &&
             tooltipStyle == other.tooltipStyle &&
-            itemModel == other.itemModel
+            itemModel == other.itemModel &&
+            managesVanillaTooltipLines == other.managesVanillaTooltipLines
 
     override fun hashCode(): Int {
         var result = displayName.hashCode()
         result = 31 * result + lore.hashCode()
         result = 31 * result + (tooltipStyle?.hashCode() ?: 0)
         result = 31 * result + (itemModel?.hashCode() ?: 0)
+        result = 31 * result + managesVanillaTooltipLines.hashCode()
         return result
     }
 
     override fun toString(): String =
         "RenderedDisplay(displayName=$displayName, lore=$lore, tooltipStyle=$tooltipStyle, " +
-            "itemModel=$itemModel)"
+        "itemModel=$itemModel, managesVanillaTooltipLines=$managesVanillaTooltipLines)"
 
     private companion object {
         const val MAX_LORE_LINES = 256

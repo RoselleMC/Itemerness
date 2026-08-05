@@ -23,6 +23,12 @@ dependencyResolutionManagement {
         maven("https://maven.canvasmc.io/releases") {
             name = "CanvasMC"
         }
+        maven("https://repo.extendedclip.com/releases/") {
+            name = "PlaceholderAPI"
+            content {
+                includeGroup("me.clip")
+            }
+        }
     }
 }
 
@@ -31,5 +37,6 @@ rootProject.name = "Itemerness"
 include("itemerness-api")
 include("itemerness-core")
 include("itemerness-projection-spi")
+include("itemerness-bukkit-spi")
 include("itemerness-nms-26_1_2")
 include("itemerness-bukkit")

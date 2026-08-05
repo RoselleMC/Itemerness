@@ -1,0 +1,9 @@
+name: ExampleConsumer
+version: '1.0.0'
+main: com.iroselle.itemerness.tools.runtimeprobe.ItemernessRuntimeProbePlugin
+description: Disposable runtime contract probe for Itemerness.
+api-version: '26.1.2'
+folia-supported: true
+load: POSTWORLD
+depend:
+  - Itemerness

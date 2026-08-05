@@ -20,6 +20,7 @@ keys:
   example:quality:
     type: namespaced-key
     scope: instance
+    nullable: true
     default: example:common
     affects-stacking: true
     presentation-readable: true
@@ -106,7 +107,7 @@ keys:
     read-sources:
       - canonical-nbt
     access:
-      read: owner-only
+      read: internal
       write:
         - plugin:ExampleConsumer
     placeholder-api:
@@ -222,7 +223,7 @@ keys:
     read-sources:
       - canonical-nbt
     access:
-      read: owner-only
+      read: internal
       write:
         - plugin:ExampleConsumer
     placeholder-api:

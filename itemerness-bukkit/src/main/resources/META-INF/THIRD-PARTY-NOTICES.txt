@@ -1,0 +1,24 @@
+Itemerness third-party notices
+=============================
+
+The deployable Itemerness JAR contains the following third-party software:
+
+* Kotlin Standard Library 2.4.0
+  Project: https://github.com/JetBrains/kotlin
+  Copyright: JetBrains s.r.o. and Kotlin contributors
+  License: Apache License 2.0
+
+* SnakeYAML 2.6
+  Project: https://bitbucket.org/snakeyaml/snakeyaml
+  Copyright: Andrey Somov and SnakeYAML contributors
+  License: Apache License 2.0
+  Modification notice: package names are relocated under
+  com.iroselle.itemerness.libs.snakeyaml when the distribution JAR is built.
+
+* JetBrains Java Annotations 13.0
+  Project: https://github.com/JetBrains/intellij-community
+  Copyright: JetBrains s.r.o. and contributors
+  License: Apache License 2.0
+
+The complete Apache License 2.0 text is included at
+META-INF/licenses/Apache-2.0.txt in this JAR.

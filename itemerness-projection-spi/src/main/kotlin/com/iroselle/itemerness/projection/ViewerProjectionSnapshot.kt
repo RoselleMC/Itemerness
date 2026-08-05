@@ -24,8 +24,11 @@ data class ViewerFact(
 class ViewerProjectionSnapshot(
     val viewerId: UUID,
     val revision: Long,
+    /** Catalog revision against which locale, facts, profile, and capabilities were resolved. */
+    val catalogRevision: Long = 0,
     val locale: LocaleId,
-    val theme: ItemKey,
+    /** Optional viewer override. Null delegates theme selection to each item presentation. */
+    val theme: ItemKey?,
     val assetProfile: ItemKey?,
     facts: Collection<ViewerFact> = emptyList(),
     capabilities: Collection<ItemKey> = emptyList(),
@@ -39,6 +42,7 @@ class ViewerProjectionSnapshot(
 
     init {
         require(revision >= 0) { "Viewer snapshot revision must not be negative" }
+        require(catalogRevision >= 0) { "Viewer catalog revision must not be negative" }
         require(this.facts.size <= MAX_FACTS) {
             "Viewer snapshots must not exceed $MAX_FACTS facts"
         }
@@ -62,6 +66,7 @@ class ViewerProjectionSnapshot(
             other is ViewerProjectionSnapshot &&
             viewerId == other.viewerId &&
             revision == other.revision &&
+            catalogRevision == other.catalogRevision &&
             locale == other.locale &&
             theme == other.theme &&
             assetProfile == other.assetProfile &&
@@ -71,6 +76,7 @@ class ViewerProjectionSnapshot(
     override fun hashCode(): Int {
         var result = viewerId.hashCode()
         result = 31 * result + revision.hashCode()
+        result = 31 * result + catalogRevision.hashCode()
         result = 31 * result + locale.hashCode()
         result = 31 * result + theme.hashCode()
         result = 31 * result + (assetProfile?.hashCode() ?: 0)
@@ -80,7 +86,8 @@ class ViewerProjectionSnapshot(
     }
 
     override fun toString(): String =
-        "ViewerProjectionSnapshot(viewerId=$viewerId, revision=$revision, locale=$locale, " +
+        "ViewerProjectionSnapshot(viewerId=$viewerId, revision=$revision, " +
+            "catalogRevision=$catalogRevision, locale=$locale, " +
             "theme=$theme, assetProfile=$assetProfile, facts=$facts, capabilities=$capabilities)"
 
     private companion object {

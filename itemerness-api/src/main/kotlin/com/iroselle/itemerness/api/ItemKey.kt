@@ -4,7 +4,7 @@ package com.iroselle.itemerness.api
 data class ItemKey(
     val namespace: String,
     val value: String,
-) {
+) : Comparable<ItemKey> {
     init {
         require(namespace.length <= MAX_NAMESPACE_LENGTH) {
             "Item namespace must not exceed $MAX_NAMESPACE_LENGTH characters"
@@ -21,6 +21,11 @@ data class ItemKey(
     }
 
     override fun toString(): String = "$namespace:$value"
+
+    override fun compareTo(other: ItemKey): Int {
+        val namespaceOrder = namespace.compareTo(other.namespace)
+        return if (namespaceOrder != 0) namespaceOrder else value.compareTo(other.value)
+    }
 
     companion object {
         private const val MAX_NAMESPACE_LENGTH = 64
