@@ -4,8 +4,8 @@ config-version: 3
 catalog:
   default-namespace: itemerness
 
-# Leave both values empty to use only the local catalog. The token is a secret
-# issued by the deployed editor and identifies this server connection.
+# Reserved for the separately planned editor integration. It is unavailable in
+# this release, so both values must remain empty.
 editor:
   url: ""
   token: ""

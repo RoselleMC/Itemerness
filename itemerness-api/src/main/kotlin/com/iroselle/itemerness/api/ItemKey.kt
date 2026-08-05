@@ -6,6 +6,12 @@ data class ItemKey(
     val value: String,
 ) {
     init {
+        require(namespace.length <= MAX_NAMESPACE_LENGTH) {
+            "Item namespace must not exceed $MAX_NAMESPACE_LENGTH characters"
+        }
+        require(namespace.length + 1 + value.length <= MAX_KEY_LENGTH) {
+            "Item key must not exceed $MAX_KEY_LENGTH characters"
+        }
         require(NAMESPACE_PATTERN.matches(namespace)) {
             "Item namespace must match ${NAMESPACE_PATTERN.pattern}: $namespace"
         }
@@ -17,6 +23,8 @@ data class ItemKey(
     override fun toString(): String = "$namespace:$value"
 
     companion object {
+        private const val MAX_NAMESPACE_LENGTH = 64
+        private const val MAX_KEY_LENGTH = 256
         private val NAMESPACE_PATTERN = Regex("[a-z0-9._-]+")
         private val VALUE_PATTERN = Regex("[a-z0-9/._-]+")
 

@@ -2,9 +2,15 @@
 schema-version: 1
 minecraft-version: "26.1.2"
 adapter-module: itemerness-nms-26_1_2
-coverage-status: design-seed
+coverage-status: stage-0-vertical-slice
 release-gate-enabled: false
 release-gate-requirement: generated-exhaustive-carrier-scan
+
+implemented-prototype:
+  - direct-custom-data-codec
+  - immutable-viewer-projection-contract
+  - container-set-slot-packet-rebuild
+  - packaged-passive-channel-hook-not-started
 
 pipeline:
   packet-stage: decoded

@@ -1,6 +1,7 @@
 [versions]
 kotlin = "2.4.0"
 shadow = "9.4.2"
+paperweight = "2.0.0-beta.21"
 paper = "26.1.2.build.74-stable"
 folia = "26.1.2.build.8-stable"
 canvas = "26.1.2.build.876-stable"
@@ -19,4 +20,5 @@ snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+paperweight-userdev = { id = "io.papermc.paperweight.userdev", version.ref = "paperweight" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

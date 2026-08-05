@@ -16,7 +16,15 @@ class ItemKeyTest {
 
     @Test
     fun `rejects malformed item keys`() {
-        listOf("missing_namespace", ":value", "namespace:", "UPPER:value", "a:b:c").forEach { input ->
+        listOf(
+            "missing_namespace",
+            ":value",
+            "namespace:",
+            "UPPER:value",
+            "a:b:c",
+            "n".repeat(65) + ":value",
+            "namespace:" + "v".repeat(247),
+        ).forEach { input ->
             assertThrows(IllegalArgumentException::class.java) {
                 ItemKey.parse(input)
             }

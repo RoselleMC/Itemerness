@@ -10,6 +10,8 @@ val minecraftApiVersion = libs.versions.paper.get().substringBefore(".build.")
 
 dependencies {
     implementation(project(":itemerness-core"))
+    implementation(project(":itemerness-projection-spi"))
+    runtimeOnly(project(":itemerness-nms-26_1_2"))
     implementation(libs.kotlin.stdlib)
     compileOnly(libs.paper.api)
 
@@ -69,12 +71,18 @@ tasks.processResources {
 
 tasks.jar {
     enabled = false
+    manifest.attributes(
+        "paperweight-mappings-namespace" to "mojang",
+    )
 }
 
 tasks.named<ShadowJar>("shadowJar") {
     archiveFileName.set("Itemerness.jar")
     archiveClassifier.set("")
     mergeServiceFiles()
+    manifest.attributes(
+        "paperweight-mappings-namespace" to "mojang",
+    )
 }
 
 val checkFoliaUnsafeScheduling by tasks.registering {
@@ -142,6 +150,34 @@ val verifyPluginJar by tasks.registering {
             }
             check(jar.getJarEntry("com/iroselle/itemerness/api/ItemernessApi.class") != null) {
                 "Itemerness.jar does not contain the public API"
+            }
+            check(jar.getJarEntry("com/iroselle/itemerness/projection/ProjectionAdapter.class") != null) {
+                "Itemerness.jar does not contain the projection SPI"
+            }
+            check(
+                jar.getJarEntry(
+                    "com/iroselle/itemerness/nms/v26_1_2/NmsProjectionAdapterFactory.class",
+                ) != null,
+            ) {
+                "Itemerness.jar does not contain the exact-version NMS adapter"
+            }
+            val projectionService = checkNotNull(
+                jar.getJarEntry(
+                    "META-INF/services/com.iroselle.itemerness.projection.ProjectionAdapterFactory",
+                ),
+            ) {
+                "Itemerness.jar does not contain the projection adapter service descriptor"
+            }
+            val projectionProviders = jar.getInputStream(projectionService)
+                .bufferedReader(Charsets.UTF_8)
+                .use { reader -> reader.readLines().map(String::trim).filter(String::isNotEmpty) }
+            check(
+                "com.iroselle.itemerness.nms.v26_1_2.NmsProjectionAdapterFactory" in projectionProviders,
+            ) {
+                "Itemerness.jar does not register the exact-version NMS adapter"
+            }
+            check(jar.manifest.mainAttributes.getValue("paperweight-mappings-namespace") == "mojang") {
+                "Itemerness.jar must declare the Mojang mappings namespace"
             }
             check(jar.getJarEntry("config.yml") != null) {
                 "Itemerness.jar does not contain the default user configuration"

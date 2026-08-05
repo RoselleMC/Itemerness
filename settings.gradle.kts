@@ -1,6 +1,9 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        maven("https://repo.papermc.io/repository/maven-public/") {
+            name = "PaperMC"
+        }
     }
 }
 
@@ -9,7 +12,9 @@ plugins {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // paperweight-userdev installs the exact dev-bundle repository while configuring the NMS
+    // module, so Gradle's FAIL_ON_PROJECT_REPOS mode cannot be used for this build.
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/") {
@@ -25,4 +30,6 @@ rootProject.name = "Itemerness"
 
 include("itemerness-api")
 include("itemerness-core")
+include("itemerness-projection-spi")
+include("itemerness-nms-26_1_2")
 include("itemerness-bukkit")
