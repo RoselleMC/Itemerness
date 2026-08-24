@@ -25,7 +25,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `publishes one complete initial runtime snapshot`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
 
         val update = manager.reload()
 
@@ -40,7 +40,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `invalid reload preserves the complete active snapshot and revision`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         manager.reload()
         val before = manager.snapshot()
         Files.writeString(directory.resolve("items/examples.yml"), "schema-version: 1\nnamespace: itemerness\nitems: [invalid]\n")
@@ -56,7 +56,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `invalid writer policy reload fails closed without replacing the active snapshot`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = requireNotNull(manager.snapshot())
         val schema = directory.resolve("data-keys/common.yml")
@@ -78,7 +78,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `check-only compile does not publish or advance revision`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         manager.reload()
         val before = manager.snapshot()
 
@@ -92,7 +92,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `clearing the manager is terminal and a later reload cannot revive it`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
 
         manager.clear()
@@ -107,7 +107,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `presentation data references are checked against each resolved item schema atomically`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = manager.snapshot()
         rewriteItems { source ->
@@ -138,7 +138,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `disabled shipped items remain part of strict cross-domain validation`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = manager.snapshot()
         rewriteItems { source ->
@@ -161,7 +161,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `incompatible formatters and non-item materials cannot publish a partial runtime`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val initial = manager.snapshot()
         rewriteItems { source ->
@@ -202,7 +202,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `placeholder formatters are checked against their data schema types`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = manager.snapshot()
         val path = directory.resolve("data-keys/common.yml")
@@ -238,7 +238,7 @@ class RuntimeCatalogManagerTest {
             Charsets.UTF_8,
         )
 
-        val update = RuntimeCatalogManager(directory).reload()
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
 
         assertTrue(update is RuntimeCatalogUpdate.Rejected)
         assertTrue(
@@ -266,7 +266,7 @@ class RuntimeCatalogManagerTest {
             Charsets.UTF_8,
         )
 
-        val update = RuntimeCatalogManager(directory).reload()
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
 
         assertTrue(update is RuntimeCatalogUpdate.Rejected)
         assertTrue(
@@ -295,7 +295,7 @@ class RuntimeCatalogManagerTest {
             Charsets.UTF_8,
         )
 
-        val update = RuntimeCatalogManager(directory).reload()
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
 
         assertTrue(update is RuntimeCatalogUpdate.Rejected)
         assertTrue(
@@ -322,7 +322,7 @@ class RuntimeCatalogManagerTest {
             Charsets.UTF_8,
         )
 
-        val update = RuntimeCatalogManager(directory).reload()
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
 
         assertTrue(update is RuntimeCatalogUpdate.Rejected)
         assertTrue(
@@ -337,7 +337,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `a valid cross-domain update publishes one new complete snapshot`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = manager.snapshot()
         rewriteItems { source -> source.replaceFirst("enabled: false", "enabled: true") }
@@ -357,7 +357,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `failed downstream commit rolls back before the api catalog can advance`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val before = requireNotNull(manager.snapshot())
         rewriteItems { source -> source.replaceFirst("enabled: false", "enabled: true") }
@@ -390,7 +390,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `nonfatal error after projection commit rolls back and leaves the revision reusable`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val projection = ProjectionStateStore()
         fun publication(commitFailure: Throwable? = null) = RuntimeCatalogPublication { candidate ->
             val preparedProjection = projection.prepareCatalog(candidate, candidate.presentation)
@@ -437,7 +437,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `nonfatal preparation error preserves the old snapshot and leaves the revision reusable`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val initial = manager.reload() as RuntimeCatalogUpdate.Published
         val failure = LinkageError("incompatible publication preparation")
 
@@ -457,7 +457,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `nonfatal rollback error is reported only after downstream state is restored`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val initial = manager.reload() as RuntimeCatalogUpdate.Published
         val commitFailure = IllegalStateException("downstream commit failed")
         val rollbackFailure = LinkageError("rollback observer failed")
@@ -489,7 +489,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `fatal commit error is rethrown only after downstream rollback`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val initial = manager.reload() as RuntimeCatalogUpdate.Published
         val fatal = object : VirtualMachineError("fatal downstream commit") {}
         var downstreamRevision = initial.active.domain.revision
@@ -520,7 +520,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `post-commit nonfatal listener error reports a warning without splitting revisions`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val prepared = manager.prepareReload() as RuntimeCatalogUpdate.Prepared
         var projectedRevision = 1L
@@ -553,7 +553,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `a prepared reload is a one-shot publication token`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val prepared = manager.prepareReload() as RuntimeCatalogUpdate.Prepared
 
@@ -568,7 +568,7 @@ class RuntimeCatalogManagerTest {
     @Test
     fun `coherent snapshot acquisition cannot mix old runtime with committed downstream state`() {
         installBundledDomain()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         assertTrue(manager.reload() is RuntimeCatalogUpdate.Published)
         val prepared = manager.prepareReload() as RuntimeCatalogUpdate.Prepared
         val downstreamRevision = AtomicLong(1)

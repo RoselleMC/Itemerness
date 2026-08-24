@@ -681,7 +681,7 @@ class BukkitItemStackApiTest {
         slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
     ): Fixture {
         installBundledDomain(allowEdit, enableNested)
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val update = catalog.reload()
         assertTrue(
             update is RuntimeCatalogUpdate.Published,

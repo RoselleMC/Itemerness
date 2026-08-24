@@ -19,6 +19,8 @@ import com.iroselle.itemerness.bukkit.command.DefaultItemernessCommandActions
 import com.iroselle.itemerness.bukkit.command.ItemernessCommands
 import com.iroselle.itemerness.bukkit.placeholder.PlaceholderApiIntegration
 import com.iroselle.itemerness.bukkit.placeholder.PlaceholderSnapshotStore
+import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsLoader
+import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
 import com.iroselle.itemerness.bukkit.projection.ProjectionStateStore
 import com.iroselle.itemerness.bukkit.projection.VisibleSurfaceRefreshCoordinator
 import com.iroselle.itemerness.bukkit.projection.ViewerStatePublisher
@@ -61,7 +63,12 @@ class ItemernessPlugin : JavaPlugin() {
             BundledResources.extract(this)
 
             val scheduler = FoliaScheduler(this)
-            val catalog = RuntimeCatalogManager(dataFolder.toPath())
+            val builtinFontMetrics = BuiltinFontMetricsLoader.bundled(server.minecraftVersion)
+            val catalog = RuntimeCatalogManager(
+                dataFolder.toPath(),
+                server.minecraftVersion,
+                presentationLoader = PresentationSourceLoader(builtinFontMetrics),
+            )
             val initial = catalog.reload()
             check(initial is RuntimeCatalogUpdate.Published) {
                 val diagnostics = initial.diagnostics.joinToString("; ") { diagnostic ->
@@ -158,6 +165,7 @@ class ItemernessPlugin : JavaPlugin() {
                     agentVersion = pluginMeta.version,
                     minecraftVersion = server.minecraftVersion,
                     platform = server.name,
+                    builtinFontMetrics = builtinFontMetrics,
                     logger = logger,
                     scheduler = FoliaAgentScheduler(scheduler),
                     worker = asyncExecutor,

@@ -6,7 +6,7 @@ The project targets Paper, Folia, and Canvas as first-class runtimes. It does no
 
 ## Status
 
-The plugin implementation for stages 0-3 is available for Minecraft `26.1.2` and Java `25`:
+The plugin implementation for stages 0-3 covers the currently supported Minecraft version and Bukkit-platform combinations from `1.21.11` through `26.2`:
 
 - atomic catalog loading, validation, publication, and rollback;
 - canonical item creation, identification, typed data reads, and atomic edits;
@@ -14,25 +14,34 @@ The plugin implementation for stages 0-3 is available for Minecraft `26.1.2` and
 - Paper lifecycle Brigadier commands and an internal PlaceholderAPI expansion;
 - locale-aware rendering, formatters, conditions, repeats, nested items, pixel wrapping, and theme fallback;
 - plain, resource-pack-free character frame, native tooltip style, segmented frame, and experimental bitmap-canvas renderers;
-- exact `26.1.2` direct-NMS projection across the scanned packet, component, structured payload, NBT, and nested-item surfaces;
-- bounded HashedStack, creative-mode, custom-action, refresh, and connection lifecycle state.
+- exact direct-NMS projection for `1.21.11`, `26.1.1`, `26.1.2`, and `26.2` across the scanned packet, component, structured payload, NBT, and nested-item surfaces;
+- bounded HashedStack, creative-mode, custom-action, refresh, and connection lifecycle state;
 - an optional outbound editor agent that compiles exact document snapshots for server-verified previews.
 
 Bitmap output remains experimental. Automated tests and server smoke tests do not replace real-client verification of final pixels, GUI-scale behavior, or the complete manual inventory interaction matrix.
 
-The Craft Runner smoke matrix covers Paper, Folia, and Canvas on Java 25. It verifies the exact NMS adapter, an independent API consumer, catalog publication, commands, and PlaceholderAPI. Local verification covers the JVM modules and the editor's protocol, renderer, browser workflow, and production bundles.
+The Craft Runner smoke matrix covers every currently available Paper, Folia, and Canvas combination in the supported range. Minecraft `1.21.11` runs on Java 21; `26.x` runs on Java 25. The matrix verifies the exact NMS adapter, an independent API consumer, catalog publication, commands, and PlaceholderAPI. Local verification covers the JVM modules and the editor's protocol, renderer, browser workflow, and production bundles.
 
-An initial self-hosted web editor is available under `editor/`. It loads and autosaves the authoring document, renders live local previews, mounts resource-pack assets in the browser, and can ask a paired server to compile the exact draft with the production Kotlin compiler. It does not yet provide authentication, persistence, publication, rollback, or multi-server rollout; the default deployment is therefore loopback-only.
+An initial self-hosted web editor is available under `editor/`. It loads and autosaves the authoring document, renders live local previews, mounts resource-pack assets in the browser, and can ask a paired server to compile the exact draft with the production Kotlin compiler. Its preview asset pipeline is currently pinned to `26.1.2`; paired previews for the other supported server versions remain editor work. It does not yet provide authentication, persistence, publication, rollback, or multi-server rollout; the default deployment is therefore loopback-only.
 
 ## Baseline
 
-- Minecraft `26.1.2` only
-- Java `25`
+- Supported releases: Minecraft `1.21.11`, `26.1.1`, `26.1.2`, and `26.2`; the support floor is `1.21.11`
+- Java `21` for Minecraft `1.21.11`; Java `25` for Minecraft `26.x`
+- Java `21` plugin bytecode, built with JDK `25`
 - Kotlin `2.4.0`
 - Gradle Kotlin DSL
 - `plugin.yml` with `folia-supported: true`
 
 An unsupported Minecraft version fails during startup. New Minecraft ABIs require new adapter modules and their own carrier audit; adjacent versions are never guessed through a shared reflection layer.
+
+| Minecraft | Paper | Folia | Canvas | Runtime Java |
+| --- | --- | --- | --- | --- |
+| `1.21.11` | build 132 | build 14 | build 794 | 21 |
+| `26.1` | unavailable upstream | unavailable upstream | unavailable upstream | 25 |
+| `26.1.1` | build 29 alpha | unavailable upstream | unavailable upstream | 25 |
+| `26.1.2` | build 74 | build 8 | build 876 | 25 |
+| `26.2` | build 116 | build 6 beta | build 936 | 25 |
 
 ## Modules
 
@@ -40,7 +49,10 @@ An unsupported Minecraft version fails during startup. New Minecraft ABIs requir
 itemerness-core -> itemerness-api
 itemerness-projection-spi -> itemerness-api
 itemerness-bukkit-spi -> itemerness-api, itemerness-projection-spi
+itemerness-nms-1_21_11 -> itemerness-projection-spi, itemerness-bukkit-spi
+itemerness-nms-26_1_1 -> itemerness-projection-spi, itemerness-bukkit-spi
 itemerness-nms-26_1_2 -> itemerness-projection-spi, itemerness-bukkit-spi
+itemerness-nms-26_2 -> itemerness-projection-spi, itemerness-bukkit-spi
 itemerness-editor-protocol -> itemerness-core
 itemerness-editor-agent -> itemerness-editor-protocol, itemerness-core
 itemerness-bukkit -> all runtime modules
@@ -50,7 +62,7 @@ itemerness-bukkit -> all runtime modules
 - `itemerness-core` contains catalog and presentation models that do not depend on Bukkit or NMS.
 - `itemerness-projection-spi` contains immutable projection snapshots and adapter lifecycle contracts.
 - `itemerness-bukkit-spi` isolates canonical Bukkit `ItemStack` access from the distribution module.
-- `itemerness-nms-26_1_2` contains the exact-version ABI probe, packet projection, inbound restoration, and connection state.
+- `itemerness-nms-*` modules contain one exact-version ABI probe, packet projection, inbound restoration, and connection state implementation per supported Minecraft version.
 - `itemerness-editor-protocol` contains the managed-document codec and the JVM wire contract without Bukkit or NMS types.
 - `itemerness-editor-agent` contains the outbound WebSocket state machine and the production preview compiler bridge.
 - `itemerness-bukkit` contains catalog loading, Bukkit services, Brigadier, PlaceholderAPI, Folia-safe scheduling, the editor lifecycle bridge, resources, and the deployable JAR.
@@ -61,7 +73,7 @@ The NMS module is shaded into the Bukkit distribution. NMS, CraftBukkit, packet,
 
 ## Build
 
-Use a Java 25 runtime:
+Build with JDK 25:
 
 ```bash
 ./gradlew check build

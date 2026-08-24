@@ -128,7 +128,7 @@ class PdcFallbackReaderTest {
             Files.readString(items).replaceFirst("enabled: false", "enabled: true"),
             Charsets.UTF_8,
         )
-        val update = RuntimeCatalogManager(directory).reload()
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
         assertTrue(update is RuntimeCatalogUpdate.Published, update.diagnostics.toString())
         val runtime = (update as RuntimeCatalogUpdate.Published).active
         val pdcKey = ItemKey.parse("legacyitems:ratio")

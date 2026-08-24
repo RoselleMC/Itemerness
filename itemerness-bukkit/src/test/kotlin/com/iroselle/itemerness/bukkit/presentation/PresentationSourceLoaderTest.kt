@@ -107,11 +107,26 @@ class PresentationSourceLoaderTest {
     }
 
     @Test
+    fun `server font selector resolves each supported client revision`() {
+        listOf("1.21.11", "26.1.1", "26.1.2", "26.2").forEach { version ->
+            val fonts = load(clientVersion = version).source.fonts.associateBy { it.id }
+            assertEquals(
+                "builtin:minecraft-default-$version",
+                fonts.getValue("minecraft:default").metricsRevision,
+            )
+            assertEquals(
+                "builtin:minecraft-uniform-$version",
+                fonts.getValue("minecraft:uniform").metricsRevision,
+            )
+        }
+    }
+
+    @Test
     fun `builtin metrics reject configured approximate fallback widths`() {
         replace(
             "assets/fonts.yml",
-            "    metrics: builtin:minecraft-default-26.1.2",
-            "    metrics: builtin:minecraft-default-26.1.2\n    fallback-advance-pixels: 6",
+            "    metrics: builtin:minecraft-default",
+            "    metrics: builtin:minecraft-default\n    fallback-advance-pixels: 6",
         )
 
         val exception = assertThrows(StrictYamlException::class.java, ::load)
@@ -416,9 +431,10 @@ class PresentationSourceLoaderTest {
     private fun load(
         defaultLayout: ItemKey? = null,
         defaultTheme: ItemKey? = null,
+        clientVersion: String = "26.1.2",
     ): LoadedPresentationSource {
         val catalog = CatalogSourceLoader().load(directory)
-        return PresentationSourceLoader().loadAndCompile(
+        return PresentationSourceLoader(BuiltinFontMetricsLoader.bundled(clientVersion)).loadAndCompile(
             root = directory,
             catalog = catalog,
             defaultLocale = "en_us",

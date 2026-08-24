@@ -163,7 +163,7 @@ class DefaultItemernessCommandActionsTest {
     fun `reload keeps the active revision when downstream publication fails`() {
         installBundledDomain()
         val platform = Platform()
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         assertEquals(1, (catalog.reload() as RuntimeCatalogUpdate.Published).active.domain.revision)
         var projectedRevision = 1L
         val actions = actions(
@@ -207,7 +207,7 @@ class DefaultItemernessCommandActionsTest {
                 "  framed-relic:\n    enabled: true",
             ),
         )
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         assertEquals(1, (catalog.reload() as RuntimeCatalogUpdate.Published).active.domain.revision)
         val createEntered = CountDownLatch(1)
         val releaseCreate = CountDownLatch(1)
@@ -257,7 +257,7 @@ class DefaultItemernessCommandActionsTest {
         installBundledDomain()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:travel-token")
         val definition = requireNotNull(runtime.domain.findItem(itemKey))
@@ -345,7 +345,7 @@ class DefaultItemernessCommandActionsTest {
         installBundledDomain()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:travel-token")
         val definition = requireNotNull(runtime.domain.findItem(itemKey))
@@ -425,7 +425,7 @@ class DefaultItemernessCommandActionsTest {
             ),
             Charsets.UTF_8,
         )
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:survey-codex")
         val restored = CanonicalDomainResult.Valid(
@@ -453,7 +453,7 @@ class DefaultItemernessCommandActionsTest {
         installBundledDomain()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:travel-token")
         val quality = DataKey.parse("example:quality")
@@ -514,7 +514,7 @@ class DefaultItemernessCommandActionsTest {
         platform: Platform,
         playerRefreshed: (UUID) -> Boolean = { false },
         runtimeActive: () -> Boolean = { true },
-        catalog: RuntimeCatalogManager = RuntimeCatalogManager(directory),
+        catalog: RuntimeCatalogManager = RuntimeCatalogManager(directory, "26.1.2"),
         catalogPublication: RuntimeCatalogPublication = RuntimeCatalogPublication.NO_OP,
         bridge: BukkitCanonicalItemBridge = proxy(BukkitCanonicalItemBridge::class.java) { method, _ ->
             defaultValue(method)

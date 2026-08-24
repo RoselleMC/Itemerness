@@ -64,7 +64,7 @@ class ProjectionStateStoreTest {
         installBundledResources()
         val assets = directory.resolve("assets/bitmaps.yml")
         Files.writeString(assets, Files.readString(assets).replace("enabled: false", "enabled: true"))
-        val runtime = (RuntimeCatalogManager(directory).reload() as RuntimeCatalogUpdate.Published).active
+        val runtime = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
         val store = ProjectionStateStore()
         store.publishCatalog(runtime, runtime.presentation)
         val packId = UUID.fromString("00000000-0000-0000-0000-000000000001")
@@ -81,7 +81,7 @@ class ProjectionStateStoreTest {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val update = manager.reload()
         require(update is RuntimeCatalogUpdate.Published) { update.diagnostics.joinToString() }
         val runtime = update.active
@@ -122,7 +122,7 @@ class ProjectionStateStoreTest {
     @Test
     fun `publication keeps old viewer contexts usable until that viewer is recaptured`() {
         installBundledResources()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val first = manager.reload() as RuntimeCatalogUpdate.Published
         val store = ProjectionStateStore()
         val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba13a")
@@ -145,7 +145,7 @@ class ProjectionStateStoreTest {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val first = manager.reload() as RuntimeCatalogUpdate.Published
         val itemKey = ItemKey.parse("itemerness:travel-token")
         val canonical = canonical(
@@ -190,7 +190,7 @@ class ProjectionStateStoreTest {
                 "  travel-token:\n    enabled: true",
             ),
         )
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val first = manager.reload() as RuntimeCatalogUpdate.Published
         val store = ProjectionStateStore()
         val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba13d")
@@ -264,7 +264,7 @@ class ProjectionStateStoreTest {
     @Test
     fun `prepared catalog publication is invisible until commit and can restore its exact predecessor`() {
         installBundledResources()
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val first = manager.reload() as RuntimeCatalogUpdate.Published
         val second = manager.reload() as RuntimeCatalogUpdate.Published
         val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba13b")
@@ -299,7 +299,7 @@ class ProjectionStateStoreTest {
                 "  ember-blade:\n    enabled: true",
             ),
         )
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val update = manager.reload() as RuntimeCatalogUpdate.Published
         val runtime = update.active
         val itemKey = ItemKey.parse("itemerness:ember-blade")
@@ -359,7 +359,7 @@ class ProjectionStateStoreTest {
                 "  ember-blade:\n    enabled: true",
             ),
         )
-        val runtime = (RuntimeCatalogManager(directory).reload() as RuntimeCatalogUpdate.Published).active
+        val runtime = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:ember-blade")
         val quality = DataKey.parse("example:quality")
         val withoutCanonicalQuality = runtime.domain.editInstance(
@@ -452,7 +452,7 @@ class ProjectionStateStoreTest {
                 "  framed-relic:\n    enabled: true",
             ),
         )
-        val update = RuntimeCatalogManager(directory).reload() as RuntimeCatalogUpdate.Published
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published
         val runtime = update.active
         val itemKey = ItemKey.parse("itemerness:framed-relic")
         val definition = requireNotNull(runtime.domain.findItem(itemKey))
@@ -513,7 +513,7 @@ class ProjectionStateStoreTest {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val first = manager.reload() as RuntimeCatalogUpdate.Published
         val second = manager.reload() as RuntimeCatalogUpdate.Published
         val itemKey = ItemKey.parse("itemerness:travel-token")
@@ -583,7 +583,7 @@ class ProjectionStateStoreTest {
                     "  nested-satchel:\n    enabled: true",
                 ),
         )
-        val manager = RuntimeCatalogManager(directory)
+        val manager = RuntimeCatalogManager(directory, "26.1.2")
         val update = manager.reload() as RuntimeCatalogUpdate.Published
         val runtime = update.active
         val itemKey = ItemKey.parse("itemerness:nested-satchel")

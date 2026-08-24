@@ -8,6 +8,7 @@ import java.security.MessageDigest
 import java.util.Collections
 import java.util.HexFormat
 import java.util.LinkedHashMap
+import java.util.concurrent.ConcurrentHashMap
 
 internal data class BuiltinFontMetricsTable(
     val fontId: String,
@@ -31,29 +32,37 @@ internal class BuiltinFontMetricsArtifact internal constructor(
 
 /** Reads the generated vanilla metrics artifact without loading Minecraft client classes. */
 internal object BuiltinFontMetricsLoader {
-    const val RESOURCE_PATH = "META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm"
+    private val bundledArtifacts = ConcurrentHashMap<String, BuiltinFontMetricsArtifact>()
 
-    private val bundledArtifact: BuiltinFontMetricsArtifact by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        loadBundled { path -> BuiltinFontMetricsLoader::class.java.classLoader.getResourceAsStream(path) }
-    }
+    fun bundled(clientVersion: String): BuiltinFontMetricsArtifact =
+        bundledArtifacts.computeIfAbsent(clientVersion) { version ->
+            loadBundled(version) { path ->
+                BuiltinFontMetricsLoader::class.java.classLoader.getResourceAsStream(path)
+            }
+        }
 
-    fun bundled(): BuiltinFontMetricsArtifact = bundledArtifact
+    fun resourcePath(clientVersion: String): String = expectation(clientVersion).resourcePath
 
     internal fun loadBundled(
+        clientVersion: String,
         resource: (String) -> InputStream?,
     ): BuiltinFontMetricsArtifact {
-        val input = resource(RESOURCE_PATH)
-            ?: throw StrictYamlException("Missing bundled font metrics artifact $RESOURCE_PATH")
-        return input.use(::read)
+        val expectation = expectation(clientVersion)
+        val input = resource(expectation.resourcePath)
+            ?: throw StrictYamlException("Missing bundled font metrics artifact ${expectation.resourcePath}")
+        return input.use { read(it, clientVersion) }
     }
 
-    internal fun read(input: InputStream): BuiltinFontMetricsArtifact {
+    internal fun read(
+        input: InputStream,
+        clientVersion: String,
+    ): BuiltinFontMetricsArtifact {
         return try {
             val bytes = input.readNBytes(MAX_ARTIFACT_BYTES + 1)
             if (bytes.size > MAX_ARTIFACT_BYTES) {
                 throw StrictYamlException("Bundled font metrics artifact exceeds the size limit")
             }
-            decode(bytes)
+            decode(bytes, expectation(clientVersion))
         } catch (exception: StrictYamlException) {
             throw exception
         } catch (exception: Exception) {
@@ -61,7 +70,10 @@ internal object BuiltinFontMetricsLoader {
         }
     }
 
-    private fun decode(bytes: ByteArray): BuiltinFontMetricsArtifact {
+    private fun decode(
+        bytes: ByteArray,
+        expectation: ArtifactExpectation,
+    ): BuiltinFontMetricsArtifact {
         val cursor = ByteCursor(bytes, "font metrics header")
         if (!cursor.bytes(MAGIC.size).contentEquals(MAGIC)) {
             invalid("magic does not match")
@@ -69,15 +81,15 @@ internal object BuiltinFontMetricsLoader {
         val schema = cursor.unsignedShort()
         if (schema != ARTIFACT_SCHEMA) invalid("unsupported schema $schema")
         val clientVersion = cursor.string()
-        if (clientVersion != EXPECTED_CLIENT_VERSION) {
-            invalid("client version $clientVersion does not match $EXPECTED_CLIENT_VERSION")
+        if (clientVersion != expectation.clientVersion) {
+            invalid("client version $clientVersion does not match ${expectation.clientVersion}")
         }
         val clientSha1 = HexFormat.of().formatHex(cursor.bytes(SHA1_BYTES))
-        if (clientSha1 != EXPECTED_CLIENT_SHA1) invalid("client SHA-1 does not match")
+        if (clientSha1 != expectation.clientSha1) invalid("client SHA-1 does not match")
         val assetIndexSha1 = HexFormat.of().formatHex(cursor.bytes(SHA1_BYTES))
-        if (assetIndexSha1 != EXPECTED_ASSET_INDEX_SHA1) invalid("asset index SHA-1 does not match")
+        if (assetIndexSha1 != expectation.assetIndexSha1) invalid("asset index SHA-1 does not match")
         val sourceSha1 = HexFormat.of().formatHex(cursor.bytes(SHA1_BYTES))
-        if (sourceSha1 != EXPECTED_SOURCE_SHA1) invalid("source SHA-1 does not match")
+        if (sourceSha1 != expectation.sourceSha1) invalid("source SHA-1 does not match")
         val payloadLength = cursor.unsignedInt()
         if (payloadLength > MAX_PAYLOAD_BYTES || payloadLength != cursor.remaining - SHA256_BYTES) {
             invalid("payload length is invalid")
@@ -90,13 +102,13 @@ internal object BuiltinFontMetricsLoader {
             invalid("payload integrity check failed")
         }
         val artifactSha256 = HexFormat.of().formatHex(digest("SHA-256", bytes))
-        if (artifactSha256 != EXPECTED_ARTIFACT_SHA256) {
+        if (artifactSha256 != expectation.artifactSha256) {
             invalid("artifact integrity check failed")
         }
 
         val payloadCursor = ByteCursor(payload, "font metrics payload")
         val tableCount = payloadCursor.unsignedByte()
-        if (tableCount != EXPECTED_TABLES.size) invalid("font table count is invalid")
+        if (tableCount != expectation.tables.size) invalid("font table count is invalid")
         val tables = ArrayList<BuiltinFontMetricsTable>(tableCount)
         repeat(tableCount) {
             val fontId = payloadCursor.string()
@@ -129,16 +141,19 @@ internal object BuiltinFontMetricsLoader {
             )
         }
         payloadCursor.requireExhausted()
-        validateTables(tables)
+        validateTables(tables, expectation)
         return BuiltinFontMetricsArtifact(clientVersion, clientSha1, assetIndexSha1, sourceSha1, tables)
     }
 
-    private fun validateTables(tables: List<BuiltinFontMetricsTable>) {
+    private fun validateTables(
+        tables: List<BuiltinFontMetricsTable>,
+        expectation: ArtifactExpectation,
+    ) {
         val actual = tables.associateBy(BuiltinFontMetricsTable::metricsRevision)
-        if (actual.keys != EXPECTED_TABLES.keys) invalid("font metric revisions do not match")
-        EXPECTED_TABLES.forEach { (revision, expectation) ->
+        if (actual.keys != expectation.tables.keys) invalid("font metric revisions do not match")
+        expectation.tables.forEach { (revision, tableExpectation) ->
             val table = requireNotNull(actual[revision])
-            if (table.fontId != expectation.fontId || table.fallback != expectation.fallback) {
+            if (table.fontId != tableExpectation.fontId || table.fallback != tableExpectation.fallback) {
                 invalid("font table topology for $revision does not match")
             }
             if (table.glyphs.isEmpty()) invalid("font table $revision is empty")
@@ -179,12 +194,20 @@ internal object BuiltinFontMetricsLoader {
         val fallback: String?,
     )
 
+    private data class ArtifactExpectation(
+        val clientVersion: String,
+        val resourcePath: String,
+        val clientSha1: String,
+        val assetIndexSha1: String,
+        val sourceSha1: String,
+        val artifactSha256: String,
+        val tables: Map<String, TableExpectation>,
+    )
+
+    private fun expectation(clientVersion: String): ArtifactExpectation = EXPECTATIONS[clientVersion]
+        ?: throw StrictYamlException("Unsupported font metrics client version $clientVersion")
+
     private const val ARTIFACT_SCHEMA = 1
-    private const val EXPECTED_CLIENT_VERSION = "26.1.2"
-    private const val EXPECTED_CLIENT_SHA1 = "4e618f09a0c649dde3fdf829df443ce0b8831e65"
-    private const val EXPECTED_ASSET_INDEX_SHA1 = "3391216608325aaf428712b211476abf6d5ddffa"
-    private const val EXPECTED_SOURCE_SHA1 = "38547c6fabdfd5adc0d2227c4dfc6cf54713fbfa"
-    private const val EXPECTED_ARTIFACT_SHA256 = "c978141c91f21f40083cc4420388de0a763cef303a058142db410d35a46b8604"
     private const val SHA1_BYTES = 20
     private const val SHA256_BYTES = 32
     private const val MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
@@ -193,9 +216,52 @@ internal object BuiltinFontMetricsLoader {
     private const val HAS_INK_FLAG = 1
     private const val HALF_PIXEL_SCALE = 2.0
     private val MAGIC = byteArrayOf(0x49, 0x54, 0x4D, 0x46, 0x4F, 0x4E, 0x54, 0x00)
-    private val EXPECTED_TABLES = linkedMapOf(
-        "builtin:minecraft-default-26.1.2" to TableExpectation("minecraft:default", "minecraft:uniform"),
-        "builtin:minecraft-uniform-26.1.2" to TableExpectation("minecraft:uniform", null),
+    private val EXPECTATIONS = linkedMapOf(
+        "1.21.11" to artifactExpectation(
+            clientVersion = "1.21.11",
+            clientSha1 = "ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd",
+            assetIndexSha1 = "3c6eabc1f3b6b03329c91816f0be1229820b4d83",
+            artifactSha256 = "585cc202b2174078cf8784d39ac2f16d7d35c104a83fdcf8d093ac076720a8c3",
+        ),
+        "26.1.1" to artifactExpectation(
+            clientVersion = "26.1.1",
+            clientSha1 = "377031a9e733ba8ab4d355959a8f6fb8eb707556",
+            assetIndexSha1 = "9239758051a3501442ae38f4f70a79f3e4b6eafc",
+            artifactSha256 = "1aa86f9e5c3a076ff68def61eaa2cbf10197be6e06815779599d257a78e846ce",
+        ),
+        "26.1.2" to artifactExpectation(
+            clientVersion = "26.1.2",
+            clientSha1 = "4e618f09a0c649dde3fdf829df443ce0b8831e65",
+            assetIndexSha1 = "3391216608325aaf428712b211476abf6d5ddffa",
+            artifactSha256 = "c978141c91f21f40083cc4420388de0a763cef303a058142db410d35a46b8604",
+        ),
+        "26.2" to artifactExpectation(
+            clientVersion = "26.2",
+            clientSha1 = "2dc72797acbc1b63fc16a11c4ac393605f453754",
+            assetIndexSha1 = "773791767c043b4f9493b50c54257619cecb08a4",
+            artifactSha256 = "23044b49490bafefe9ec35988b1fc0825c0df79f1f847938bdf4bb645d47b5c9",
+        ),
+    )
+
+    private fun artifactExpectation(
+        clientVersion: String,
+        clientSha1: String,
+        assetIndexSha1: String,
+        artifactSha256: String,
+    ): ArtifactExpectation = ArtifactExpectation(
+        clientVersion = clientVersion,
+        resourcePath = "META-INF/itemerness/font-metrics/minecraft-$clientVersion.ifm",
+        clientSha1 = clientSha1,
+        assetIndexSha1 = assetIndexSha1,
+        sourceSha1 = "38547c6fabdfd5adc0d2227c4dfc6cf54713fbfa",
+        artifactSha256 = artifactSha256,
+        tables = linkedMapOf(
+            "builtin:minecraft-default-$clientVersion" to TableExpectation(
+                "minecraft:default",
+                "minecraft:uniform",
+            ),
+            "builtin:minecraft-uniform-$clientVersion" to TableExpectation("minecraft:uniform", null),
+        ),
     )
 }
 

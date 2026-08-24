@@ -59,14 +59,23 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
-val minecraftApiVersion = libs.versions.paper.get().substringBefore(".build.")
+val minecraftApiVersion = "1.21.11"
+val exactNmsAdapters = linkedMapOf(
+    "1.21.11" to "1_21_11",
+    "26.1.1" to "26_1_1",
+    "26.1.2" to "26_1_2",
+    "26.2" to "26_2",
+)
 
 dependencies {
     implementation(project(":itemerness-core"))
     implementation(project(":itemerness-projection-spi"))
     implementation(project(":itemerness-bukkit-spi"))
     implementation(project(":itemerness-editor-agent"))
+    runtimeOnly(project(":itemerness-nms-1_21_11"))
+    runtimeOnly(project(":itemerness-nms-26_1_1"))
     runtimeOnly(project(":itemerness-nms-26_1_2"))
+    runtimeOnly(project(":itemerness-nms-26_2"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.snakeyaml)
     compileOnly(libs.paper.api)
@@ -113,6 +122,118 @@ kotlin {
             }
         }
     }
+
+    target.compilations.create("paper2612Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.paper2612.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("paper2611Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.paper2611.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("folia2612Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.folia2612.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("canvas2612Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.canvas2612.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("paper262Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.paper262.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("folia262Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.folia262.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("canvas262Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.canvas262.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
 }
 
 sourceSets.named("foliaCompatibility") {
@@ -121,6 +242,46 @@ sourceSets.named("foliaCompatibility") {
 
 sourceSets.named("canvasCompatibility") {
     java.srcDir("src/main/java")
+}
+
+listOf(
+    "paper2611Compatibility",
+    "paper2612Compatibility",
+    "folia2612Compatibility",
+    "canvas2612Compatibility",
+    "paper262Compatibility",
+    "folia262Compatibility",
+    "canvas262Compatibility",
+).forEach { sourceSetName ->
+    sourceSets.named(sourceSetName) {
+        java.srcDir("src/main/java")
+    }
+}
+
+configurations.configureEach {
+    if (
+        isCanBeResolved &&
+        (name.contains("2611Compatibility") || name.contains("2612Compatibility") || name.contains("262Compatibility"))
+    ) {
+        attributes.attribute(
+            org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
+            25,
+        )
+    }
+}
+
+tasks.named("check") {
+    dependsOn(
+        "compileFoliaCompatibilityKotlin",
+        "compileCanvasCompatibilityKotlin",
+        "compilePaper2611CompatibilityKotlin",
+        "compilePaper2612CompatibilityKotlin",
+        "compileFolia2612CompatibilityKotlin",
+        "compileCanvas2612CompatibilityKotlin",
+        "compilePaper262CompatibilityKotlin",
+        "compileFolia262CompatibilityKotlin",
+        "compileCanvas262CompatibilityKotlin",
+    )
 }
 
 tasks.test {
@@ -155,6 +316,7 @@ tasks.jar {
 tasks.named<ShadowJar>("shadowJar") {
     archiveFileName.set("Itemerness.jar")
     archiveClassifier.set("")
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     mergeServiceFiles()
     relocate("org.yaml.snakeyaml", "com.iroselle.itemerness.libs.snakeyaml")
     manifest.attributes(
@@ -225,10 +387,14 @@ val verifyPluginJar by tasks.registering {
             check(jar.getJarEntry("com/iroselle/itemerness/bukkit/ItemernessPlugin.class") != null) {
                 "Itemerness.jar does not contain the Bukkit entrypoint"
             }
-            check(
-                jar.getJarEntry("META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm") != null,
-            ) {
-                "Itemerness.jar does not contain the exact 26.1.2 font metrics artifact"
+            exactNmsAdapters.keys.forEach { minecraftVersion ->
+                check(
+                    jar.getJarEntry(
+                        "META-INF/itemerness/font-metrics/minecraft-$minecraftVersion.ifm",
+                    ) != null,
+                ) {
+                    "Itemerness.jar does not contain the exact $minecraftVersion font metrics artifact"
+                }
             }
             check(jar.getJarEntry("com/iroselle/itemerness/api/ItemernessApi.class") != null) {
                 "Itemerness.jar does not contain the public API"
@@ -261,17 +427,11 @@ val verifyPluginJar by tasks.registering {
             val bridgeProviders = jar.getInputStream(bridgeService)
                 .bufferedReader(Charsets.UTF_8)
                 .use { reader -> reader.readLines().map(String::trim).filter(String::isNotEmpty) }
-            check(
-                "com.iroselle.itemerness.nms.v26_1_2.NmsBukkitCanonicalItemBridgeFactory" in bridgeProviders,
-            ) {
-                "Itemerness.jar does not register the exact-version canonical bridge"
+            val expectedBridgeProviders = exactNmsAdapters.values.mapTo(linkedSetOf()) { packageVersion ->
+                "com.iroselle.itemerness.nms.v$packageVersion.NmsBukkitCanonicalItemBridgeFactory"
             }
-            check(
-                jar.getJarEntry(
-                    "com/iroselle/itemerness/nms/v26_1_2/NmsProjectionAdapterFactory.class",
-                ) != null,
-            ) {
-                "Itemerness.jar does not contain the exact-version NMS adapter"
+            check(bridgeProviders.toSet() == expectedBridgeProviders) {
+                "Itemerness.jar canonical bridge providers do not match the supported version matrix: $bridgeProviders"
             }
             val projectionService = checkNotNull(
                 jar.getJarEntry(
@@ -283,10 +443,11 @@ val verifyPluginJar by tasks.registering {
             val projectionProviders = jar.getInputStream(projectionService)
                 .bufferedReader(Charsets.UTF_8)
                 .use { reader -> reader.readLines().map(String::trim).filter(String::isNotEmpty) }
-            check(
-                "com.iroselle.itemerness.nms.v26_1_2.NmsProjectionAdapterFactory" in projectionProviders,
-            ) {
-                "Itemerness.jar does not register the exact-version NMS adapter"
+            val expectedProjectionProviders = exactNmsAdapters.values.mapTo(linkedSetOf()) { packageVersion ->
+                "com.iroselle.itemerness.nms.v$packageVersion.NmsProjectionAdapterFactory"
+            }
+            check(projectionProviders.toSet() == expectedProjectionProviders) {
+                "Itemerness.jar projection providers do not match the supported version matrix: $projectionProviders"
             }
             check(jar.manifest.mainAttributes.getValue("paperweight-mappings-namespace") == "mojang") {
                 "Itemerness.jar must declare the Mojang mappings namespace"
@@ -315,58 +476,86 @@ val verifyPluginJar by tasks.registering {
                     "Itemerness.jar does not contain bundled resource: $path"
                 }
             }
-            val nmsSurfaceEntry = checkNotNull(
-                jar.getJarEntry("META-INF/itemerness/nms/26.1.2/surfaces.yml"),
-            ) {
-                "Itemerness.jar does not contain the NMS coverage manifest"
-            }
-            val nmsSurfaces = jar.getInputStream(nmsSurfaceEntry)
-                .bufferedReader(Charsets.UTF_8)
-                .use { reader -> reader.readText() }
-            check("coverage-status: release-ready-exact-version" in nmsSurfaces) {
-                "The packaged NMS surface metadata is not release-ready"
-            }
-            check("release-gate-enabled: true" in nmsSurfaces) {
-                "The packaged NMS surface metadata does not enable the release gate"
-            }
-            check(Regex("(?m)^known-unsupported:\\s*\\[\\s*]\\s*$").containsMatchIn(nmsSurfaces)) {
-                "The packaged NMS surface metadata still declares unsupported surfaces"
-            }
-
-            val carrierEntry = checkNotNull(
-                jar.getJarEntry("META-INF/itemerness/nms/26.1.2/carrier-surfaces.tsv"),
-            ) {
-                "Itemerness.jar does not contain the exact packet carrier manifest"
-            }
-            val unsupportedCarriers = jar.getInputStream(carrierEntry)
-                .bufferedReader(Charsets.UTF_8)
-                .useLines { lines ->
-                    lines.drop(1)
-                        .filter(String::isNotBlank)
-                        .map { line -> line.split('\t') }
-                        .filter { columns -> columns.firstOrNull() == "unsupported-known" }
-                        .mapNotNull { columns -> columns.getOrNull(1) }
-                        .toList()
+            exactNmsAdapters.forEach { (minecraftVersion, _) ->
+                val nmsSurfaceEntry = checkNotNull(
+                    jar.getJarEntry("META-INF/itemerness/nms/$minecraftVersion/surfaces.yml"),
+                ) {
+                    "Itemerness.jar does not contain the $minecraftVersion NMS coverage manifest"
                 }
-            check(unsupportedCarriers.isEmpty()) {
-                "The packaged carrier manifest still has unsupported surfaces: $unsupportedCarriers"
-            }
-            check(
-                jar.getJarEntry("META-INF/itemerness/nms/26.1.2/item-component-surfaces.tsv") != null,
-            ) {
-                "Itemerness.jar does not contain the exact item-component carrier manifest"
-            }
-        }
+                val nmsSurfaces = jar.getInputStream(nmsSurfaceEntry)
+                    .bufferedReader(Charsets.UTF_8)
+                    .use { reader -> reader.readText() }
+                check("minecraft-version: \"$minecraftVersion\"" in nmsSurfaces) {
+                    "The packaged $minecraftVersion NMS surface metadata has the wrong version"
+                }
+                check("coverage-status: release-ready-exact-version" in nmsSurfaces) {
+                    "The packaged $minecraftVersion NMS surface metadata is not release-ready"
+                }
+                check("release-gate-enabled: true" in nmsSurfaces) {
+                    "The packaged $minecraftVersion NMS surface metadata does not enable the release gate"
+                }
+                check(Regex("(?m)^known-unsupported:\\s*\\[\\s*]\\s*$").containsMatchIn(nmsSurfaces)) {
+                    "The packaged $minecraftVersion NMS surface metadata still declares unsupported surfaces"
+                }
 
-        JarFile(pluginJar.get().asFile).use { jar ->
-            val gateEntry = checkNotNull(
-                jar.getJarEntry("com/iroselle/itemerness/nms/v26_1_2/NmsProjectionReleaseGate.class"),
-            ) {
-                "Itemerness.jar does not contain the exact-version NMS release gate"
+                val carrierEntry = checkNotNull(
+                    jar.getJarEntry("META-INF/itemerness/nms/$minecraftVersion/carrier-surfaces.tsv"),
+                ) {
+                    "Itemerness.jar does not contain the $minecraftVersion packet carrier manifest"
+                }
+                val unsupportedCarriers = jar.getInputStream(carrierEntry)
+                    .bufferedReader(Charsets.UTF_8)
+                    .useLines { lines ->
+                        lines.drop(1)
+                            .filter(String::isNotBlank)
+                            .map { line -> line.split('\t') }
+                            .filter { columns -> columns.firstOrNull() == "unsupported-known" }
+                            .mapNotNull { columns -> columns.getOrNull(1) }
+                            .toList()
+                    }
+                check(unsupportedCarriers.isEmpty()) {
+                    "The packaged $minecraftVersion carrier manifest has unsupported surfaces: $unsupportedCarriers"
+                }
+                check(
+                    jar.getJarEntry(
+                        "META-INF/itemerness/nms/$minecraftVersion/item-component-surfaces.tsv",
+                    ) != null,
+                ) {
+                    "Itemerness.jar does not contain the $minecraftVersion item-component manifest"
+                }
             }
-            val gateBytes = jar.getInputStream(gateEntry).use { stream -> stream.readAllBytes() }
-            check(readBooleanClassConstant(gateBytes, "ENABLED")) {
-                "The packaged NMS release gate is disabled"
+
+            exactNmsAdapters.forEach { (minecraftVersion, packageVersion) ->
+                val adapterClass = "com/iroselle/itemerness/nms/v$packageVersion/NmsProjectionAdapterFactory.class"
+                check(jar.getJarEntry(adapterClass) != null) {
+                    "Itemerness.jar does not contain the $minecraftVersion NMS adapter"
+                }
+                val gateEntry = checkNotNull(
+                    jar.getJarEntry(
+                        "com/iroselle/itemerness/nms/v$packageVersion/NmsProjectionReleaseGate.class",
+                    ),
+                ) {
+                    "Itemerness.jar does not contain the $minecraftVersion NMS release gate"
+                }
+                val gateBytes = jar.getInputStream(gateEntry).use { stream -> stream.readAllBytes() }
+                check(readBooleanClassConstant(gateBytes, "ENABLED")) {
+                    "The packaged $minecraftVersion NMS release gate is disabled"
+                }
+            }
+
+            val unsupportedClassVersions = jar.entries().asSequence()
+                .filter { entry -> !entry.isDirectory && entry.name.endsWith(".class") }
+                .mapNotNull { entry ->
+                    val bytes = jar.getInputStream(entry).use { stream -> stream.readNBytes(8) }
+                    check(bytes.size == 8 && bytes.copyOfRange(0, 4).contentEquals(byteArrayOf(0xCA.toByte(), 0xFE.toByte(), 0xBA.toByte(), 0xBE.toByte()))) {
+                        "Malformed class file in Itemerness.jar: ${entry.name}"
+                    }
+                    val major = ((bytes[6].toInt() and 0xFF) shl 8) or (bytes[7].toInt() and 0xFF)
+                    if (major > 65) "${entry.name} (major $major)" else null
+                }
+                .toList()
+            check(unsupportedClassVersions.isEmpty()) {
+                "Itemerness.jar contains classes that cannot load on Java 21: $unsupportedClassVersions"
             }
         }
     }

@@ -708,7 +708,7 @@ private fun readSlot(
     InventorySlot.CHESTPLATE -> inventory.chestplate
     InventorySlot.LEGGINGS -> inventory.leggings
     InventorySlot.BOOTS -> inventory.boots
-}.takeUnless { it.type == Material.AIR }?.clone()
+}?.takeUnless { it.type == Material.AIR }?.clone()
 
 private fun writeSlot(
     inventory: PlayerInventory,

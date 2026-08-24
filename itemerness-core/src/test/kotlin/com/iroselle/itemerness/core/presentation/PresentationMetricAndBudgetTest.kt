@@ -12,6 +12,20 @@ import org.junit.jupiter.api.Test
 
 class PresentationMetricAndBudgetTest {
     @Test
+    fun `vanilla tooltip geometry includes the title gap and single component reduction`() {
+        assertEquals(0, VanillaTooltipGeometry.measuredHeight(0))
+        assertEquals(8, VanillaTooltipGeometry.measuredHeight(1))
+        assertEquals(20, VanillaTooltipGeometry.measuredHeight(2))
+        assertEquals(30, VanillaTooltipGeometry.measuredHeight(3))
+
+        assertEquals(0, VanillaTooltipGeometry.componentY(0))
+        assertEquals(12, VanillaTooltipGeometry.componentY(1))
+        assertEquals(22, VanillaTooltipGeometry.componentY(2))
+        assertThrows(IllegalArgumentException::class.java) { VanillaTooltipGeometry.measuredHeight(-1) }
+        assertThrows(IllegalArgumentException::class.java) { VanillaTooltipGeometry.componentY(-1) }
+    }
+
+    @Test
     fun `measurer honors per-glyph bold ink flags fallback glyphs and italic geometry`() {
         val base = PresentationFixtures.source()
         val font = FontSource(
@@ -162,7 +176,10 @@ class PresentationMetricAndBudgetTest {
                 themes = base.themes + theme,
                 items = base.items + item,
             ),
-            PresentationBudgets(maximumTextCodePoints = 131_072),
+            PresentationBudgets(
+                maximumHeightPixels = 200,
+                maximumTextCodePoints = 131_072,
+            ),
         )
         val rocket = String(Character.toChars(rocketCodePoint))
         val value = List(17) { rocket.repeat(4_096) }.joinToString("\n")
@@ -234,7 +251,7 @@ class PresentationMetricAndBudgetTest {
                 ),
             ),
         )
-        return assertInstanceOf(PresentationRenderResult.Rendered::class.java, result).display
+        return assertInstanceOf(PresentationRenderResult.Rendered::class.java, result, result.toString()).display
     }
 
     private fun nativeProbeTheme(id: String, font: String): ThemeSource = ThemeSource(

@@ -360,7 +360,7 @@ class ViewerStatePublisherTest {
     @Test
     fun `rejected resync submission is retried and eventually refreshes inventory`() {
         installBundledResources()
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val update = catalog.reload()
         require(update is RuntimeCatalogUpdate.Published) { update.diagnostics.joinToString() }
         val projection = ProjectionStateStore().also { state ->
@@ -565,7 +565,7 @@ class ViewerStatePublisherTest {
     @Test
     fun `placeholder bridge failure is isolated to one hand and does not retire viewers`() {
         installBundledResources()
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val update = catalog.reload()
         require(update is RuntimeCatalogUpdate.Published) { update.diagnostics.joinToString() }
         val projection = ProjectionStateStore().also { state ->
@@ -617,7 +617,7 @@ class ViewerStatePublisherTest {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")
         Files.writeString(itemFile, Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true"))
-        val catalog = RuntimeCatalogManager(directory)
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
         val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
         val projection = ProjectionStateStore().also { state ->
             state.publishCatalog(runtime, runtime.presentation)
@@ -699,7 +699,7 @@ class ViewerStatePublisherTest {
         binding: ProjectionViewerBindingAdapter? = null,
         projection: ProjectionStateStore = ProjectionStateStore(),
         resyncRequests: BoundedProjectionResyncQueue = BoundedProjectionResyncQueue(),
-        catalog: RuntimeCatalogManager = RuntimeCatalogManager(directory),
+        catalog: RuntimeCatalogManager = RuntimeCatalogManager(directory, "26.1.2"),
         bridge: BukkitCanonicalItemBridge = proxy { _, method, _ -> defaultValue(method.returnType) },
         placeholders: PlaceholderSnapshotStore = PlaceholderSnapshotStore(),
         effectiveItemData: EffectiveItemDataResolver = EffectiveItemDataResolver(),

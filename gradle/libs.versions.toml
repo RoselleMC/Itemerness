@@ -2,9 +2,16 @@
 kotlin = "2.4.0"
 shadow = "9.4.2"
 paperweight = "2.0.0-beta.21"
-paper = "26.1.2.build.74-stable"
-folia = "26.1.2.build.8-stable"
-canvas = "26.1.2.build.876-stable"
+paper = "1.21.11-R0.1-SNAPSHOT"
+folia = "1.21.11-R0.1-SNAPSHOT"
+canvas = "1.21.11-R0.1-SNAPSHOT"
+paper2611 = "26.1.1.build.29-alpha"
+paper2612 = "26.1.2.build.74-stable"
+folia2612 = "26.1.2.build.8-stable"
+canvas2612 = "26.1.2.build.876-stable"
+paper262 = "26.2.build.116-stable"
+folia262 = "26.2.build.6-beta"
+canvas262 = "26.2.build.936-stable"
 junit = "5.14.2"
 snakeyaml = "2.6"
 placeholderapi = "2.12.3"
@@ -14,6 +21,13 @@ kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 canvas-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas" }
+paper2611-api = { module = "io.papermc.paper:paper-api", version.ref = "paper2611" }
+paper2612-api = { module = "io.papermc.paper:paper-api", version.ref = "paper2612" }
+folia2612-api = { module = "dev.folia:folia-api", version.ref = "folia2612" }
+canvas2612-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas2612" }
+paper262-api = { module = "io.papermc.paper:paper-api", version.ref = "paper262" }
+folia262-api = { module = "dev.folia:folia-api", version.ref = "folia262" }
+canvas262-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas262" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

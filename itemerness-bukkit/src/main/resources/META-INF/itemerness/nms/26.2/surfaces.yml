@@ -1,0 +1,229 @@
+# Internal exact-version coverage manifest. This file is packaged but is not copied as user config.
+schema-version: 1
+minecraft-version: "26.2"
+adapter-module: itemerness-nms-26_2
+coverage-status: release-ready-exact-version
+release-gate-enabled: true
+release-gate-requirements:
+  - exhaustive-mapped-packet-carrier-scan
+  - exact-data-component-carrier-manifest
+  - mapped-abi-probe
+  - packet-wide-item-nbt-and-component-budgets
+  - login-binding-queue-proof
+  - fail-closed-channel-write-proof
+  - terminal-failure-global-shutdown-proof
+  - event-loop-handler-retirement-proof
+  - custom-click-return-capability-proof
+  - persistent-surface-byte-budget-proof
+  - persistent-surface-completeness-and-connection-isolation-proof
+  - release-state-three-way-consistency-proof
+
+pipeline:
+  packet-stage: decoded
+  insert-before: packet_handler
+  install-and-remove-on-channel-event-loop: true
+  viewer-binding-source: owning-context-craft-player
+  read-player-from-netty-event-loop: false
+  pre-bind-play-queue:
+    capacity: 512
+    timeout-seconds: 10
+    overflow-or-timeout: fail-promises-and-close
+  clear-connection-state-on-remove: true
+  viewer-unbind-retains-channel-handler: true
+  replacement-policy: only-confirmed-retired-owner
+  removal-verification: owning-channel-event-loop
+  recurse-clientbound-bundle-packets: true
+  bundle-packet-capacity: 512
+  bundle-depth-limit: 8
+
+outbound:
+  item-and-template-packets:
+    - ClientboundContainerSetContentPacket
+    - ClientboundContainerSetSlotPacket
+    - ClientboundSetCursorItemPacket
+    - ClientboundSetPlayerInventoryPacket
+    - ClientboundSetEquipmentPacket
+    - ClientboundMerchantOffersPacket
+    - ClientboundSetEntityDataPacket
+    - ClientboundLevelParticlesPacket
+    - ClientboundExplodePacket
+    - ClientboundUpdateRecipesPacket
+    - ClientboundRecipeBookAddPacket
+    - ClientboundPlaceGhostRecipePacket
+  component-and-structured-packets:
+    - ClientboundDisconnectPacket
+    - ClientboundResourcePackPushPacket
+    - ClientboundServerLinksPacket
+    - ClientboundShowDialogPacket
+    - ClientboundBossEventPacket
+    - ClientboundCommandSuggestionsPacket
+    - ClientboundDisguisedChatPacket
+    - ClientboundMapItemDataPacket
+    - ClientboundOpenScreenPacket
+    - ClientboundPlayerChatPacket
+    - ClientboundPlayerCombatKillPacket
+    - ClientboundPlayerInfoUpdatePacket
+    - ClientboundServerDataPacket
+    - ClientboundSetActionBarTextPacket
+    - ClientboundSetObjectivePacket
+    - ClientboundSetPlayerTeamPacket
+    - ClientboundSetScorePacket
+    - ClientboundSetSubtitleTextPacket
+    - ClientboundSetTitleTextPacket
+    - ClientboundSystemChatPacket
+    - ClientboundTabListPacket
+    - ClientboundTestInstanceBlockStatus
+    - ClientboundUpdateAdvancementsPacket
+    - ClientboundLoginDisconnectPacket
+    - ClientboundStatusResponsePacket
+  nbt-packets:
+    - ClientboundBlockEntityDataPacket
+    - ClientboundLevelChunkWithLightPacket
+    - ClientboundRegistryDataPacket
+    - ClientboundTagQueryPacket
+  recursive-packets:
+    - ClientboundBundlePacket
+  pre-viewer-sanitized-packets:
+    - ClientboundLoginDisconnectPacket
+    - ClientboundRegistryDataPacket
+    - ClientboundStatusResponsePacket
+  merchant-display:
+    stable-marker-matches-inventory-view: true
+    preserves-positive-component-subset: true
+    registers-creative-restoration-capability: false
+    preserves-foreign-custom-data: true
+
+custom-actions:
+  outbound:
+    - ClickEvent.Custom
+    - StaticAction.Custom
+    - CustomAll.additions
+  inbound:
+    packet: ServerboundCustomClickActionPacket
+    identity: connection-generation-action-id-hmac-capability
+    direct-payload-policy: opaque-capability-only
+    additions-policy: restore-protected-canonical-fields-and-preserve-client-inputs
+    tamper-policy: reject
+    capacity-per-connection: 256
+    lifetime: connection-generation-bound-bounded-lru
+    protected-action-missing-capability: reject
+
+nested-item-components:
+  direct-item-graphs:
+    - minecraft:bundle_contents
+    - minecraft:container
+    - minecraft:charged_projectiles
+    - minecraft:use_remainder
+  direct-bounded-component-graphs:
+    - minecraft:attribute_modifiers
+    - minecraft:custom_name
+    - minecraft:item_name
+    - minecraft:lore
+    - minecraft:written_book_content
+  bounded-codec-graphs:
+    - minecraft:bees
+    - minecraft:block_entity_data
+    - minecraft:bucket_entity_data
+    - minecraft:can_break
+    - minecraft:can_place_on
+    - minecraft:cat/variant
+    - minecraft:chicken/variant
+    - minecraft:container_loot
+    - minecraft:cow/variant
+    - minecraft:custom_data
+    - minecraft:enchantments
+    - minecraft:entity_data
+    - minecraft:frog/variant
+    - minecraft:instrument
+    - minecraft:jukebox_playable
+    - minecraft:lock
+    - minecraft:lodestone_tracker
+    - minecraft:painting/variant
+    - minecraft:pig/variant
+    - minecraft:provides_trim_material
+    - minecraft:stored_enchantments
+    - minecraft:sulfur_cube_content
+    - minecraft:trim
+    - minecraft:tropical_fish/pattern
+    - minecraft:wolf/variant
+    - minecraft:zombie_nautilus/variant
+
+inbound:
+  hashed-untrusted-view:
+    packet: ServerboundContainerClickPacket
+    capacity-per-connection: 1024
+    lifetime: connection-generation-bound-bounded-lru
+    generations-retained: 2
+    collision-policy: ambiguous-pass-through-for-vanilla-correction
+    miss-policy: pass-through-for-vanilla-correction
+  full-untrusted-item-stack:
+    packet: ServerboundSetCreativeModeSlotPacket
+    capacity-per-connection: 512
+    lifetime: connection-generation-bound-bounded-lru
+    generations-retained: 2
+    identity: connection-private-generation-hmac-of-canonical-identity-excluding-count-and-tooltip-ownership
+    exact-projection-variants-per-identity: bounded-and-restored-independently
+    exact-token-replay: allowed-within-ledger-lifetime
+    unknown-tampered-or-any-reserved-marker: reject-and-bounded-resync-request
+  custom-click-action:
+    packet: ServerboundCustomClickActionPacket
+    missing-unknown-wrong-action-or-tampered-capability: reject
+
+refresh:
+  menu-slot-limit: 256
+  menu-data-slot-limit: 256
+  persistent-entity-capacity: 2048
+  persistent-value-capacity: 4096
+  persistent-value-wire-byte-limit: 262144
+  persistent-total-wire-byte-limit: 8388608
+  persistent-observation-wire-byte-limit: 2097152
+  persistent-snapshot-value-limit: 4096
+  persistent-snapshot-wire-byte-limit: 8388608
+  persistent-packets-per-page: 64
+  persistent-page-delay-millis: 50
+  newer-refresh-cancels-older-pages: true
+  persistent-source-revision-invalidates-frozen-pages: true
+  persistent-mutation-restart-coalesce-millis: 50
+  quiet-period-eventually-replays-complete-latest-snapshot: true
+  refresh-replay-mutates-source-revision: false
+  persistent-replay-send-path: projection-handler-context-direct-downstream
+  persistent-replay-connection-send: forbidden
+  persistent-replay-flush-policy: once-per-page
+  persistent-replay-write-failure-cause-depth: 16
+  persistent-replay-local-write-failure: cancel-session-and-close-connection
+  persistent-replay-linkage-or-infrastructure-write-failure: poison-runtime-and-close-connection
+  authoritative-current-state:
+    update-recipes: RecipeManager.getSynchronizedItemProperties-and-getSynchronizedStonecutterRecipes
+    recipe-book: ServerRecipeBook.sendInitialRecipeBook
+    advancements: PlayerAdvancements.flushDirty-then-bounded-full-reset-snapshot
+  canonical-packet-cache:
+    - managed-entity-metadata
+    - managed-entity-equipment
+    - active-container-ghost-recipe
+  cache-only-managed-values: true
+  unmanaged-update-removes-cached-value: true
+  sanitized-fallback-removes-cached-value-without-rescan: true
+  cache-capacity-or-byte-overflow: fail-current-promise-and-close-only-affected-connection
+  cache-overflow-never-poisons-global-runtime: true
+  cache-eviction-or-snapshot-skip: forbidden
+  persistent-source-snapshots-are-owned: true
+  cached-pages-sent-on-channel-event-loop: true
+  clear-persistent-surfaces-on:
+    - ClientboundLoginPacket
+    - ClientboundRespawnPacket
+    - ClientboundStartConfigurationPacket
+  open-merchant-offers-explicitly-resent: true
+
+fixed-failure-policy:
+  missing-required-surface: disable-plugin
+  recoverable-outbound-render-data-or-budget-error: atomic-sanitized-canonical-fallback-and-write-packet
+  outbound-abi-linkage-or-infrastructure-error: poison-runtime-fail-promise-and-drop-packet
+  fallback-capability-publication: packet-transaction-commit-only-after-complete-projection
+  asynchronous-install-or-bind-error: poison-runtime-and-request-global-disable
+  poisoned-runtime-carriers: drop-until-channel-close
+  adapter-close: close-active-channels-before-handler-removal
+  preexisting-startup-channels: close-before-adapter-publication
+  malformed-canonical-marker: remove-exact-owned-marker-sanitize-presentation-and-recurse-foreign-data
+  unknown-managed-creative-item: reject-and-enqueue-owning-context-resync
+
+known-unsupported: []

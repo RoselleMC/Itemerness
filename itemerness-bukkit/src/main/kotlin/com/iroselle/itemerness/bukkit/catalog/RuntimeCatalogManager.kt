@@ -9,6 +9,7 @@ import com.iroselle.itemerness.bukkit.access.AccessPolicyLoader
 import com.iroselle.itemerness.bukkit.access.DataAccessRuleIndex
 import com.iroselle.itemerness.bukkit.command.CommandCatalogView
 import com.iroselle.itemerness.bukkit.config.ItemernessSettings
+import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsLoader
 import com.iroselle.itemerness.bukkit.presentation.LoadedPresentationSource
 import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
 import com.iroselle.itemerness.core.catalog.CatalogCompilation
@@ -25,9 +26,11 @@ import java.util.concurrent.atomic.AtomicReference
 
 internal class RuntimeCatalogManager(
     private val dataFolder: Path,
+    minecraftVersion: String,
     private val loader: CatalogSourceLoader = CatalogSourceLoader(),
     private val compiler: CatalogCompiler = CatalogCompiler(),
-    private val presentationLoader: PresentationSourceLoader = PresentationSourceLoader(),
+    private val presentationLoader: PresentationSourceLoader =
+        PresentationSourceLoader(BuiltinFontMetricsLoader.bundled(minecraftVersion)),
     private val validator: RuntimeCatalogValidator = RuntimeCatalogValidator(),
 ) : ItemernessApi,
     CommandCatalogView {

@@ -6,7 +6,7 @@ group = "com.iroselle.itemerness.tools"
 version = "1.0.0"
 
 val paperApiVersion = providers.gradleProperty("paperApiVersion")
-    .orElse("26.1.2.build.74-stable")
+    .orElse("1.21.11-R0.1-SNAPSHOT")
 val itemernessJar = providers.gradleProperty("itemernessJar")
     .map(::file)
     .orElse(layout.projectDirectory.file("../../itemerness-bukkit/build/libs/Itemerness.jar").asFile)
@@ -27,7 +27,7 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release.set(25)
+    options.release.set(21)
     doFirst {
         require(itemernessJar.get().isFile) {
             "Build Itemerness.jar first or pass -PitemernessJar=/absolute/path/Itemerness.jar"

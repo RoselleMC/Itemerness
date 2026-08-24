@@ -1,6 +1,6 @@
 package com.iroselle.itemerness.bukkit.editor
 
-import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsLoader
+import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.editor.protocol.BuiltinFontMetrics
 import com.iroselle.itemerness.editor.protocol.BuiltinFontTable
 
@@ -12,9 +12,10 @@ import com.iroselle.itemerness.editor.protocol.BuiltinFontTable
  * codec stay free of any dependency on the plugin distribution, which is what allows the whole
  * compile path to run outside a Bukkit runtime in tests.
  */
-internal object BundledBuiltinFontMetrics : BuiltinFontMetrics {
+internal class BundledBuiltinFontMetrics(
+    private val artifact: BuiltinFontMetricsArtifact,
+) : BuiltinFontMetrics {
     override fun table(metricsRevision: String): BuiltinFontTable? {
-        val artifact = BuiltinFontMetricsLoader.bundled()
         val table = artifact.tablesByRevision["builtin:$metricsRevision"] ?: return null
         return BuiltinFontTable(
             fontId = table.fontId,

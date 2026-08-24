@@ -14,6 +14,27 @@ import com.iroselle.itemerness.api.UuidDataValue
 import kotlin.math.ceil
 import kotlin.math.max
 
+/** Text-component geometry shared by the currently supported vanilla clients. */
+internal object VanillaTooltipGeometry {
+    const val TEXT_COMPONENT_HEIGHT_PIXELS = 10
+    private const val SINGLE_COMPONENT_REDUCTION_PIXELS = 2
+    private const val FIRST_COMPONENT_GAP_PIXELS = 2
+
+    fun measuredHeight(componentCount: Int): Int {
+        require(componentCount >= 0) { "Tooltip component count cannot be negative" }
+        return when (componentCount) {
+            0 -> 0
+            1 -> TEXT_COMPONENT_HEIGHT_PIXELS - SINGLE_COMPONENT_REDUCTION_PIXELS
+            else -> componentCount * TEXT_COMPONENT_HEIGHT_PIXELS
+        }
+    }
+
+    fun componentY(index: Int): Int {
+        require(index >= 0) { "Tooltip component index cannot be negative" }
+        return index * TEXT_COMPONENT_HEIGHT_PIXELS + if (index == 0) 0 else FIRST_COMPONENT_GAP_PIXELS
+    }
+}
+
 /** Pure renderer. It never retains Bukkit objects or invokes external callbacks. */
 class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
     /** Formats one schema-approved value with the same locale and formatter rules as rendering. */
@@ -572,7 +593,7 @@ private class ThemeRendererEngine(
             return spacingRuns(pixels, PresentationRunKind.WIDTH_ANCHOR)
         }
 
-        // Minecraft 26.1.2 gives bold U+200C an exact one-pixel advance while its
+        // The supported clients give bold U+200C an exact one-pixel advance while the
         // glyph remains inkless. This lets the resource-pack-free renderer enforce
         // an exact tooltip minimum width without visible filler characters.
         val unit = PresentationTextRun(
@@ -1026,12 +1047,12 @@ private class ThemeRendererEngine(
         if (all.sumOf { line -> line.runs.sumOf { it.text.length } } > MAX_SERIALIZED_TOTAL_UTF16) {
             throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Serialized display text budget exceeded")
         }
-        val structuralHeight = if (all.isEmpty()) 0 else (all.size - 1) * TOOLTIP_LINE_HEIGHT_PIXELS + DEFAULT_GLYPH_HEIGHT_PIXELS
+        val structuralHeight = VanillaTooltipGeometry.measuredHeight(all.size)
         var minimumY = Double.POSITIVE_INFINITY
         var maximumY = Double.NEGATIVE_INFINITY
         all.forEachIndexed { index, line ->
             if (line.visualBounds.bottom > line.visualBounds.top) {
-                val baseline = index * TOOLTIP_LINE_HEIGHT_PIXELS
+                val baseline = VanillaTooltipGeometry.componentY(index)
                 minimumY = minOf(minimumY, baseline + line.visualBounds.top)
                 maximumY = maxOf(maximumY, baseline + line.visualBounds.bottom)
             }
@@ -1100,8 +1121,7 @@ private class ThemeRendererEngine(
     }
 
     private companion object {
-        const val TOOLTIP_LINE_HEIGHT_PIXELS = 10
-        const val DEFAULT_GLYPH_HEIGHT_PIXELS = 9
+        const val TOOLTIP_LINE_HEIGHT_PIXELS = VanillaTooltipGeometry.TEXT_COMPONENT_HEIGHT_PIXELS
         const val MAX_SERIALIZED_RUNS_PER_LINE = 256
         const val MAX_SERIALIZED_TOTAL_RUNS = 4_096
         const val MAX_SERIALIZED_TOTAL_UTF16 = 131_072

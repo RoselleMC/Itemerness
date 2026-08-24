@@ -21,7 +21,10 @@ dependencyResolutionManagement {
             name = "PaperMC"
         }
         maven("https://maven.canvasmc.io/releases") {
-            name = "CanvasMC"
+            name = "CanvasMCReleases"
+        }
+        maven("https://maven.canvasmc.io/snapshots") {
+            name = "CanvasMCSnapshots"
         }
         maven("https://repo.extendedclip.com/releases/") {
             name = "PlaceholderAPI"
@@ -38,7 +41,10 @@ include("itemerness-api")
 include("itemerness-core")
 include("itemerness-projection-spi")
 include("itemerness-bukkit-spi")
+include("itemerness-nms-1_21_11")
+include("itemerness-nms-26_1_1")
 include("itemerness-nms-26_1_2")
+include("itemerness-nms-26_2")
 include("itemerness-editor-protocol")
 include("itemerness-editor-agent")
 include("itemerness-bukkit")

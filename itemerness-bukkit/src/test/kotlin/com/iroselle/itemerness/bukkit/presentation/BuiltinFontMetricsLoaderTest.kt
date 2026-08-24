@@ -13,8 +13,59 @@ import java.io.InputStream
 
 class BuiltinFontMetricsLoaderTest {
     @Test
+    fun `every supported client version has an independently pinned artifact`() {
+        val expectedClients = linkedMapOf(
+            "1.21.11" to "ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd",
+            "26.1.1" to "377031a9e733ba8ab4d355959a8f6fb8eb707556",
+            "26.1.2" to "4e618f09a0c649dde3fdf829df443ce0b8831e65",
+            "26.2" to "2dc72797acbc1b63fc16a11c4ac393605f453754",
+        )
+
+        expectedClients.forEach { (version, clientSha1) ->
+            val artifact = BuiltinFontMetricsLoader.bundled(version)
+            assertEquals(
+                "META-INF/itemerness/font-metrics/minecraft-$version.ifm",
+                BuiltinFontMetricsLoader.resourcePath(version),
+            )
+            assertEquals(version, artifact.clientVersion)
+            assertEquals(clientSha1, artifact.clientSha1)
+            assertTrue("builtin:minecraft-default-$version" in artifact.tablesByRevision)
+            assertTrue("builtin:minecraft-uniform-$version" in artifact.tablesByRevision)
+            assertMetric(
+                artifact.tablesByRevision.getValue("builtin:minecraft-default-$version").glyphs.getValue(0x200C),
+                0.0,
+                1.0,
+                false,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+            assertMetric(
+                artifact.tablesByRevision.getValue("builtin:minecraft-uniform-$version").glyphs.getValue(0x200C),
+                0.0,
+                1.0,
+                false,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+        }
+    }
+
+    @Test
+    fun `unknown client version fails closed`() {
+        val exception = assertThrows(StrictYamlException::class.java) {
+            BuiltinFontMetricsLoader.bundled("26.3")
+        }
+
+        assertTrue(exception.message.orEmpty().contains("Unsupported font metrics client version"))
+    }
+
+    @Test
     fun `bundled artifact exposes exact vanilla default and non-JP uniform metrics`() {
-        val artifact = BuiltinFontMetricsLoader.bundled()
+        val artifact = BuiltinFontMetricsLoader.bundled(TEST_CLIENT_VERSION)
         val classic = artifact.tablesByRevision.getValue("builtin:minecraft-default-26.1.2")
         val uniform = artifact.tablesByRevision.getValue("builtin:minecraft-uniform-26.1.2")
 
@@ -40,7 +91,7 @@ class BuiltinFontMetricsLoaderTest {
     @Test
     fun `missing artifact fails validation`() {
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.loadBundled { null }
+            BuiltinFontMetricsLoader.loadBundled(TEST_CLIENT_VERSION) { null }
         }
 
         assertTrue(exception.message.orEmpty().contains("Missing bundled font metrics artifact"))
@@ -52,7 +103,7 @@ class BuiltinFontMetricsLoaderTest {
         corrupted[corrupted.lastIndex] = (corrupted.last().toInt() xor 0x01).toByte()
 
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.read(ByteArrayInputStream(corrupted))
+            BuiltinFontMetricsLoader.read(ByteArrayInputStream(corrupted), TEST_CLIENT_VERSION)
         }
 
         assertTrue(exception.message.orEmpty().contains("payload integrity"))
@@ -61,13 +112,13 @@ class BuiltinFontMetricsLoaderTest {
     @Test
     fun `client version mismatch fails before metrics are accepted`() {
         val mismatched = resourceBytes()
-        val marker = "26.1.2".toByteArray()
+        val marker = TEST_CLIENT_VERSION.toByteArray()
         val offset = mismatched.indexOfSlice(marker)
         assertTrue(offset >= 0)
         mismatched[offset + marker.lastIndex] = '3'.code.toByte()
 
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.read(ByteArrayInputStream(mismatched))
+            BuiltinFontMetricsLoader.read(ByteArrayInputStream(mismatched), TEST_CLIENT_VERSION)
         }
 
         assertTrue(exception.message.orEmpty().contains("client version"))
@@ -84,7 +135,7 @@ class BuiltinFontMetricsLoaderTest {
         mismatched[offset] = (mismatched[offset].toInt() xor 0x01).toByte()
 
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.read(ByteArrayInputStream(mismatched))
+            BuiltinFontMetricsLoader.read(ByteArrayInputStream(mismatched), TEST_CLIENT_VERSION)
         }
 
         assertTrue(exception.message.orEmpty().contains("source SHA-1"))
@@ -97,7 +148,7 @@ class BuiltinFontMetricsLoaderTest {
         }
 
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.read(failing)
+            BuiltinFontMetricsLoader.read(failing, TEST_CLIENT_VERSION)
         }
 
         assertTrue(exception.message.orEmpty().contains("simulated resource failure"))
@@ -105,7 +156,7 @@ class BuiltinFontMetricsLoaderTest {
     }
 
     private fun resourceBytes(): ByteArray = checkNotNull(
-        javaClass.classLoader.getResourceAsStream(BuiltinFontMetricsLoader.RESOURCE_PATH),
+        javaClass.classLoader.getResourceAsStream(BuiltinFontMetricsLoader.resourcePath(TEST_CLIENT_VERSION)),
     ).use(InputStream::readAllBytes)
 
     private fun ByteArray.indexOfSlice(needle: ByteArray): Int {
@@ -133,5 +184,9 @@ class BuiltinFontMetricsLoaderTest {
         assertEquals(right, metric.visualBounds.right)
         assertEquals(top, metric.visualBounds.top)
         assertEquals(bottom, metric.visualBounds.bottom)
+    }
+
+    private companion object {
+        const val TEST_CLIENT_VERSION = "26.1.2"
     }
 }

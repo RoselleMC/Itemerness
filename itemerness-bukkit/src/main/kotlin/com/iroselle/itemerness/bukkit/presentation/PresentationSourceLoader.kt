@@ -78,7 +78,7 @@ internal class LoadedPresentationSource(
 
 /** Strictly maps user presentation YAML into the platform-neutral compiler input. */
 internal class PresentationSourceLoader(
-    private val builtinFontMetrics: BuiltinFontMetricsArtifact = BuiltinFontMetricsLoader.bundled(),
+    private val builtinFontMetrics: BuiltinFontMetricsArtifact,
 ) {
     fun loadAndCompile(
         root: Path,
@@ -384,7 +384,8 @@ internal class PresentationSourceLoader(
                     throw StrictYamlException("Measurement policy is declared more than once: $path")
                 }
                 measurement.rejectUnknown("client-version", "missing-glyph", "bold-extra-advance-pixels")
-                if (measurement.requiredString("client-version") != SUPPORTED_CLIENT_VERSION) {
+                val configuredClientVersion = measurement.requiredString("client-version")
+                if (configuredClientVersion != "server" && configuredClientVersion != builtinFontMetrics.clientVersion) {
                     throw StrictYamlException("Unsupported font measurement client version in $path")
                 }
                 if (measurement.requiredString("missing-glyph") != "error") {
@@ -547,17 +548,22 @@ internal class PresentationSourceLoader(
         }
         val fonts = fontSpecs.map { spec ->
             val explicitMetrics = metricsByFont[spec.id].orEmpty()
-            val builtin = builtinFontMetrics.tablesByRevision[spec.metrics]
+            val resolvedMetrics = when (spec.metrics) {
+                "builtin:minecraft-default", "builtin:minecraft-uniform" ->
+                    "${spec.metrics}-${builtinFontMetrics.clientVersion}"
+                else -> spec.metrics
+            }
+            val builtin = builtinFontMetrics.tablesByRevision[resolvedMetrics]
             when {
                 builtin != null -> {
                     if (builtin.fontId != spec.id) {
                         throw StrictYamlException(
-                            "Builtin metrics ${spec.metrics} belong to ${builtin.fontId}, not ${spec.id}",
+                            "Builtin metrics $resolvedMetrics belong to ${builtin.fontId}, not ${spec.id}",
                         )
                     }
                     if (spec.fallback != null || spec.fallbackAdvancePixels != null) {
                         throw StrictYamlException(
-                            "Builtin metrics ${spec.metrics} define their own exact fallback policy",
+                            "Builtin metrics $resolvedMetrics define their own exact fallback policy",
                         )
                     }
                     if (explicitMetrics.isNotEmpty()) {
@@ -574,8 +580,8 @@ internal class PresentationSourceLoader(
                         boldExtraAdvancePixels = boldAdvance,
                     )
                 }
-                spec.metrics.startsWith("builtin:") -> throw StrictYamlException(
-                    "Unknown builtin font metrics ${spec.metrics}",
+                resolvedMetrics.startsWith("builtin:") -> throw StrictYamlException(
+                    "Unknown builtin font metrics $resolvedMetrics",
                 )
                 else -> FontSource(
                     id = spec.id,
@@ -1150,7 +1156,6 @@ internal class PresentationSourceLoader(
         const val MAX_FILES_PER_DOMAIN = 1_024
         const val MAX_BYTES_PER_DOMAIN = 16L * 1024L * 1024L
         val YAML_EXTENSIONS = setOf("yml", "yaml")
-        const val SUPPORTED_CLIENT_VERSION = "26.1.2"
         val SEMANTIC_ID = Regex("[a-z0-9][a-z0-9._/-]*")
     }
 }

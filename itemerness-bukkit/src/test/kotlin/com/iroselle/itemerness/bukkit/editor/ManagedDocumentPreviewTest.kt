@@ -1,5 +1,6 @@
 package com.iroselle.itemerness.bukkit.editor
 
+import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsLoader
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonObject
@@ -43,7 +44,10 @@ class ManagedDocumentPreviewTest {
         Files.readString(fixtureDirectory.resolve("baseline.sha256")).trim()
     }
 
-    private val bridge = CompilerBridge(BundledBuiltinFontMetrics, agentVersion = "test")
+    private val bridge = CompilerBridge(
+        BundledBuiltinFontMetrics(BuiltinFontMetricsLoader.bundled("26.1.2")),
+        agentVersion = "test",
+    )
 
     private fun context(
         itemId: String,

@@ -1,16 +1,16 @@
 schema-version: 1
 
 measurement:
-  client-version: "26.1.2"
+  client-version: server
   missing-glyph: error
   bold-extra-advance-pixels: 1
 
 fonts:
   minecraft:default:
-    metrics: builtin:minecraft-default-26.1.2
+    metrics: builtin:minecraft-default
 
   minecraft:uniform:
-    metrics: builtin:minecraft-uniform-26.1.2
+    metrics: builtin:minecraft-uniform
 
   itemerness:body:
     metrics: manifest:itemerness-body

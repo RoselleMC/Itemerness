@@ -21,7 +21,7 @@ subprojects {
 
         tasks.withType<JavaCompile>().configureEach {
             options.encoding = "UTF-8"
-            options.release.set(25)
+            options.release.set(21)
         }
 
         tasks.withType<Test>().configureEach {
@@ -33,7 +33,7 @@ subprojects {
         extensions.configure<KotlinJvmProjectExtension> {
             jvmToolchain(25)
             compilerOptions {
-                jvmTarget.set(JvmTarget.JVM_25)
+                jvmTarget.set(JvmTarget.JVM_21)
                 javaParameters.set(true)
                 freeCompilerArgs.add("-Xjsr305=strict")
             }

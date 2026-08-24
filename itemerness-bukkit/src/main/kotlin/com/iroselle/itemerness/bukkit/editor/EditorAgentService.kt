@@ -1,6 +1,7 @@
 package com.iroselle.itemerness.bukkit.editor
 
 import com.iroselle.itemerness.bukkit.config.EditorEndpoint
+import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.editor.agent.AgentScheduler
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorAgentClient
@@ -28,12 +29,13 @@ internal class EditorAgentService(
     private val agentVersion: String,
     private val minecraftVersion: String,
     private val platform: String,
+    builtinFontMetrics: BuiltinFontMetricsArtifact,
     private val logger: Logger,
     scheduler: AgentScheduler,
     worker: Executor,
     transportExecutor: Executor,
 ) : EditorAgentHandle {
-    private val bridge = CompilerBridge(BundledBuiltinFontMetrics, agentVersion)
+    private val bridge = CompilerBridge(BundledBuiltinFontMetrics(builtinFontMetrics), agentVersion)
 
     private val client =
         EditorAgentClient(

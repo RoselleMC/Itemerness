@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import struct
 import sys
 import zlib
@@ -20,10 +21,13 @@ from zipfile import ZipFile
 MAGIC = b"ITMFONT\0"
 ARTIFACT_SCHEMA = 1
 HALF_PIXEL_SCALE = 2
-FONT_TABLES = (
-    ("minecraft:default", "builtin:minecraft-default-26.1.2", "minecraft:uniform"),
-    ("minecraft:uniform", "builtin:minecraft-uniform-26.1.2", None),
-)
+
+
+def font_tables(client_version: str) -> tuple[tuple[str, str, str | None], ...]:
+    return (
+        ("minecraft:default", f"builtin:minecraft-default-{client_version}", "minecraft:uniform"),
+        ("minecraft:uniform", f"builtin:minecraft-uniform-{client_version}", None),
+    )
 
 
 @dataclass(frozen=True)
@@ -389,7 +393,7 @@ def put_first(target: dict[int, Metric], source: dict[int, Metric]) -> None:
         target.setdefault(code_point, metric)
 
 
-def validate_font_roots(default: dict, uniform: dict) -> None:
+def validate_font_roots(default: dict, uniform: dict, client_version: str) -> None:
     expected_default = [
         {"type": "reference", "id": "minecraft:include/space"},
         {
@@ -404,9 +408,13 @@ def validate_font_roots(default: dict, uniform: dict) -> None:
         {"type": "reference", "id": "minecraft:include/unifont"},
     ]
     if default.get("providers") != expected_default:
-        raise ValueError("Vanilla default font provider order does not match the 26.1.2 profile")
+        raise ValueError(
+            f"Vanilla default font provider order does not match the {client_version} profile"
+        )
     if uniform.get("providers") != expected_uniform:
-        raise ValueError("Vanilla uniform font provider order does not match the 26.1.2 profile")
+        raise ValueError(
+            f"Vanilla uniform font provider order does not match the {client_version} profile"
+        )
 
 
 def encode_string(value: str) -> bytes:
@@ -462,10 +470,11 @@ def encode_varuint(value: int) -> bytes:
     return bytes(output)
 
 
-def encode_payload(tables: dict[str, dict[int, Metric]]) -> bytes:
-    output = bytearray((len(FONT_TABLES),))
+def encode_payload(tables: dict[str, dict[int, Metric]], client_version: str) -> bytes:
+    configured_tables = font_tables(client_version)
+    output = bytearray((len(configured_tables),))
     missing = Metric(advance=6.0, bold=1.0, has_ink=True, left=0.0, right=5.0, top=-7.0, bottom=1.0)
-    for font_id, revision, fallback in FONT_TABLES:
+    for font_id, revision, fallback in configured_tables:
         glyphs = tables[font_id]
         output.extend(encode_string(font_id))
         output.extend(encode_string(revision))
@@ -493,7 +502,12 @@ def canonical_source_sha1(resources: dict[str, bytes]) -> str:
 def generate(arguments: argparse.Namespace) -> tuple[bytes, str, dict[str, int]]:
     manifest_bytes = arguments.manifest.read_bytes()
     manifest = read_json(manifest_bytes, str(arguments.manifest))
-    if manifest.get("schemaVersion") != 1 or manifest.get("clientVersion") != "26.1.2":
+    client_version = manifest.get("clientVersion")
+    if (
+        manifest.get("schemaVersion") != 1
+        or not isinstance(client_version, str)
+        or re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", client_version) is None
+    ):
         raise ValueError("Unsupported font source manifest")
     if manifest.get("fontOptions") != {"jp": False, "uniform": False}:
         raise ValueError("The source manifest must select the non-JP, non-uniform default profile")
@@ -544,6 +558,7 @@ def generate(arguments: argparse.Namespace) -> tuple[bytes, str, dict[str, int]]
     validate_font_roots(
         read_json(sources["assets/minecraft/font/default.json"], "minecraft:default"),
         read_json(sources["assets/minecraft/font/uniform.json"], "minecraft:uniform"),
+        client_version,
     )
     space = load_space_metrics(read_json(sources["assets/minecraft/font/include/space.json"], "space.json"))
     classic: dict[int, Metric] = {}
@@ -566,11 +581,11 @@ def generate(arguments: argparse.Namespace) -> tuple[bytes, str, dict[str, int]]
         "minecraft:default": default_table,
         "minecraft:uniform": uniform_table,
     }
-    payload = encode_payload(tables)
+    payload = encode_payload(tables, client_version)
     source_digest = canonical_source_sha1(sources)
     header = bytearray(MAGIC)
     header.extend(struct.pack(">H", ARTIFACT_SCHEMA))
-    header.extend(encode_string(manifest["clientVersion"]))
+    header.extend(encode_string(client_version))
     header.extend(bytes.fromhex(manifest["client"]["sha1"]))
     header.extend(bytes.fromhex(manifest["assetIndex"]["sha1"]))
     header.extend(bytes.fromhex(source_digest))

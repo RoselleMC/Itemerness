@@ -4,8 +4,23 @@ plugins {
     `java-library`
 }
 
+java {
+    // The 26.x dev bundle requires a Java 25 compile classpath. Kotlin still emits
+    // Java 21 bytecode so this exact adapter can coexist in the universal JAR.
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+configurations.configureEach {
+    if (isCanBeResolved) {
+        attributes.attribute(
+            org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
+            25,
+        )
+    }
+}
+
 dependencies {
-    paperweight.paperDevBundle(libs.versions.paper.get())
+    paperweight.paperDevBundle(libs.versions.paper2612.get())
 
     implementation(project(":itemerness-projection-spi"))
     implementation(project(":itemerness-bukkit-spi"))
