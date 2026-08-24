@@ -65,6 +65,7 @@ dependencies {
     implementation(project(":itemerness-core"))
     implementation(project(":itemerness-projection-spi"))
     implementation(project(":itemerness-bukkit-spi"))
+    implementation(project(":itemerness-editor-agent"))
     runtimeOnly(project(":itemerness-nms-26_1_2"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.snakeyaml)
@@ -88,6 +89,7 @@ kotlin {
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
                 implementation(libs.kotlin.stdlib)
                 implementation(libs.snakeyaml)
                 compileOnly(libs.folia.api)
@@ -103,6 +105,7 @@ kotlin {
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
                 implementation(libs.kotlin.stdlib)
                 implementation(libs.snakeyaml)
                 compileOnly(libs.canvas.api)
@@ -118,6 +121,14 @@ sourceSets.named("foliaCompatibility") {
 
 sourceSets.named("canvasCompatibility") {
     java.srcDir("src/main/java")
+}
+
+tasks.test {
+    // The managed-document test compiles the same golden fixture the browser edits.
+    systemProperty(
+        "itemerness.editorFixtures",
+        rootProject.layout.projectDirectory.dir("editor/packages/protocol/fixtures").asFile.absolutePath,
+    )
 }
 
 tasks.processResources {

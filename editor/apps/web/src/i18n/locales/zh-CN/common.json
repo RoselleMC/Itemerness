@@ -1,0 +1,290 @@
+{
+    "app": {
+        "title": "Itemerness"
+    },
+    "common": {
+        "close": "关闭"
+    },
+    "sidebar": {
+        "search": "搜索物品…",
+        "addItem": "新建物品",
+        "newItemName": "新物品",
+        "disabled": "草稿",
+        "noResults": "没有匹配的物品。",
+        "assets": "资源包",
+        "packsMounted": "已挂载 {{count}} 个",
+        "packsNone": "未挂载",
+        "translations": "翻译",
+        "diagnostics": "诊断",
+        "serverConnected": "服务器：{{server}}",
+        "serverOffline": "未连接服务器",
+        "uiLanguage": "界面语言",
+        "documentSync": {
+            "loading": "正在载入项目…",
+            "saved": "所有更改均已保存",
+            "pending": "更改等待保存",
+            "saving": "正在保存更改…",
+            "conflict": "远端更改发生冲突——重新载入",
+            "error": "保存失败——重试",
+            "offline": "控制面不可用——重新连接"
+        },
+        "mode": {
+            "items": "物品",
+            "themes": "主题",
+            "layouts": "排版",
+            "data": "数据"
+        }
+    },
+    "stage": {
+        "heading": "预览",
+        "noItem": "在左侧选择一个物品开始编辑。",
+        "previewLanguage": "预览语言",
+        "compare": "对照",
+        "scale": "缩放",
+        "overlay": "几何叠加",
+        "problems": "{{count}} 个问题",
+        "fidelityHeading": "准确度",
+        "origin": {
+            "local": "草稿预览",
+            "mock": "草稿预览",
+            "agent": "服务器已验证"
+        },
+        "originHint": {
+            "local": "由浏览器即时渲染，输入时立刻反馈。",
+            "mock": "尚未连接游戏服务器；连接后可获得验证结果。",
+            "agent": "由你的 Minecraft 服务器按当前草稿和预览条件编译。"
+        },
+        "persona": "预览对象",
+        "personaPack": "资源包",
+        "personaPackHint": "预览中的玩家是否算作已接受服务器资源包。",
+        "personaProfile": "资产配置",
+        "personaProfileAuto": "根据已挂载资源包自动判断",
+        "personaProfileHint": "显式选择配置可检查依赖能力的几何效果，但不会声称对应资产已挂载。",
+        "personaManagedLines": "Itemerness 管理原版 tooltip 附加行",
+        "personaManagedLinesHint": "该项独立模拟物品的运行时能力，不由资源包状态推断。",
+        "personaUnset": "未设置",
+        "packSim": {
+            "auto": "自动",
+            "loaded": "已接受",
+            "none": "已拒绝"
+        },
+        "lineTitle": "单击选中 · 双击直接编辑",
+        "anchorTitle": "拖动移动 · 右缘调宽",
+        "inlineEditor": "原地编辑文本"
+    },
+    "inspector": {
+        "heading": "物品",
+        "enabled": "在服务器上可用",
+        "name": {
+            "heading": "名称",
+            "editingIn": "正在编辑 {{locale}} 文本。",
+            "inherited": "当前显示 {{locale}} 文本——输入即可翻译。"
+        },
+        "appearance": {
+            "heading": "外观",
+            "theme": "边框风格",
+            "layout": "排版",
+            "effective": "当前显示为",
+            "requiresPack": "需要资源包",
+            "fallbackNotice": "正在显示回退风格，原因："
+        },
+        "renderer": {
+            "PLAIN": "原版提示框",
+            "VANILLA_CHARACTER_FRAME": "字符边框",
+            "NATIVE_TOOLTIP_STYLE": "自定义边框",
+            "SEGMENTED_FRAME": "分段边框",
+            "BITMAP_CANVAS": "画布"
+        },
+        "layoutKind": {
+            "flow": "逐行排列",
+            "canvas": "固定画布"
+        },
+        "content": {
+            "heading": "内容",
+            "addField": "属性行",
+            "addText": "文本",
+            "newTextDefault": "新的一行文字。",
+            "field": "属性",
+            "text": "文本",
+            "value": "取值",
+            "conditional": "条件",
+            "repeat": "列表",
+            "nested": "内含物品",
+            "nestedHint": "展示存放在此物品内部的物品。",
+            "then": "满足时",
+            "otherwise": "否则",
+            "each": "对 {{key}} 的每一项各显示一行",
+            "sample": "示例值",
+            "sampleHint": "仅用于此预览的示例值——永远不会发布。",
+            "complexValue": "结构化取值",
+            "moveUp": "上移",
+            "moveDown": "下移",
+            "remove": "删除此行",
+            "dragHandle": "拖动排序",
+            "dataLabel": "数据",
+            "iconLabel": "图标",
+            "formatLabel": "格式",
+            "factGroup": "玩家属性",
+            "dataGroup": "物品数据",
+            "literal": "数字…"
+        },
+        "advanced": {
+            "heading": "高级",
+            "id": "物品 ID",
+            "material": "基础材质",
+            "nameKey": "名称消息键",
+            "mode": "实例模式",
+            "deleteItem": "删除此物品",
+            "deleteConfirm": "删除“{{name}}”？此操作无法在此撤销。"
+        },
+        "none": "无",
+        "theme": {
+            "heading": "主题",
+            "previewHint": "舞台会以此主题预览你当前选中的物品。",
+            "colors": "颜色",
+            "fonts": "字体",
+            "fallback": "回退风格",
+            "fallbackHint": "当玩家无法显示此主题时改用的风格。",
+            "contentWidth": "内容宽度",
+            "frame": "边框",
+            "preset": "字符集",
+            "minWidth": "最小宽度",
+            "maxWidth": "最大宽度",
+            "bold": "粗体",
+            "italic": "斜体",
+            "canvas": "画布",
+            "canvasSize": "尺寸",
+            "reserveLines": "预留行数",
+            "layers": "图层数"
+        },
+        "roles": {
+            "item-name": "物品名称",
+            "label": "标签",
+            "value": "数值",
+            "description": "描述",
+            "requirement-met": "条件满足",
+            "requirement-unmet": "条件不满足",
+            "frame": "边框"
+        },
+        "framePresets": {
+            "UNICODE_SINGLE": "单线 ─",
+            "UNICODE_DOUBLE": "双线 ═",
+            "ASCII_SAFE": "ASCII -",
+            "BRACKETED_SECTION": "方括号 [ ]",
+            "SEPARATOR_ONLY": "仅分隔线"
+        },
+        "layout": {
+            "heading": "排版",
+            "usedBy": "被 {{count}} 个物品使用",
+            "width": "宽度",
+            "fields": "属性行",
+            "valueAlignment": "数值对齐",
+            "alignLEFT": "左对齐",
+            "alignRIGHT": "右对齐",
+            "fieldPadding": "缩进（px）",
+            "iconGap": "图标间距（px）",
+            "description": "描述",
+            "gapBefore": "段前间距（px）",
+            "maxLines": "最大行数",
+            "overflow": "超长时",
+            "anchors": "锚点",
+            "canvasHint": "画布几何由主题的图层资产定义；尺寸请在文档中编辑。"
+        },
+        "overflow": {
+            "ELLIPSIS": "省略号 …",
+            "ALLOW_OVERFLOW": "允许溢出",
+            "ERROR": "拒绝该物品"
+        },
+        "data": {
+            "heading": "数据键",
+            "instance": "逐物品",
+            "definition": "共享",
+            "label": "显示标签",
+            "labelHint": "所有使用此键的属性行都会显示这个标签。",
+            "defaultValue": "默认值",
+            "defaultHint": "物品未自行设置取值时使用。",
+            "affectsStacking": "影响堆叠",
+            "presentationReadable": "可在提示框显示",
+            "range": "取值范围",
+            "allowed": "允许的取值"
+        }
+    },
+    "fidelity": {
+        "level": {
+            "exact-structure": "结构精确",
+            "metric-faithful": "指标忠实",
+            "approximate-raster": "近似栅格",
+            "client-only": "仅客户端可知"
+        },
+        "aspect": {
+            "content": "内容",
+            "locale": "语言",
+            "theme-selection": "主题选择",
+            "metrics": "字体指标",
+            "wrapping": "换行",
+            "glyph-raster": "字形像素",
+            "tooltip-frame": "提示框边框",
+            "item-icon": "物品图标",
+            "positioning": "屏幕定位",
+            "vanilla-extra-lines": "原版附加行"
+        }
+    },
+    "assets": {
+        "heading": "资源包",
+        "description": "挂载资源包或原版客户端资产后，预览读取的就是游戏会读取的同一批字节。文件不会离开本浏览器。",
+        "drop": "把 .zip 或 .jar 拖到这里，或选择文件",
+        "choose": "选择文件",
+        "fetchVanilla": "拉取原版 {{version}} 资产",
+        "fetchVanillaHint": "通过控制面下载已固定的字体、GUI 与物品资产，并逐个校验 SHA-1。",
+        "mounted": "已挂载的包",
+        "priority": "优先级",
+        "remove": "移除",
+        "moveUp": "上移",
+        "moveDown": "下移",
+        "empty": "尚未挂载任何资源。预览正在使用随插件分发的指标产物，几何忠实但不会绘制字形。",
+        "kind": {
+            "vanilla": "原版",
+            "resource-pack": "资源包"
+        },
+        "size": "{{count}} 个条目",
+        "selfCheck": {
+            "heading": "指标自检",
+            "description": "把挂载资产推导出的 advance 与从真实客户端 JAR 生成的指标产物逐一比对。",
+            "run": "运行自检",
+            "running": "比对中…",
+            "pass": "{{count}} 个码位完全一致，零差异。",
+            "fail": "{{count}} 个码位与产物不一致。",
+            "missing": "挂载资产中缺少 {{count}} 个码位。",
+            "unavailable": "请先挂载原版资产再运行此检查。",
+            "font": "字体",
+            "compared": "已比对",
+            "mismatches": "差异"
+        }
+    },
+    "locales": {
+        "heading": "语言矩阵",
+        "key": "消息键",
+        "coverage": "覆盖率",
+        "missing": "缺失",
+        "fallbackOnly": "仅由回退提供",
+        "addLocale": "添加语言",
+        "defaultLocale": "默认",
+        "fallbackChain": "回退到 {{locale}}",
+        "search": "筛选键",
+        "stats": "已翻译 {{translated}} / {{total}}"
+    },
+    "diagnostics": {
+        "heading": "诊断",
+        "empty": "暂无诊断。",
+        "severity": {
+            "ERROR": "错误",
+            "WARNING": "警告",
+            "INFO": "提示"
+        },
+        "origin": {
+            "browser": "浏览器",
+            "control-plane": "控制面",
+            "agent": "目标服务器"
+        }
+    }
+}

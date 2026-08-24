@@ -1,0 +1,21 @@
+{
+    "name": "@itemerness/mc-assets",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Resource-pack virtual file system, Minecraft font providers, and the generated metrics artifact reader.",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@itemerness/protocol": "workspace:*",
+        "@noble/hashes": "^1.8.0",
+        "fast-png": "^6.2.0",
+        "fflate": "^0.8.2"
+    }
+}

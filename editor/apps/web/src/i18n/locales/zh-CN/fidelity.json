@@ -1,0 +1,39 @@
+{
+    "content": {
+        "agent_verified": "目标服务器已编译该快照。",
+        "agent_stale": "服务端结果对应的是更旧的草稿快照。",
+        "mock": "回放自存档 fixture，并非实时编译器。",
+        "local": "由浏览器根据草稿合成。"
+    },
+    "metrics": {
+        "from_mounted_assets": "advance 来自已挂载的资源包。",
+        "from_artifact": "advance 读自由客户端 JAR 生成的指标产物。",
+        "incomplete": "至少有一个字体无法测量。"
+    },
+    "wrapping": {
+        "agent": "换行由生产排版引擎决定。",
+        "browser_greedy": "浏览器使用真实像素 advance 做贪心换行。"
+    },
+    "raster": {
+        "mounted": "使用挂载的字形纹理绘制。GPU 采样与舍入仍可能与客户端不同。",
+        "partial": "部分字形只有指标，没有像素。",
+        "no_assets": "未挂载字形纹理，无法忠实绘制。"
+    },
+    "frame": {
+        "sprites_mounted": "由挂载的 tooltip 精灵按 nine-slice 拉伸。",
+        "sprites_missing": "主题请求的 tooltip 样式不在已挂载的包中。",
+        "legacy_gradient": "未挂载 tooltip 精灵，使用旧版渐变绘制。"
+    },
+    "icon": {
+        "flat_sprite": "从挂载资产解析出的平面物品贴图。",
+        "block_model": "该物品使用 3D 方块模型，本预览不渲染。",
+        "absent": "没有可用的物品贴图。"
+    },
+    "positioning": {
+        "client_decides": "GUI 缩放、窗口尺寸与屏幕边缘翻转由玩家客户端决定。"
+    },
+    "vanilla_lines": {
+        "preserved": "客户端会自行追加附魔与属性行，本预览不显示它们。",
+        "managed": "主题接管了全部 tooltip 行，客户端不应再追加。"
+    }
+}

@@ -1,0 +1,39 @@
+{
+    "content": {
+        "agent_verified": "The target server compiled this snapshot.",
+        "agent_stale": "The server result is for an older draft snapshot.",
+        "mock": "Replayed from a stored fixture, not a live compiler.",
+        "local": "Composed in the browser from the draft."
+    },
+    "metrics": {
+        "from_mounted_assets": "Advances derived from the mounted resource pack.",
+        "from_artifact": "Advances read from the metrics artifact generated from the client jar.",
+        "incomplete": "At least one font could not be measured."
+    },
+    "wrapping": {
+        "agent": "Line breaks decided by the production layout engine.",
+        "browser_greedy": "Greedy line breaking in the browser, using real pixel advances."
+    },
+    "raster": {
+        "mounted": "Drawn from the mounted glyph textures. GPU sampling and rounding may still differ from the client.",
+        "partial": "Some glyphs have metrics but no pixels.",
+        "no_assets": "No glyph textures mounted, so nothing can be drawn faithfully."
+    },
+    "frame": {
+        "sprites_mounted": "Nine-sliced from the mounted tooltip sprites.",
+        "sprites_missing": "The theme requests a tooltip style the mounted packs do not provide.",
+        "legacy_gradient": "Drawn with the pre-sprite gradient because no tooltip sprite is mounted."
+    },
+    "icon": {
+        "flat_sprite": "Flat item sprite resolved from the mounted assets.",
+        "block_model": "This item uses a 3D block model, which this preview does not render.",
+        "absent": "No item texture available."
+    },
+    "positioning": {
+        "client_decides": "GUI scale, window size, and screen-edge flipping are decided by the player's client."
+    },
+    "vanilla_lines": {
+        "preserved": "The client adds its own enchantment and attribute lines, which this preview does not show.",
+        "managed": "The theme claims every tooltip line, so the client should add none."
+    }
+}

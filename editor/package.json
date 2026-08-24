@@ -1,0 +1,31 @@
+{
+    "name": "itemerness-editor",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Itemerness web editor workspace: browser UI, control plane, and the Minecraft-faithful preview engine.",
+    "engines": {
+        "node": ">=22"
+    },
+    "packageManager": "pnpm@10.11.0",
+    "scripts": {
+        "typecheck": "tsc -b --pretty",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "lint": "eslint .",
+        "format": "prettier --check .",
+        "dev": "pnpm --filter @itemerness/control-plane dev",
+        "dev:web": "pnpm --filter @itemerness/web dev",
+        "build": "pnpm --filter @itemerness/web build && pnpm --filter @itemerness/control-plane build",
+        "e2e": "pnpm --filter @itemerness/web e2e",
+        "assets:vanilla": "node packages/mc-assets/scripts/fetch-vanilla-assets.mjs"
+    },
+    "devDependencies": {
+        "@types/node": "^22.15.3",
+        "eslint": "^9.26.0",
+        "prettier": "^3.5.3",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.32.0",
+        "vitest": "^3.1.3"
+    }
+}

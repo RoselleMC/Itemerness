@@ -1,0 +1,38 @@
+{
+    "locale": {
+        "fallback_used": "\"{{key}}\" has no {{locale}} translation; showing {{fallback}}.",
+        "missing_message": "\"{{key}}\" is not translated in any language."
+    },
+    "data": { "missing": "No value for data key {{key}}." },
+    "document": {
+        "decode_failed": "The project document could not be decoded: {{detail}}",
+        "snapshot_mismatch": "The preview snapshot hash does not match the submitted document.",
+        "invalid": "The project document did not pass validation.",
+        "catalog_invalid": "The item catalog did not pass validation. See {{diagnosticCount}} diagnostic entries.",
+        "preview_data_invalid": "Preview data for {{item}} is invalid: {{detail}}"
+    },
+    "item": { "unknown": "Item {{item}} is not in this project." },
+    "theme": {
+        "no_safe_theme": "No theme in the fallback chain from {{requested}} can be displayed."
+    },
+    "layout": { "unknown": "Layout {{layout}} is not declared." },
+    "assets": {
+        "font_texture_missing": "Font texture {{texture}} is not in any mounted pack.",
+        "font_texture_invalid": "Font texture {{texture}} could not be read: {{detail}}",
+        "font_hex_missing": "Unihex archive {{file}} is not in any mounted pack.",
+        "font_hex_invalid": "Unihex archive {{file}} could not be read: {{detail}}",
+        "font_definition_missing": "Font {{font}} is not defined by any mounted pack.",
+        "font_definition_invalid": "Font {{font}} is malformed: {{detail}}",
+        "font_reference_missing": "Referenced font {{font}} is missing.",
+        "font_ttf_unsupported": "TrueType provider {{file}} cannot be measured in the browser, so this font's metrics are unknown.",
+        "font_provider_unknown": "Unknown font provider type \"{{provider}}\".",
+        "icon_undeclared": "Icon {{icon}} is not in the glyph registry."
+    },
+    "canvas": {
+        "spacing_unreachable": "A {{pixels}} pixel offset is outside the declared spacing range.",
+        "layer_undeclared": "Canvas layer asset {{asset}} is not in the glyph registry."
+    },
+    "preview": {
+        "stale_snapshot": "A server result arrived for an older draft and was discarded."
+    }
+}

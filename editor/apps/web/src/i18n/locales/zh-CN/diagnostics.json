@@ -1,0 +1,36 @@
+{
+    "locale": {
+        "fallback_used": "“{{key}}”没有 {{locale}} 翻译，显示的是 {{fallback}}。",
+        "missing_message": "“{{key}}”在任何语言中都没有翻译。"
+    },
+    "data": { "missing": "数据键 {{key}} 没有取值。" },
+    "document": {
+        "decode_failed": "项目文档无法解析：{{detail}}",
+        "snapshot_mismatch": "预览快照摘要与提交的文档不一致。",
+        "invalid": "项目文档未通过校验。",
+        "catalog_invalid": "物品目录未通过校验（{{diagnosticCount}} 个问题）。",
+        "preview_data_invalid": "物品 {{item}} 的预览数据无效：{{detail}}"
+    },
+    "item": { "unknown": "物品 {{item}} 不在本项目中。" },
+    "theme": {
+        "no_safe_theme": "从 {{requested}} 起的回退链中没有可展示的主题。"
+    },
+    "layout": { "unknown": "布局 {{layout}} 未声明。" },
+    "assets": {
+        "font_texture_missing": "任何已挂载的包中都没有字体纹理 {{texture}}。",
+        "font_texture_invalid": "字体纹理 {{texture}} 无法读取：{{detail}}",
+        "font_hex_missing": "任何已挂载的包中都没有 unihex 归档 {{file}}。",
+        "font_hex_invalid": "unihex 归档 {{file}} 无法读取：{{detail}}",
+        "font_definition_missing": "已挂载的包都没有定义字体 {{font}}。",
+        "font_definition_invalid": "字体 {{font}} 格式错误：{{detail}}",
+        "font_reference_missing": "被引用的字体 {{font}} 缺失。",
+        "font_ttf_unsupported": "浏览器无法测量 TrueType provider {{file}}，该字体的指标未知。",
+        "font_provider_unknown": "未知的字体 provider 类型“{{provider}}”。",
+        "icon_undeclared": "图标 {{icon}} 不在 glyph 注册表中。"
+    },
+    "canvas": {
+        "spacing_unreachable": "{{pixels}} 像素的偏移超出了已声明的 spacing 范围。",
+        "layer_undeclared": "画布图层资产 {{asset}} 不在 glyph 注册表中。"
+    },
+    "preview": { "stale_snapshot": "一条对应旧草稿的服务端结果已被丢弃。" }
+}

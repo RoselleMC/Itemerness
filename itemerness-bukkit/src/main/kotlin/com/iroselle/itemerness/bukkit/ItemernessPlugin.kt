@@ -8,6 +8,10 @@ import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
 import com.iroselle.itemerness.bukkit.catalog.PreparedRuntimeCatalogPublication
+import com.iroselle.itemerness.bukkit.editor.EditorAgentService
+import com.iroselle.itemerness.bukkit.editor.EditorAgentCoordinator
+import com.iroselle.itemerness.bukkit.editor.FoliaAgentScheduler
+import com.iroselle.itemerness.bukkit.editor.FoliaAsyncExecutor
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogManager
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogPublication
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogUpdate
@@ -45,6 +49,7 @@ class ItemernessPlugin : JavaPlugin() {
     private var refreshCoordinator: VisibleSurfaceRefreshCoordinator? = null
     private var viewerFactRefreshListener: AutoCloseable? = null
     private var projectionAdapter: ProjectionAdapter? = null
+    private var editorAgent: EditorAgentCoordinator? = null
 
     override fun onEnable() {
         check(catalog == null) { "Itemerness has already been enabled" }
@@ -143,6 +148,22 @@ class ItemernessPlugin : JavaPlugin() {
                 viewerFacts = viewerFacts,
                 viewerAvailable = { viewerId -> projectionState.viewer(viewerId) != null },
             )
+            val editorAgent = EditorAgentCoordinator { endpoint ->
+                val asyncExecutor = FoliaAsyncExecutor(scheduler)
+                EditorAgentService(
+                    endpoint = endpoint,
+                    // Informational only: the control plane derives the authoritative identity from
+                    // the token binding, so a server cannot rename itself into another project.
+                    serverId = "${server.name.lowercase()}-${server.port}",
+                    agentVersion = pluginMeta.version,
+                    minecraftVersion = server.minecraftVersion,
+                    platform = server.name,
+                    logger = logger,
+                    scheduler = FoliaAgentScheduler(scheduler),
+                    worker = asyncExecutor,
+                    transportExecutor = asyncExecutor,
+                )
+            }
 
             // Publish every closeable before any registration or start call. A later lifecycle
             // failure must be able to unwind listeners, tasks, services, and channel hooks.
@@ -157,6 +178,7 @@ class ItemernessPlugin : JavaPlugin() {
             this.refreshCoordinator = refreshCoordinator
             this.viewerFactRefreshListener = factRefreshListener
             this.projectionAdapter = projectionAdapter
+            this.editorAgent = editorAgent
 
             // The exact NMS release gate must be ready before any API or command can create a
             // canonical item. Viewer capture then refreshes already-online players after hooks exist.
@@ -164,6 +186,7 @@ class ItemernessPlugin : JavaPlugin() {
             bukkitApi.start()
             publisher.start()
             placeholders.start()
+            startEditorAgent(editorAgent, initial.active.settings)
 
             server.servicesManager.register(BukkitItemernessApi::class.java, bukkitApi, this, ServicePriority.Normal)
             ItemernessCommands(
@@ -206,14 +229,36 @@ class ItemernessPlugin : JavaPlugin() {
                             }
                             throw publicationFailure
                         }
+                        val editorPublication = try {
+                            editorAgent.prepare(published.settings.editor)
+                        } catch (failure: Throwable) {
+                            var publicationFailure = failure
+                            try {
+                                factPublication.rollback()
+                            } catch (rollbackFailure: Throwable) {
+                                publicationFailure = mergePublicationFailure(publicationFailure, rollbackFailure)
+                            }
+                            try {
+                                projectionPublication.rollback()
+                            } catch (rollbackFailure: Throwable) {
+                                publicationFailure = mergePublicationFailure(publicationFailure, rollbackFailure)
+                            }
+                            throw publicationFailure
+                        }
                         object : PreparedRuntimeCatalogPublication {
                             override fun commit() {
                                 projectionPublication.commit()
                                 factPublication.commit()
+                                editorPublication.commit()
                             }
 
                             override fun rollback() {
                                 var firstFailure: Throwable? = null
+                                try {
+                                    editorPublication.rollback()
+                                } catch (failure: Throwable) {
+                                    firstFailure = mergePublicationFailure(firstFailure, failure)
+                                }
                                 try {
                                     factPublication.rollback()
                                 } catch (failure: Throwable) {
@@ -228,7 +273,13 @@ class ItemernessPlugin : JavaPlugin() {
                             }
 
                             override fun complete() {
-                                val failures = factPublication.complete()
+                                val failures = mutableListOf<Throwable>()
+                                try {
+                                    editorPublication.complete()
+                                } catch (failure: Throwable) {
+                                    failures += failure
+                                }
+                                failures += factPublication.complete()
                                 if (failures.isNotEmpty()) {
                                     val failure = IllegalStateException(
                                         "${failures.size} viewer fact listener(s) failed after catalog commit",
@@ -258,6 +309,29 @@ class ItemernessPlugin : JavaPlugin() {
         }
     }
 
+    /**
+     * Dials the control plane when the operator has paired this server.
+     *
+     * Started last, once the runtime is up, so a preview request cannot arrive while the catalog is
+     * still being built. A failure here is logged and does not abort enable: an unreachable editor
+     * must never stop a server from running its local catalog.
+     */
+    private fun startEditorAgent(
+        coordinator: EditorAgentCoordinator,
+        settings: com.iroselle.itemerness.bukkit.config.ItemernessSettings,
+    ) {
+        val endpoint = settings.editor
+        if (endpoint == null) {
+            logger.info("Editor is not configured; the catalog stays local")
+            return
+        }
+        try {
+            coordinator.start(endpoint)
+        } catch (failure: Throwable) {
+            logger.log(java.util.logging.Level.SEVERE, "Could not start the editor agent", failure)
+        }
+    }
+
     override fun onDisable() {
         closeRuntime()
     }
@@ -273,6 +347,11 @@ class ItemernessPlugin : JavaPlugin() {
             }
         }
 
+        // Stopped first: once teardown begins nothing should accept a new compile against a
+        // catalog that is about to be dismantled.
+        editorAgent.also { editorAgent = null }?.let { coordinator ->
+            cleanup("editor agent", coordinator::close)
+        }
         bukkitApi.also { bukkitApi = null }?.let { api ->
             cleanup("Bukkit API", api::close)
         }

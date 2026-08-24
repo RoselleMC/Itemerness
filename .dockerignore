@@ -1,0 +1,31 @@
+# Build context for editor/deploy/Dockerfile is the repository root, because the image needs the
+# generated font-metrics artifact and the pinned Mojang source manifest. Everything else is
+# excluded so the context stays small and no build output, credential, or local note is uploaded.
+.git/
+.gradle/
+.kotlin/
+.idea/
+build/
+*/build/
+out/
+run/
+runs/
+docs/
+AGENTS.md
+CLAUDE.md
+*.log
+*.log.gz
+.DS_Store
+
+editor/node_modules/
+editor/**/node_modules/
+editor/**/dist/
+editor/vanilla-cache/
+editor/**/test-results/
+editor/**/playwright-report/
+editor/**/.vite/
+editor/**/*.tsbuildinfo
+
+# Mojang assets are never part of an image build context.
+**/*.jar
+!gradle/wrapper/gradle-wrapper.jar

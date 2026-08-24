@@ -6,7 +6,7 @@ The project targets Paper, Folia, and Canvas as first-class runtimes. It does no
 
 ## Status
 
-The plugin implementation for stages 0–3 is available for Minecraft `26.1.2` and Java `25`:
+The plugin implementation for stages 0-3 is available for Minecraft `26.1.2` and Java `25`:
 
 - atomic catalog loading, validation, publication, and rollback;
 - canonical item creation, identification, typed data reads, and atomic edits;
@@ -16,12 +16,13 @@ The plugin implementation for stages 0–3 is available for Minecraft `26.1.2` a
 - plain, resource-pack-free character frame, native tooltip style, segmented frame, and experimental bitmap-canvas renderers;
 - exact `26.1.2` direct-NMS projection across the scanned packet, component, structured payload, NBT, and nested-item surfaces;
 - bounded HashedStack, creative-mode, custom-action, refresh, and connection lifecycle state.
+- an optional outbound editor agent that compiles exact document snapshots for server-verified previews.
 
 Bitmap output remains experimental. Automated tests and server smoke tests do not replace real-client verification of final pixels, GUI-scale behavior, or the complete manual inventory interaction matrix.
 
-The final Craft Runner smoke matrix passed on Java 25.0.3 with Paper 26.1.2 build 74, Folia 26.1.2 build 8, and Canvas 26.1.2 build 876. All three loaded the exact NMS adapter in `STARTED` state, passed the independent API consumer, validated and published the catalog, and exposed the updated catalog revision through PlaceholderAPI. The Java 25 verification suite currently contains 469 passing tests, including 150 exact-NMS tests.
+The Craft Runner smoke matrix covers Paper, Folia, and Canvas on Java 25. It verifies the exact NMS adapter, an independent API consumer, catalog publication, commands, and PlaceholderAPI. Local verification covers the JVM modules and the editor's protocol, renderer, browser workflow, and production bundles.
 
-The web editor is not implemented. `editor.url` and `editor.token` are strict empty reservations for a separately planned project; setting either value currently rejects the configuration.
+An initial self-hosted web editor is available under `editor/`. It loads and autosaves the authoring document, renders live local previews, mounts resource-pack assets in the browser, and can ask a paired server to compile the exact draft with the production Kotlin compiler. It does not yet provide authentication, persistence, publication, rollback, or multi-server rollout; the default deployment is therefore loopback-only.
 
 ## Baseline
 
@@ -40,6 +41,8 @@ itemerness-core -> itemerness-api
 itemerness-projection-spi -> itemerness-api
 itemerness-bukkit-spi -> itemerness-api, itemerness-projection-spi
 itemerness-nms-26_1_2 -> itemerness-projection-spi, itemerness-bukkit-spi
+itemerness-editor-protocol -> itemerness-core
+itemerness-editor-agent -> itemerness-editor-protocol, itemerness-core
 itemerness-bukkit -> all runtime modules
 ```
 
@@ -48,7 +51,11 @@ itemerness-bukkit -> all runtime modules
 - `itemerness-projection-spi` contains immutable projection snapshots and adapter lifecycle contracts.
 - `itemerness-bukkit-spi` isolates canonical Bukkit `ItemStack` access from the distribution module.
 - `itemerness-nms-26_1_2` contains the exact-version ABI probe, packet projection, inbound restoration, and connection state.
-- `itemerness-bukkit` contains catalog loading, Bukkit services, Brigadier, PlaceholderAPI, Folia-safe scheduling, resources, and the deployable JAR.
+- `itemerness-editor-protocol` contains the managed-document codec and the JVM wire contract without Bukkit or NMS types.
+- `itemerness-editor-agent` contains the outbound WebSocket state machine and the production preview compiler bridge.
+- `itemerness-bukkit` contains catalog loading, Bukkit services, Brigadier, PlaceholderAPI, Folia-safe scheduling, the editor lifecycle bridge, resources, and the deployable JAR.
+
+The TypeScript workspace under `editor/` contains the browser application, control plane, shared schemas, Minecraft asset readers, renderer, and deployment files. See [editor/README.md](editor/README.md) for its fidelity model and current operational limits.
 
 The NMS module is shaded into the Bukkit distribution. NMS, CraftBukkit, packet, channel, and mutable server types do not enter the public platform-neutral contracts.
 
@@ -72,7 +79,7 @@ The build verifies Kotlin/JVM tests, the shaded service boundaries, plugin metad
 
 ## Configuration
 
-`config.yml` contains only global catalog, pending-name, locale, presentation, and reserved editor settings. Content is separated by responsibility under:
+`config.yml` contains global catalog, pending-name, locale, presentation, and optional editor pairing settings. Leave both `editor.url` and `editor.token` empty for a fully local installation. Set both to enable server-verified previews; pairing changes require a server restart. Content is separated by responsibility under:
 
 ```text
 data-keys/  viewer-facts/  formats/  items/

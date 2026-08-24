@@ -1,7 +1,17 @@
 package com.iroselle.itemerness.bukkit.config
 
 import com.iroselle.itemerness.api.ItemKey
+import java.net.URI
+import java.net.URISyntaxException
 import java.nio.file.Path
+
+internal data class EditorEndpoint(
+    val url: String,
+    /** Never logged, never written to an artifact, never returned by a diagnostic. */
+    val token: String,
+) {
+    override fun toString(): String = "EditorEndpoint(url=$url, token=<redacted>)"
+}
 
 internal data class ItemernessSettings(
     val defaultNamespace: String,
@@ -10,6 +20,7 @@ internal data class ItemernessSettings(
     val defaultLocale: String,
     val defaultLayout: ItemKey,
     val defaultTheme: ItemKey,
+    val editor: EditorEndpoint?,
 ) {
     val pendingNameColorRgb: Int
         get() = NAMED_COLORS.getValue(pendingNameColor)
@@ -21,6 +32,7 @@ internal data class ItemernessSettings(
         private const val EXPECTED_CONFIG_VERSION = 3
         private const val ITEM_ID_TOKEN = "{item-id}"
         private val LOCALE_PATTERN = Regex("[a-z0-9]{2,16}(?:_[a-z0-9]{2,16})?")
+        private val ENVIRONMENT_REFERENCE = Regex("\\$\\{([A-Z_][A-Z0-9_]*)}")
         private val NAMED_COLORS = mapOf(
             "black" to 0x000000,
             "dark_blue" to 0x0000AA,
@@ -39,6 +51,17 @@ internal data class ItemernessSettings(
             "yellow" to 0xFFFF55,
             "white" to 0xFFFFFF,
         )
+
+        /**
+         * Reads `${'$'}{ENV_NAME}` indirection so a token never has to sit in a file an operator might
+         * commit or attach to a bug report.
+         */
+        private fun resolveSecret(value: String, key: String, source: String): String {
+            val match = ENVIRONMENT_REFERENCE.matchEntire(value.trim()) ?: return value.trim()
+            val name = match.groupValues[1]
+            return System.getenv(name)
+                ?: throw StrictYamlException("$key in $source references environment variable $name, which is not set")
+        }
 
         fun load(path: Path): ItemernessSettings = from(StrictYaml.load(path), path.toString())
 
@@ -69,13 +92,20 @@ internal data class ItemernessSettings(
                 throw StrictYamlException("Invalid default namespace '$namespace' in $source", exception)
             }
 
-            val editor = root.requiredObject("editor").rejectUnknown("url", "token")
-            val editorUrl = editor.requiredString("url")
-            val editorToken = editor.requiredString("token")
-            if (editorUrl.isNotEmpty() || editorToken.isNotEmpty()) {
+            val editorNode = root.requiredObject("editor").rejectUnknown("url", "token")
+            val editorUrl = resolveSecret(editorNode.requiredString("url"), "editor.url", source)
+            val editorToken = resolveSecret(editorNode.requiredString("token"), "editor.token", source)
+            // Half a pairing is a configuration mistake, not a quiet fallback to local mode: an
+            // operator who filled in one field expected the editor to be connected.
+            if (editorUrl.isEmpty() != editorToken.isEmpty()) {
                 throw StrictYamlException(
-                    "editor.url and editor.token in $source must remain empty because the editor endpoint is unavailable",
+                    "editor.url and editor.token in $source must both be set or both be empty",
                 )
+            }
+            val editor = if (editorUrl.isEmpty()) {
+                null
+            } else {
+                parseEditorEndpoint(editorUrl, editorToken, source)
             }
 
             val canonical = root.requiredObject("canonical-item").rejectUnknown("pending-name")
@@ -119,6 +149,7 @@ internal data class ItemernessSettings(
                 defaultLocale = defaultLocale,
                 defaultLayout = defaultLayout,
                 defaultTheme = defaultTheme,
+                editor = editor,
             )
         }
 
@@ -130,6 +161,34 @@ internal data class ItemernessSettings(
             ItemKey.parse(value)
         } catch (exception: IllegalArgumentException) {
             throw StrictYamlException("Invalid $path '$value' in $source", exception)
+        }
+
+        private fun parseEditorEndpoint(
+            value: String,
+            token: String,
+            source: String,
+        ): EditorEndpoint {
+            val normalized = value.trimEnd('/')
+            val uri = try {
+                URI(normalized)
+            } catch (exception: URISyntaxException) {
+                throw StrictYamlException("Invalid editor.url in $source", exception)
+            }
+            val host = uri.host?.removeSurrounding("[", "]")
+                ?: throw StrictYamlException("editor.url in $source must include a host")
+            val loopbackHttp = uri.scheme.equals("http", ignoreCase = true) &&
+                host.lowercase() in setOf("localhost", "127.0.0.1", "::1")
+            if (!uri.scheme.equals("https", ignoreCase = true) && !loopbackHttp) {
+                throw StrictYamlException(
+                    "editor.url in $source must use https except for an explicit loopback host",
+                )
+            }
+            if (uri.userInfo != null || uri.query != null || uri.fragment != null) {
+                throw StrictYamlException(
+                    "editor.url in $source must not contain user info, a query, or a fragment",
+                )
+            }
+            return EditorEndpoint(normalized, token)
         }
 
         private fun String.countToken(token: String): Int {

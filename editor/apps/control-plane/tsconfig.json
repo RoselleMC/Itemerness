@@ -1,0 +1,17 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "types": ["node"],
+        "baseUrl": "../..",
+        "paths": {
+            "@itemerness/protocol": ["packages/protocol/src/index.ts"],
+            "@itemerness/protocol/fixtures/baseline.js": [
+                "packages/protocol/fixtures/baseline.ts"
+            ],
+            "@itemerness/mc-assets": ["packages/mc-assets/src/index.ts"],
+            "@itemerness/mc-render": ["packages/mc-render/src/index.ts"],
+            "@itemerness/mc-render/canvas": ["packages/mc-render/src/canvas.ts"]
+        }
+    },
+    "include": ["src/**/*.ts"]
+}

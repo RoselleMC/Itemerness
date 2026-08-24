@@ -1,0 +1,31 @@
+{
+    "name": "@itemerness/web",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "e2e": "playwright test",
+        "e2e:ui": "playwright test --ui"
+    },
+    "dependencies": {
+        "@itemerness/mc-assets": "workspace:*",
+        "@itemerness/mc-render": "workspace:*",
+        "@itemerness/protocol": "workspace:*",
+        "i18next": "^24.2.3",
+        "i18next-browser-languagedetector": "^8.0.4",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "react-i18next": "^15.5.1",
+        "zustand": "^5.0.4"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.52.0",
+        "@types/react": "^19.1.2",
+        "@types/react-dom": "^19.1.2",
+        "@vitejs/plugin-react": "^4.4.1",
+        "vite": "^6.3.4"
+    }
+}

@@ -4,8 +4,13 @@ config-version: 3
 catalog:
   default-namespace: itemerness
 
-# Reserved for the separately planned editor integration. It is unavailable in
-# this release, so both values must remain empty.
+# Web editor pairing. Leave both empty to disable the editor agent; set both to
+# enable server-verified previews. Managed publication is not available yet.
+# Setting only one is a configuration error rather than a silent fallback. The
+# plugin dials out over TLS, so no inbound port is needed.
+# Changing either pairing value while the server is running requires a restart.
+# A ${ENV_NAME} value is read from the environment, which keeps the token out of
+# this file. Tokens are never logged, exported, or returned in diagnostics.
 editor:
   url: ""
   token: ""

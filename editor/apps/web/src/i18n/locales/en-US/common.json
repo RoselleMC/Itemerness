@@ -1,0 +1,290 @@
+{
+    "app": {
+        "title": "Itemerness"
+    },
+    "common": {
+        "close": "Close"
+    },
+    "sidebar": {
+        "search": "Search items…",
+        "addItem": "New item",
+        "newItemName": "New item",
+        "disabled": "Draft",
+        "noResults": "No items match.",
+        "assets": "Resource packs",
+        "packsMounted": "{{count}} mounted",
+        "packsNone": "None mounted",
+        "translations": "Translations",
+        "diagnostics": "Diagnostics",
+        "serverConnected": "Server: {{server}}",
+        "serverOffline": "No server connected",
+        "uiLanguage": "Interface language",
+        "documentSync": {
+            "loading": "Loading project…",
+            "saved": "All changes saved",
+            "pending": "Changes pending",
+            "saving": "Saving changes…",
+            "conflict": "Remote changes conflict — reload",
+            "error": "Save failed — retry",
+            "offline": "Control plane unavailable — reconnect"
+        },
+        "mode": {
+            "items": "Items",
+            "themes": "Themes",
+            "layouts": "Layouts",
+            "data": "Data"
+        }
+    },
+    "stage": {
+        "heading": "Preview",
+        "noItem": "Select an item on the left to start editing.",
+        "previewLanguage": "Preview language",
+        "compare": "Compare",
+        "scale": "Zoom",
+        "overlay": "Geometry",
+        "problems": "{{count}} issues",
+        "fidelityHeading": "Accuracy",
+        "origin": {
+            "local": "Draft preview",
+            "mock": "Draft preview",
+            "agent": "Server verified"
+        },
+        "originHint": {
+            "local": "Rendered in this browser for instant feedback while you type.",
+            "mock": "Rendered without a game server; connect one for verified results.",
+            "agent": "Compiled by your Minecraft server for this draft and preview context."
+        },
+        "persona": "Previewed player",
+        "personaPack": "Resource pack",
+        "personaPackHint": "Whether the previewed player counts as having accepted the server pack.",
+        "personaProfile": "Asset profile",
+        "personaProfileAuto": "Auto from mounted pack",
+        "personaProfileHint": "Choose a profile explicitly to inspect capability-dependent geometry without claiming its assets are mounted.",
+        "personaManagedLines": "Itemerness manages vanilla tooltip lines",
+        "personaManagedLinesHint": "Simulates this runtime item capability independently from resource-pack status.",
+        "personaUnset": "not set",
+        "packSim": {
+            "auto": "Auto",
+            "loaded": "Accepted",
+            "none": "Declined"
+        },
+        "lineTitle": "Click to select · double-click to edit",
+        "anchorTitle": "Drag to move · right edge resizes",
+        "inlineEditor": "Edit text in place"
+    },
+    "inspector": {
+        "heading": "Item",
+        "enabled": "Available on the server",
+        "name": {
+            "heading": "Name",
+            "editingIn": "Editing the {{locale}} text.",
+            "inherited": "Showing {{locale}} text — type to translate."
+        },
+        "appearance": {
+            "heading": "Appearance",
+            "theme": "Frame style",
+            "layout": "Layout",
+            "effective": "Currently shown as",
+            "requiresPack": "Needs resource pack",
+            "fallbackNotice": "A fallback style is shown because:"
+        },
+        "renderer": {
+            "PLAIN": "Vanilla tooltip",
+            "VANILLA_CHARACTER_FRAME": "Character frame",
+            "NATIVE_TOOLTIP_STYLE": "Custom border",
+            "SEGMENTED_FRAME": "Segmented frame",
+            "BITMAP_CANVAS": "Canvas"
+        },
+        "layoutKind": {
+            "flow": "flowing lines",
+            "canvas": "fixed canvas"
+        },
+        "content": {
+            "heading": "Content",
+            "addField": "Stat row",
+            "addText": "Text",
+            "newTextDefault": "New line of text.",
+            "field": "Stat",
+            "text": "Text",
+            "value": "Value",
+            "conditional": "Condition",
+            "repeat": "List",
+            "nested": "Contained items",
+            "nestedHint": "Shows the items stored inside this one.",
+            "then": "When true",
+            "otherwise": "Otherwise",
+            "each": "one row per entry in {{key}}",
+            "sample": "Sample",
+            "sampleHint": "Sample value used for this preview only — never published.",
+            "complexValue": "Structured value",
+            "moveUp": "Move up",
+            "moveDown": "Move down",
+            "remove": "Remove row",
+            "dragHandle": "Drag to reorder",
+            "dataLabel": "Data",
+            "iconLabel": "Icon",
+            "formatLabel": "Format",
+            "factGroup": "Player facts",
+            "dataGroup": "Item data",
+            "literal": "Number…"
+        },
+        "advanced": {
+            "heading": "Advanced",
+            "id": "Item ID",
+            "material": "Base material",
+            "nameKey": "Name message key",
+            "mode": "Instance mode",
+            "deleteItem": "Delete this item",
+            "deleteConfirm": "Delete “{{name}}”? This cannot be undone here."
+        },
+        "none": "None",
+        "theme": {
+            "heading": "Theme",
+            "previewHint": "The stage previews your selected item in this theme.",
+            "colors": "Colors",
+            "fonts": "Fonts",
+            "fallback": "Fallback style",
+            "fallbackHint": "Shown when a player cannot display this theme.",
+            "contentWidth": "Content width",
+            "frame": "Frame",
+            "preset": "Character set",
+            "minWidth": "Min width",
+            "maxWidth": "Max width",
+            "bold": "Bold",
+            "italic": "Italic",
+            "canvas": "Canvas",
+            "canvasSize": "Size",
+            "reserveLines": "Reserved lines",
+            "layers": "Layers"
+        },
+        "roles": {
+            "item-name": "Item name",
+            "label": "Labels",
+            "value": "Values",
+            "description": "Description",
+            "requirement-met": "Requirement met",
+            "requirement-unmet": "Requirement unmet",
+            "frame": "Frame"
+        },
+        "framePresets": {
+            "UNICODE_SINGLE": "Single line ─",
+            "UNICODE_DOUBLE": "Double line ═",
+            "ASCII_SAFE": "ASCII -",
+            "BRACKETED_SECTION": "Brackets [ ]",
+            "SEPARATOR_ONLY": "Separators only"
+        },
+        "layout": {
+            "heading": "Layout",
+            "usedBy": "Used by {{count}} items",
+            "width": "Width",
+            "fields": "Stat rows",
+            "valueAlignment": "Value alignment",
+            "alignLEFT": "Left",
+            "alignRIGHT": "Right",
+            "fieldPadding": "Indent (px)",
+            "iconGap": "Icon gap (px)",
+            "description": "Description",
+            "gapBefore": "Gap before (px)",
+            "maxLines": "Max lines",
+            "overflow": "When too long",
+            "anchors": "Anchors",
+            "canvasHint": "Canvas geometry is defined by the theme's layer assets; edit sizes in the document."
+        },
+        "overflow": {
+            "ELLIPSIS": "Ellipsis …",
+            "ALLOW_OVERFLOW": "Let it overflow",
+            "ERROR": "Reject the item"
+        },
+        "data": {
+            "heading": "Data key",
+            "instance": "per item",
+            "definition": "shared",
+            "label": "Display label",
+            "labelHint": "Every stat row using this key shows this label.",
+            "defaultValue": "Default value",
+            "defaultHint": "Used when an item does not set its own value.",
+            "affectsStacking": "Affects stacking",
+            "presentationReadable": "Shown in tooltips",
+            "range": "Range",
+            "allowed": "Allowed values"
+        }
+    },
+    "fidelity": {
+        "level": {
+            "exact-structure": "Exact structure",
+            "metric-faithful": "Metric faithful",
+            "approximate-raster": "Approximate raster",
+            "client-only": "Client only"
+        },
+        "aspect": {
+            "content": "Content",
+            "locale": "Language",
+            "theme-selection": "Theme selection",
+            "metrics": "Font metrics",
+            "wrapping": "Line breaking",
+            "glyph-raster": "Glyph pixels",
+            "tooltip-frame": "Tooltip frame",
+            "item-icon": "Item icon",
+            "positioning": "Screen positioning",
+            "vanilla-extra-lines": "Vanilla extra lines"
+        }
+    },
+    "assets": {
+        "heading": "Resource packs",
+        "description": "Mount a resource pack or the vanilla client assets so the preview reads the same bytes the game would. Files stay in this browser.",
+        "drop": "Drop a .zip or .jar here, or choose a file",
+        "choose": "Choose file",
+        "fetchVanilla": "Fetch vanilla {{version}} assets",
+        "fetchVanillaHint": "Downloads the pinned font, GUI, and item assets through the control plane, verifying every SHA-1.",
+        "mounted": "Mounted packs",
+        "priority": "Priority",
+        "remove": "Remove",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "empty": "Nothing mounted. The preview is running on the bundled metrics artifact, so geometry is faithful but glyphs are not drawn.",
+        "kind": {
+            "vanilla": "Vanilla",
+            "resource-pack": "Resource pack"
+        },
+        "size": "{{count}} entries",
+        "selfCheck": {
+            "heading": "Metrics self-check",
+            "description": "Compares advances derived from the mounted assets against the metrics artifact generated from the real client jar.",
+            "run": "Run self-check",
+            "running": "Comparing…",
+            "pass": "{{count}} code points match with no drift.",
+            "fail": "{{count}} code points disagree with the shipped artifact.",
+            "missing": "{{count}} code points are missing from the mounted assets.",
+            "unavailable": "Mount the vanilla assets to run this check.",
+            "font": "Font",
+            "compared": "Compared",
+            "mismatches": "Mismatches"
+        }
+    },
+    "locales": {
+        "heading": "Locale matrix",
+        "key": "Message key",
+        "coverage": "Coverage",
+        "missing": "Missing",
+        "fallbackOnly": "Fallback only",
+        "addLocale": "Add language",
+        "defaultLocale": "Default",
+        "fallbackChain": "Falls back to {{locale}}",
+        "search": "Filter keys",
+        "stats": "{{translated}} of {{total}} translated"
+    },
+    "diagnostics": {
+        "heading": "Diagnostics",
+        "empty": "No diagnostics.",
+        "severity": {
+            "ERROR": "Error",
+            "WARNING": "Warning",
+            "INFO": "Info"
+        },
+        "origin": {
+            "browser": "Browser",
+            "control-plane": "Control plane",
+            "agent": "Target server"
+        }
+    }
+}

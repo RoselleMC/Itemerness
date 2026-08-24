@@ -1,0 +1,2311 @@
+{
+    "schemaVersion": 1,
+    "documentId": "00000000-0000-4000-8000-0000000000ff",
+    "namespace": "itemerness",
+    "defaultLocale": "en_us",
+    "budgets": {
+        "maximumWidthPixels": 220,
+        "maximumHeightPixels": 180,
+        "maximumLines": 64,
+        "maximumRuns": 512,
+        "maximumTextCodePoints": 16384,
+        "maximumBlocksPerItem": 128,
+        "maximumBlockDepth": 16,
+        "maximumRepeatElements": 64,
+        "maximumCanvasLayers": 64,
+        "maximumEmittedGlyphs": 1024
+    },
+    "formats": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000001",
+            "kind": "integer",
+            "id": "itemerness:integer",
+            "pattern": "0"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000002",
+            "kind": "decimal",
+            "id": "itemerness:decimal-one",
+            "pattern": "0.0",
+            "multiply": 1,
+            "suffixMessage": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000003",
+            "kind": "decimal",
+            "id": "itemerness:percent-one",
+            "pattern": "0.0",
+            "multiply": 100,
+            "suffixMessage": "format.percent-suffix"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000004",
+            "kind": "boolean",
+            "id": "itemerness:boolean",
+            "trueMessage": "format.boolean.true",
+            "falseMessage": "format.boolean.false"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000005",
+            "kind": "namespacedKey",
+            "id": "itemerness:key-path",
+            "mode": "PATH",
+            "messagePattern": null,
+            "missingValue": "PATH"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000006",
+            "kind": "namespacedKey",
+            "id": "itemerness:key-message",
+            "mode": "MESSAGE",
+            "messagePattern": "value.{namespace}.{path}",
+            "missingValue": "PATH"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000007",
+            "kind": "list",
+            "id": "itemerness:key-list",
+            "elementFormat": "itemerness:key-message",
+            "separatorMessage": "format.list-separator"
+        }
+    ],
+    "locales": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000008",
+            "locale": "en_us",
+            "fallback": null,
+            "messages": {
+                "item.travel-token.name": "Harbor Travel Token",
+                "item.travel-token.description": "Consumed when travelling to the recorded region.",
+                "item.ember-blade.name": "Ember Blade",
+                "item.ember-blade.description": "A blade tempered in ember ash. Its settled attack roll remains unchanged when presentation files reload.",
+                "item.survey-codex.name": "Survey Codex",
+                "item.survey-codex.description": "Records landmarks, routes, and incomplete observations from the current expedition.",
+                "item.nested-satchel.name": "Nested Satchel",
+                "item.nested-satchel.description": "Its contained Itemerness items are projected recursively for the same viewer.",
+                "item.framed-relic.name": "Framed Relic",
+                "item.framed-relic.description": "A legacy segmented frame generated from measured content instead of manually padded Lore.",
+                "data.region.label": "Region",
+                "data.charges.label": "Charges",
+                "data.attack-damage.label": "Attack Damage",
+                "data.quality.label": "Quality",
+                "data.required-level.label": "Required Level",
+                "data.socket.label": "Socket",
+                "data.socket.empty": "Empty",
+                "value.example.common": "Common",
+                "value.example.uncommon": "Uncommon",
+                "value.example.rare": "Rare",
+                "value.example.epic": "Epic",
+                "value.example.harbor": "Harbor",
+                "value.example.aurora-expanse": "Aurora Expanse",
+                "value.example.ancient-vault": "Ancient Vault",
+                "format.percent-suffix": "%",
+                "format.boolean.true": "Yes",
+                "format.boolean.false": "No",
+                "format.list-separator": ", "
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000009",
+            "locale": "zh_cn",
+            "fallback": "en_us",
+            "messages": {
+                "item.travel-token.name": "港口旅行凭证",
+                "item.travel-token.description": "前往记录区域时消耗。",
+                "item.ember-blade.name": "余烬之刃",
+                "item.ember-blade.description": "以余烬灰反复淬炼的长刃。展示配置重载不会重新生成已经落定的攻击数值。",
+                "item.survey-codex.name": "勘探手册",
+                "item.survey-codex.description": "记录本次远征发现的地标、路线和尚未完成的观察。",
+                "item.nested-satchel.name": "叠层行囊",
+                "item.nested-satchel.description": "其中包含的 Itemerness 物品会为同一观察者递归生成展示。",
+                "item.framed-relic.name": "框饰遗物",
+                "item.framed-relic.description": "兼容传统分段外框，但由引擎按实测内容生成，不再手工填充 Lore。",
+                "data.region.label": "区域",
+                "data.charges.label": "次数",
+                "data.attack-damage.label": "攻击伤害",
+                "data.quality.label": "品质",
+                "data.required-level.label": "需求等级",
+                "data.socket.label": "插槽",
+                "data.socket.empty": "空",
+                "value.example.common": "普通",
+                "value.example.uncommon": "罕见",
+                "value.example.rare": "稀有",
+                "value.example.epic": "史诗",
+                "value.example.harbor": "港口",
+                "value.example.aurora-expanse": "极光荒原",
+                "value.example.ancient-vault": "远古秘库",
+                "format.percent-suffix": "%",
+                "format.boolean.true": "是",
+                "format.boolean.false": "否",
+                "format.list-separator": "、"
+            }
+        }
+    ],
+    "fonts": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000a",
+            "id": "minecraft:default",
+            "metrics": "builtin:minecraft-default-26.1.2",
+            "fallback": null,
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000b",
+            "id": "minecraft:uniform",
+            "metrics": "builtin:minecraft-uniform-26.1.2",
+            "fallback": null,
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000c",
+            "id": "itemerness:body",
+            "metrics": "manifest:itemerness-body",
+            "fallback": "minecraft:default",
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000d",
+            "id": "itemerness:icons",
+            "metrics": "explicit",
+            "fallback": "minecraft:default",
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000e",
+            "id": "itemerness:frame",
+            "metrics": "explicit",
+            "fallback": "itemerness:icons",
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000000f",
+            "id": "itemerness:canvas",
+            "metrics": "explicit",
+            "fallback": "itemerness:icons",
+            "fallbackAdvancePixels": null,
+            "advances": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000010",
+            "id": "itemerness:spacing",
+            "metrics": "space-provider",
+            "fallback": null,
+            "fallbackAdvancePixels": null,
+            "advances": {
+                "minimum": -256,
+                "maximum": 256
+            }
+        }
+    ],
+    "glyphs": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000011",
+            "id": "icon.attack",
+            "font": "itemerness:icons",
+            "codePoint": 57345,
+            "advancePixels": 9,
+            "visualBounds": {
+                "left": 0,
+                "right": 8,
+                "top": -8,
+                "bottom": 0
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000012",
+            "id": "icon.quality",
+            "font": "itemerness:icons",
+            "codePoint": 57346,
+            "advancePixels": 9,
+            "visualBounds": {
+                "left": 0,
+                "right": 8,
+                "top": -8,
+                "bottom": 0
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000013",
+            "id": "icon.region",
+            "font": "itemerness:icons",
+            "codePoint": 57347,
+            "advancePixels": 9,
+            "visualBounds": {
+                "left": 0,
+                "right": 8,
+                "top": -8,
+                "bottom": 0
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000014",
+            "id": "icon.charges",
+            "font": "itemerness:icons",
+            "codePoint": 57348,
+            "advancePixels": 9,
+            "visualBounds": {
+                "left": 0,
+                "right": 8,
+                "top": -8,
+                "bottom": 0
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000015",
+            "id": "icon.socket",
+            "font": "itemerness:icons",
+            "codePoint": 57349,
+            "advancePixels": 9,
+            "visualBounds": {
+                "left": 0,
+                "right": 8,
+                "top": -8,
+                "bottom": 0
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000016",
+            "id": "frame.segment.top-left",
+            "font": "itemerness:frame",
+            "codePoint": 57601,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000017",
+            "id": "frame.segment.top-fill",
+            "font": "itemerness:frame",
+            "codePoint": 57602,
+            "advancePixels": 1,
+            "visualBounds": {
+                "left": 0,
+                "right": 1,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000018",
+            "id": "frame.segment.top-right",
+            "font": "itemerness:frame",
+            "codePoint": 57603,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000019",
+            "id": "frame.segment.body-left",
+            "font": "itemerness:frame",
+            "codePoint": 57604,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001a",
+            "id": "frame.segment.body-fill",
+            "font": "itemerness:frame",
+            "codePoint": 57605,
+            "advancePixels": 1,
+            "visualBounds": {
+                "left": 0,
+                "right": 1,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001b",
+            "id": "frame.segment.body-right",
+            "font": "itemerness:frame",
+            "codePoint": 57606,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001c",
+            "id": "frame.segment.connector-left",
+            "font": "itemerness:frame",
+            "codePoint": 57607,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001d",
+            "id": "frame.segment.connector-fill",
+            "font": "itemerness:frame",
+            "codePoint": 57608,
+            "advancePixels": 1,
+            "visualBounds": {
+                "left": 0,
+                "right": 1,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001e",
+            "id": "frame.segment.connector-right",
+            "font": "itemerness:frame",
+            "codePoint": 57609,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000001f",
+            "id": "frame.segment.bottom-left",
+            "font": "itemerness:frame",
+            "codePoint": 57610,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000020",
+            "id": "frame.segment.bottom-fill",
+            "font": "itemerness:frame",
+            "codePoint": 57611,
+            "advancePixels": 1,
+            "visualBounds": {
+                "left": 0,
+                "right": 1,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000021",
+            "id": "frame.segment.bottom-right",
+            "font": "itemerness:frame",
+            "codePoint": 57612,
+            "advancePixels": 4,
+            "visualBounds": {
+                "left": 0,
+                "right": 4,
+                "top": -8,
+                "bottom": 2
+            },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000022",
+            "id": "canvas.aurora.background",
+            "font": "itemerness:canvas",
+            "codePoint": 57857,
+            "advancePixels": 176,
+            "visualBounds": {
+                "left": 0,
+                "right": 176,
+                "top": -94,
+                "bottom": 2
+            },
+            "bitmap": "canvas.aurora.panel"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000023",
+            "id": "canvas.aurora.horizontal-rule",
+            "font": "itemerness:canvas",
+            "codePoint": 57858,
+            "advancePixels": 140,
+            "visualBounds": {
+                "left": 0,
+                "right": 140,
+                "top": -1,
+                "bottom": 1
+            },
+            "bitmap": "canvas.aurora.horizontal-rule"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000024",
+            "id": "canvas.aurora.emblem",
+            "font": "itemerness:canvas",
+            "codePoint": 57859,
+            "advancePixels": 16,
+            "visualBounds": {
+                "left": 0,
+                "right": 16,
+                "top": -16,
+                "bottom": 0
+            },
+            "bitmap": "canvas.aurora.emblem"
+        }
+    ],
+    "bitmaps": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000025",
+            "id": "canvas.aurora.panel",
+            "baselineVariant": "canvas.aurora.panel",
+            "texture": "itemerness:font/canvas/aurora_panel.png",
+            "sourceWidthPixels": 176,
+            "sourceHeightPixels": 96,
+            "renderWidthPixels": 176,
+            "renderHeightPixels": 96,
+            "ascentPixels": 94,
+            "visualBounds": {
+                "left": 0,
+                "right": 176,
+                "top": -94,
+                "bottom": 2
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000026",
+            "id": "canvas.aurora.horizontal-rule",
+            "baselineVariant": "canvas.aurora.rule",
+            "texture": "itemerness:font/canvas/aurora_horizontal_rule.png",
+            "sourceWidthPixels": 140,
+            "sourceHeightPixels": 2,
+            "renderWidthPixels": 140,
+            "renderHeightPixels": 2,
+            "ascentPixels": 1,
+            "visualBounds": {
+                "left": 0,
+                "right": 140,
+                "top": -1,
+                "bottom": 1
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000027",
+            "id": "canvas.aurora.emblem",
+            "baselineVariant": "canvas.aurora.emblem",
+            "texture": "itemerness:font/canvas/aurora_emblem.png",
+            "sourceWidthPixels": 16,
+            "sourceHeightPixels": 16,
+            "renderWidthPixels": 16,
+            "renderHeightPixels": 16,
+            "ascentPixels": 16,
+            "visualBounds": {
+                "left": 0,
+                "right": 16,
+                "top": -16,
+                "bottom": 0
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000028",
+            "id": "frame.segment.body-fill",
+            "baselineVariant": null,
+            "texture": "itemerness:font/frame/body_fill.png",
+            "sourceWidthPixels": 1,
+            "sourceHeightPixels": 10,
+            "renderWidthPixels": 1,
+            "renderHeightPixels": 10,
+            "ascentPixels": 8,
+            "visualBounds": {
+                "left": 0,
+                "right": 1,
+                "top": -8,
+                "bottom": 2
+            }
+        }
+    ],
+    "assetProfiles": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000005b",
+            "id": "itemerness:vanilla",
+            "capabilities": [],
+            "metricsRevision": null,
+            "fallback": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000005c",
+            "id": "itemerness:example-pack-v1",
+            "capabilities": [
+                "itemerness:native-tooltip-style-v1",
+                "itemerness:segmented-frame-v1",
+                "itemerness:signed-advance-v1",
+                "itemerness:bitmap-canvas-v1"
+            ],
+            "metricsRevision": "itemerness:example-pack-v1",
+            "fallback": "itemerness:vanilla"
+        }
+    ],
+    "resourcePackBindings": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000005d",
+            "id": "itemerness:example-pack-v1",
+            "enabled": false,
+            "packId": "00000000-0000-0000-0000-000000000001",
+            "sha1": "0000000000000000000000000000000000000001",
+            "assetProfile": "itemerness:example-pack-v1"
+        }
+    ],
+    "tooltipStyles": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000005e",
+            "id": "itemerness:ember",
+            "expectedBackgroundSprite": "itemerness:tooltip/ember_background",
+            "expectedFrameSprite": "itemerness:tooltip/ember_frame",
+            "scaling": "nine-slice"
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000005f",
+            "id": "itemerness:transparent-canvas",
+            "expectedBackgroundSprite": "itemerness:tooltip/transparent-canvas_background",
+            "expectedFrameSprite": "itemerness:tooltip/transparent-canvas_frame",
+            "scaling": "stretch"
+        }
+    ],
+    "spacing": {
+        "font": "itemerness:spacing",
+        "negative": {
+            "firstCodePoint": 983040,
+            "lastCodePoint": 983295,
+            "minimumAdvancePixels": -256,
+            "maximumAdvancePixels": -1
+        },
+        "positive": {
+            "firstCodePoint": 983296,
+            "lastCodePoint": 983551,
+            "minimumAdvancePixels": 1,
+            "maximumAdvancePixels": 256
+        }
+    },
+    "viewerFacts": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000029",
+            "id": "itemerness:locale",
+            "type": "LOCALE",
+            "providers": ["api", "player-override", "client"],
+            "defaultValue": {
+                "kind": "string",
+                "value": "en_us"
+            },
+            "nullable": false,
+            "cacheKey": true,
+            "previewValue": {
+                "kind": "string",
+                "value": "en_us"
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002a",
+            "id": "itemerness:theme",
+            "type": "NAMESPACED_KEY",
+            "providers": ["api", "player-override"],
+            "defaultValue": null,
+            "nullable": true,
+            "cacheKey": true,
+            "previewValue": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002b",
+            "id": "itemerness:resource-pack-ready",
+            "type": "BOOLEAN",
+            "providers": ["bukkit-resource-pack-status"],
+            "defaultValue": {
+                "kind": "boolean",
+                "value": false
+            },
+            "nullable": false,
+            "cacheKey": true,
+            "previewValue": {
+                "kind": "boolean",
+                "value": true
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002c",
+            "id": "itemerness:asset-profile",
+            "type": "NAMESPACED_KEY",
+            "providers": ["api", "bukkit-resource-pack-status"],
+            "defaultValue": {
+                "kind": "string",
+                "value": "itemerness:vanilla"
+            },
+            "nullable": false,
+            "cacheKey": true,
+            "previewValue": {
+                "kind": "string",
+                "value": "itemerness:example-pack-v1"
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002d",
+            "id": "example:level",
+            "type": "INTEGER",
+            "providers": ["api"],
+            "defaultValue": {
+                "kind": "integer",
+                "value": "0"
+            },
+            "nullable": false,
+            "cacheKey": true,
+            "previewValue": {
+                "kind": "integer",
+                "value": "8"
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002e",
+            "id": "example:class",
+            "type": "NAMESPACED_KEY",
+            "providers": ["api"],
+            "defaultValue": null,
+            "nullable": true,
+            "cacheKey": true,
+            "previewValue": null
+        }
+    ],
+    "layouts": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000002f",
+            "kind": "flow",
+            "id": "itemerness:plain",
+            "minimumWidthPixels": 80,
+            "maximumWidthPixels": 220,
+            "blockGapAfterPixels": 0,
+            "fieldLeftPaddingPixels": 0,
+            "fieldIconGapPixels": 0,
+            "fieldValueAlignment": "LEFT",
+            "descriptionLeftPaddingPixels": 0,
+            "descriptionRightPaddingPixels": 0,
+            "descriptionGapBeforePixels": 0,
+            "wrapping": {
+                "body": {
+                    "widthPixels": null,
+                    "maximumLines": 16,
+                    "overflow": "ELLIPSIS",
+                    "preserveExplicitLines": true,
+                    "continuationIndentPixels": 0,
+                    "lineHeightPixels": 10
+                }
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000030",
+            "kind": "flow",
+            "id": "itemerness:equipment",
+            "minimumWidthPixels": 140,
+            "maximumWidthPixels": 220,
+            "blockGapAfterPixels": 0,
+            "fieldLeftPaddingPixels": 8,
+            "fieldIconGapPixels": 3,
+            "fieldValueAlignment": "RIGHT",
+            "descriptionLeftPaddingPixels": 8,
+            "descriptionRightPaddingPixels": 8,
+            "descriptionGapBeforePixels": 10,
+            "wrapping": {
+                "body": {
+                    "widthPixels": null,
+                    "maximumLines": 12,
+                    "overflow": "ELLIPSIS",
+                    "preserveExplicitLines": true,
+                    "continuationIndentPixels": 0,
+                    "lineHeightPixels": 10
+                }
+            }
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000031",
+            "kind": "canvas",
+            "id": "itemerness:bitmap-canvas",
+            "widthPixels": 176,
+            "heightPixels": 96,
+            "maximumWidthPixels": 220,
+            "maximumHeightPixels": 180,
+            "reserveTooltipLines": 10,
+            "anchors": {
+                "subtitle": {
+                    "x": 18,
+                    "y": 16,
+                    "width": 140,
+                    "height": 10,
+                    "overflow": "ELLIPSIS"
+                },
+                "region": {
+                    "x": 18,
+                    "y": 36,
+                    "width": 140,
+                    "height": 10,
+                    "overflow": "ELLIPSIS"
+                },
+                "body": {
+                    "x": 18,
+                    "y": 56,
+                    "width": 140,
+                    "height": 40,
+                    "overflow": "ELLIPSIS"
+                }
+            },
+            "wrapping": {
+                "canvas-body": {
+                    "widthPixels": 140,
+                    "maximumLines": 4,
+                    "overflow": "ELLIPSIS",
+                    "preserveExplicitLines": true,
+                    "continuationIndentPixels": 0,
+                    "lineHeightPixels": 10
+                }
+            }
+        }
+    ],
+    "themes": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000032",
+            "id": "itemerness:default",
+            "renderer": "PLAIN",
+            "requiresResourcePack": false,
+            "requiredCapabilities": [],
+            "vanillaTooltipLines": "PRESERVE",
+            "fallback": null,
+            "fonts": {
+                "text": "minecraft:default"
+            },
+            "styles": {
+                "item-name": {
+                    "color": "white",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "label": {
+                    "color": "gray",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "value": {
+                    "color": "white",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-met": {
+                    "color": "green",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-unmet": {
+                    "color": "red",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "description": {
+                    "color": "dark_gray",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                }
+            },
+            "tooltipStyle": null,
+            "requireExactFontMetrics": false,
+            "content": null,
+            "characterFrame": null,
+            "segmentedFrame": null,
+            "canvas": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000033",
+            "id": "itemerness:vanilla-frame",
+            "renderer": "VANILLA_CHARACTER_FRAME",
+            "requiresResourcePack": false,
+            "requiredCapabilities": [],
+            "vanillaTooltipLines": "PRESERVE_OUTSIDE_FRAME",
+            "fallback": "itemerness:default",
+            "fonts": {
+                "text": "minecraft:uniform",
+                "frame": "minecraft:uniform"
+            },
+            "styles": {
+                "item-name": {
+                    "color": "white",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "label": {
+                    "color": "gray",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "value": {
+                    "color": "white",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-met": {
+                    "color": "green",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-unmet": {
+                    "color": "red",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "description": {
+                    "color": "dark_gray",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "frame": {
+                    "color": "dark_gray",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                }
+            },
+            "tooltipStyle": null,
+            "requireExactFontMetrics": false,
+            "content": null,
+            "characterFrame": {
+                "preset": "UNICODE_SINGLE",
+                "minimumWidthPixels": 80,
+                "maximumWidthPixels": 220,
+                "leftPaddingPixels": 4,
+                "rightPaddingPixels": 4,
+                "alignmentTolerancePixels": 3,
+                "maximumLines": 16,
+                "fallbackBidirectionalText": true
+            },
+            "segmentedFrame": null,
+            "canvas": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000034",
+            "id": "itemerness:ember",
+            "renderer": "NATIVE_TOOLTIP_STYLE",
+            "requiresResourcePack": true,
+            "requiredCapabilities": ["itemerness:native-tooltip-style-v1"],
+            "vanillaTooltipLines": "PRESERVE",
+            "fallback": "itemerness:vanilla-frame",
+            "fonts": {
+                "text": "itemerness:body",
+                "icons": "itemerness:icons"
+            },
+            "styles": {
+                "item-name": {
+                    "color": "#ffcf7a",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "label": {
+                    "color": "#c69b72",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "value": {
+                    "color": "#fff0d0",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-met": {
+                    "color": "#8bd17c",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-unmet": {
+                    "color": "#ff6961",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "description": {
+                    "color": "#e6c9a8",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                }
+            },
+            "tooltipStyle": "itemerness:ember",
+            "requireExactFontMetrics": false,
+            "content": {
+                "minimumWidthPixels": 140,
+                "maximumWidthPixels": 220,
+                "leftPaddingPixels": 8,
+                "rightPaddingPixels": 8
+            },
+            "characterFrame": null,
+            "segmentedFrame": null,
+            "canvas": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000035",
+            "id": "itemerness:segmented",
+            "renderer": "SEGMENTED_FRAME",
+            "requiresResourcePack": true,
+            "requiredCapabilities": ["itemerness:segmented-frame-v1"],
+            "vanillaTooltipLines": "REQUIRE_MANAGED",
+            "fallback": "itemerness:vanilla-frame",
+            "fonts": {
+                "text": "itemerness:body",
+                "icons": "itemerness:icons",
+                "frame": "itemerness:frame"
+            },
+            "styles": {
+                "item-name": {
+                    "color": "#ffcf7a",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "label": {
+                    "color": "#c69b72",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "value": {
+                    "color": "#fff0d0",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-met": {
+                    "color": "#8bd17c",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-unmet": {
+                    "color": "#ff6961",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "description": {
+                    "color": "#e6c9a8",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                }
+            },
+            "tooltipStyle": null,
+            "requireExactFontMetrics": false,
+            "content": null,
+            "characterFrame": null,
+            "segmentedFrame": {
+                "minimumWidthPixels": 140,
+                "maximumWidthPixels": 220,
+                "leftPaddingPixels": 12,
+                "rightPaddingPixels": 12,
+                "top": {
+                    "left": "frame.segment.top-left",
+                    "fill": "frame.segment.top-fill",
+                    "right": "frame.segment.top-right"
+                },
+                "body": {
+                    "left": "frame.segment.body-left",
+                    "fill": "frame.segment.body-fill",
+                    "right": "frame.segment.body-right"
+                },
+                "connector": {
+                    "left": "frame.segment.connector-left",
+                    "fill": "frame.segment.connector-fill",
+                    "right": "frame.segment.connector-right"
+                },
+                "bottom": {
+                    "left": "frame.segment.bottom-left",
+                    "fill": "frame.segment.bottom-fill",
+                    "right": "frame.segment.bottom-right"
+                }
+            },
+            "canvas": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000036",
+            "id": "itemerness:aurora-canvas",
+            "renderer": "BITMAP_CANVAS",
+            "requiresResourcePack": true,
+            "requiredCapabilities": [
+                "itemerness:bitmap-canvas-v1",
+                "itemerness:signed-advance-v1"
+            ],
+            "vanillaTooltipLines": "REQUIRE_MANAGED",
+            "fallback": "itemerness:ember",
+            "fonts": {
+                "text": "itemerness:body",
+                "icons": "itemerness:icons",
+                "canvas": "itemerness:canvas",
+                "spacing": "itemerness:spacing"
+            },
+            "styles": {
+                "item-name": {
+                    "color": "#ffcf7a",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "label": {
+                    "color": "#c69b72",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "value": {
+                    "color": "#fff0d0",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-met": {
+                    "color": "#8bd17c",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "requirement-unmet": {
+                    "color": "#ff6961",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                },
+                "description": {
+                    "color": "#e6c9a8",
+                    "bold": false,
+                    "italic": false,
+                    "underlined": false,
+                    "strikethrough": false
+                }
+            },
+            "tooltipStyle": "itemerness:transparent-canvas",
+            "requireExactFontMetrics": true,
+            "content": null,
+            "characterFrame": null,
+            "segmentedFrame": null,
+            "canvas": {
+                "widthPixels": 176,
+                "heightPixels": 96,
+                "maximumWidthPixels": 220,
+                "maximumHeightPixels": 180,
+                "reserveTooltipLines": 10,
+                "layers": [
+                    {
+                        "asset": "canvas.aurora.background",
+                        "anchor": "TOP_LEFT",
+                        "xPixels": 0,
+                        "baselineLine": 9,
+                        "baselineVariant": "canvas.aurora.panel",
+                        "drawOrder": 0
+                    },
+                    {
+                        "asset": "canvas.aurora.horizontal-rule",
+                        "anchor": "TOP_LEFT",
+                        "xPixels": 18,
+                        "baselineLine": 4,
+                        "baselineVariant": "canvas.aurora.rule",
+                        "drawOrder": 1
+                    },
+                    {
+                        "asset": "canvas.aurora.emblem",
+                        "anchor": "TOP_RIGHT",
+                        "xPixels": -24,
+                        "baselineLine": 2,
+                        "baselineVariant": "canvas.aurora.emblem",
+                        "drawOrder": 2
+                    }
+                ],
+                "measuredAdvancePixels": 176,
+                "finalTooltipWidthPixels": 176,
+                "rejectNegativeFinalAdvance": true,
+                "rejectOutOfBoundsLayer": true,
+                "maximumEmittedComponents": 256,
+                "normalizeVisualOrigin": true
+            }
+        }
+    ],
+    "dataSchemas": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000037",
+            "id": "itemerness:common",
+            "version": 1,
+            "keys": [
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000038",
+                    "id": "itemerness:created-at",
+                    "type": {
+                        "kind": "long"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": null,
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000039",
+                    "id": "example:quality",
+                    "type": {
+                        "kind": "namespacedKey"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": true,
+                    "defaultValue": {
+                        "kind": "string",
+                        "value": "example:common"
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": [
+                            {
+                                "kind": "string",
+                                "value": "example:common"
+                            },
+                            {
+                                "kind": "string",
+                                "value": "example:uncommon"
+                            },
+                            {
+                                "kind": "string",
+                                "value": "example:rare"
+                            },
+                            {
+                                "kind": "string",
+                                "value": "example:epic"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003a",
+                    "id": "example:attack-damage",
+                    "type": {
+                        "kind": "decimal"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "decimal",
+                        "value": "1.0"
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": "0.0",
+                        "maximum": "1000000.0",
+                        "scale": 2,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003b",
+                    "id": "example:required-level",
+                    "type": {
+                        "kind": "integer"
+                    },
+                    "scope": "DEFINITION",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "integer",
+                        "value": "1"
+                    },
+                    "affectsStacking": false,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": "1",
+                        "maximum": "1000",
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003c",
+                    "id": "example:bound",
+                    "type": {
+                        "kind": "boolean"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "boolean",
+                        "value": false
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003d",
+                    "id": "example:bound-player",
+                    "type": {
+                        "kind": "uuid"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": true,
+                    "defaultValue": null,
+                    "affectsStacking": true,
+                    "presentationReadable": false,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003e",
+                    "id": "example:charges",
+                    "type": {
+                        "kind": "integer"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "integer",
+                        "value": "0"
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": "0",
+                        "maximum": "9999",
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-00000000003f",
+                    "id": "example:region",
+                    "type": {
+                        "kind": "namespacedKey"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": true,
+                    "defaultValue": null,
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000040",
+                    "id": "example:custom-label",
+                    "type": {
+                        "kind": "string"
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": true,
+                    "defaultValue": null,
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": 128,
+                        "maximumElements": null,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000041",
+                    "id": "example:tags",
+                    "type": {
+                        "kind": "list",
+                        "element": {
+                            "kind": "namespacedKey"
+                        }
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "list",
+                        "values": []
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": 32,
+                        "maximumEntries": null,
+                        "maximumDepth": null,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000042",
+                    "id": "example:sockets",
+                    "type": {
+                        "kind": "list",
+                        "element": {
+                            "kind": "compound",
+                            "fields": [
+                                {
+                                    "name": "type",
+                                    "type": {
+                                        "kind": "namespacedKey"
+                                    },
+                                    "nullable": false
+                                },
+                                {
+                                    "name": "accepted",
+                                    "type": {
+                                        "kind": "list",
+                                        "element": {
+                                            "kind": "namespacedKey"
+                                        }
+                                    },
+                                    "nullable": false
+                                },
+                                {
+                                    "name": "inserted",
+                                    "type": {
+                                        "kind": "namespacedKey"
+                                    },
+                                    "nullable": true
+                                }
+                            ]
+                        }
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "list",
+                        "values": []
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": true,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": 8,
+                        "maximumEntries": null,
+                        "maximumDepth": 4,
+                        "allowedValues": []
+                    }
+                },
+                {
+                    "uuid": "00000000-0000-4000-8000-000000000043",
+                    "id": "example:metadata",
+                    "type": {
+                        "kind": "compound",
+                        "fields": null
+                    },
+                    "scope": "INSTANCE",
+                    "nullable": false,
+                    "defaultValue": {
+                        "kind": "compound",
+                        "entries": {}
+                    },
+                    "affectsStacking": true,
+                    "presentationReadable": false,
+                    "constraints": {
+                        "minimum": null,
+                        "maximum": null,
+                        "scale": null,
+                        "maximumCodePoints": null,
+                        "maximumElements": null,
+                        "maximumEntries": 32,
+                        "maximumDepth": 4,
+                        "allowedValues": []
+                    }
+                }
+            ]
+        }
+    ],
+    "items": [
+        {
+            "uuid": "00000000-0000-4000-8000-000000000044",
+            "id": "travel-token",
+            "enabled": true,
+            "definition": {
+                "material": "minecraft:paper",
+                "baseComponents": [
+                    {
+                        "id": "minecraft:max_stack_size",
+                        "value": {
+                            "kind": "integer",
+                            "value": "16"
+                        }
+                    },
+                    {
+                        "id": "minecraft:enchantment_glint_override",
+                        "value": {
+                            "kind": "boolean",
+                            "value": false
+                        }
+                    },
+                    {
+                        "id": "minecraft:item_model",
+                        "value": {
+                            "kind": "string",
+                            "value": "minecraft:paper"
+                        }
+                    },
+                    {
+                        "id": "minecraft:rarity",
+                        "value": {
+                            "kind": "string",
+                            "value": "uncommon"
+                        }
+                    }
+                ],
+                "contentComponent": null,
+                "contents": [],
+                "definitionData": [],
+                "instance": {
+                    "mode": "FUNGIBLE",
+                    "idGenerator": null,
+                    "schemas": [
+                        {
+                            "id": "itemerness:common",
+                            "version": 1
+                        }
+                    ],
+                    "defaults": [
+                        {
+                            "key": "example:region",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:harbor"
+                            }
+                        },
+                        {
+                            "key": "example:charges",
+                            "value": {
+                                "kind": "integer",
+                                "value": "3"
+                            }
+                        }
+                    ],
+                    "generators": [
+                        {
+                            "kind": "unixMillis",
+                            "key": "itemerness:created-at"
+                        }
+                    ]
+                }
+            },
+            "presentation": {
+                "layout": "itemerness:plain",
+                "theme": "itemerness:vanilla-frame",
+                "nameMessage": "item.travel-token.name",
+                "blocks": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000045",
+                        "type": "field",
+                        "labelMessage": "data.region.label",
+                        "data": "example:region",
+                        "format": "itemerness:key-message",
+                        "icon": "icon.region",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000046",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "ERROR"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000047",
+                        "type": "description",
+                        "message": "item.travel-token.description",
+                        "style": "description",
+                        "anchor": null,
+                        "wrapping": "body"
+                    }
+                ]
+            },
+            "previewData": [
+                {
+                    "key": "example:region",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:harbor"
+                    }
+                },
+                {
+                    "key": "example:charges",
+                    "value": {
+                        "kind": "integer",
+                        "value": "3"
+                    }
+                },
+                {
+                    "key": "itemerness:created-at",
+                    "value": {
+                        "kind": "integer",
+                        "value": "1785000000000"
+                    }
+                }
+            ]
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000048",
+            "id": "ember-blade",
+            "enabled": true,
+            "definition": {
+                "material": "minecraft:netherite_sword",
+                "baseComponents": [
+                    {
+                        "id": "minecraft:max_stack_size",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1"
+                        }
+                    },
+                    {
+                        "id": "minecraft:max_damage",
+                        "value": {
+                            "kind": "integer",
+                            "value": "2031"
+                        }
+                    },
+                    {
+                        "id": "minecraft:damage",
+                        "value": {
+                            "kind": "integer",
+                            "value": "0"
+                        }
+                    },
+                    {
+                        "id": "minecraft:unbreakable",
+                        "value": {
+                            "kind": "boolean",
+                            "value": true
+                        }
+                    },
+                    {
+                        "id": "minecraft:repair_cost",
+                        "value": {
+                            "kind": "integer",
+                            "value": "0"
+                        }
+                    }
+                ],
+                "contentComponent": null,
+                "contents": [],
+                "definitionData": [
+                    {
+                        "key": "example:required-level",
+                        "value": {
+                            "kind": "integer",
+                            "value": "12"
+                        }
+                    }
+                ],
+                "instance": {
+                    "mode": "UNIQUE",
+                    "idGenerator": "UUID_V4",
+                    "schemas": [
+                        {
+                            "id": "itemerness:common",
+                            "version": 1
+                        }
+                    ],
+                    "defaults": [
+                        {
+                            "key": "example:quality",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:rare"
+                            }
+                        },
+                        {
+                            "key": "example:bound",
+                            "value": {
+                                "kind": "boolean",
+                                "value": false
+                            }
+                        },
+                        {
+                            "key": "example:tags",
+                            "value": {
+                                "kind": "list",
+                                "values": [
+                                    {
+                                        "kind": "string",
+                                        "value": "example:weapon"
+                                    },
+                                    {
+                                        "kind": "string",
+                                        "value": "example:fire"
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "generators": [
+                        {
+                            "kind": "unixMillis",
+                            "key": "itemerness:created-at"
+                        },
+                        {
+                            "kind": "randomDecimal",
+                            "key": "example:attack-damage",
+                            "minimum": "34.0",
+                            "maximum": "42.0",
+                            "scale": 1
+                        }
+                    ]
+                }
+            },
+            "presentation": {
+                "layout": "itemerness:equipment",
+                "theme": "itemerness:ember",
+                "nameMessage": "item.ember-blade.name",
+                "blocks": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000049",
+                        "type": "field",
+                        "labelMessage": "data.attack-damage.label",
+                        "data": "example:attack-damage",
+                        "format": "itemerness:decimal-one",
+                        "icon": "icon.attack",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "ERROR"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000004a",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": "icon.quality",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000004b",
+                        "type": "conditional",
+                        "condition": {
+                            "operator": "LESS_THAN",
+                            "left": {
+                                "kind": "fact",
+                                "key": "example:level"
+                            },
+                            "right": {
+                                "kind": "data",
+                                "key": "example:required-level"
+                            }
+                        },
+                        "thenBlocks": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000004c",
+                                "type": "field",
+                                "labelMessage": "data.required-level.label",
+                                "data": "example:required-level",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": "requirement-unmet",
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "ERROR"
+                            }
+                        ],
+                        "otherwiseBlocks": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000004d",
+                                "type": "field",
+                                "labelMessage": "data.required-level.label",
+                                "data": "example:required-level",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": "requirement-met",
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "ERROR"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000004e",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": "icon.socket",
+                            "format": null
+                        },
+                        "style": null,
+                        "anchor": null,
+                        "missingPolicy": "ERROR"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000004f",
+                        "type": "description",
+                        "message": "item.ember-blade.description",
+                        "style": "description",
+                        "anchor": null,
+                        "wrapping": "body"
+                    }
+                ]
+            },
+            "previewData": [
+                {
+                    "key": "example:attack-damage",
+                    "value": {
+                        "kind": "decimal",
+                        "value": "38.5"
+                    }
+                },
+                {
+                    "key": "example:quality",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:rare"
+                    }
+                },
+                {
+                    "key": "example:bound",
+                    "value": {
+                        "kind": "boolean",
+                        "value": false
+                    }
+                },
+                {
+                    "key": "example:tags",
+                    "value": {
+                        "kind": "list",
+                        "values": [
+                            {
+                                "kind": "string",
+                                "value": "example:weapon"
+                            },
+                            {
+                                "kind": "string",
+                                "value": "example:fire"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "key": "example:sockets",
+                    "value": {
+                        "kind": "list",
+                        "values": [
+                            {
+                                "kind": "compound",
+                                "entries": {
+                                    "type": {
+                                        "kind": "string",
+                                        "value": "example:gem"
+                                    },
+                                    "accepted": {
+                                        "kind": "list",
+                                        "values": [
+                                            {
+                                                "kind": "string",
+                                                "value": "example:fire-gem"
+                                            }
+                                        ]
+                                    },
+                                    "inserted": {
+                                        "kind": "string",
+                                        "value": "example:fire-gem"
+                                    }
+                                }
+                            },
+                            {
+                                "kind": "compound",
+                                "entries": {
+                                    "type": {
+                                        "kind": "string",
+                                        "value": "example:gem"
+                                    },
+                                    "accepted": {
+                                        "kind": "list",
+                                        "values": [
+                                            {
+                                                "kind": "string",
+                                                "value": "example:fire-gem"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "key": "itemerness:created-at",
+                    "value": {
+                        "kind": "integer",
+                        "value": "1785000000000"
+                    }
+                }
+            ]
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000050",
+            "id": "survey-codex",
+            "enabled": true,
+            "definition": {
+                "material": "minecraft:book",
+                "baseComponents": [
+                    {
+                        "id": "minecraft:max_stack_size",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1"
+                        }
+                    }
+                ],
+                "contentComponent": null,
+                "contents": [],
+                "definitionData": [],
+                "instance": {
+                    "mode": "UNIQUE",
+                    "idGenerator": "UUID_V4",
+                    "schemas": [
+                        {
+                            "id": "itemerness:common",
+                            "version": 1
+                        }
+                    ],
+                    "defaults": [
+                        {
+                            "key": "example:region",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:aurora-expanse"
+                            }
+                        },
+                        {
+                            "key": "example:custom-label",
+                            "value": {
+                                "kind": "string",
+                                "value": "Expedition 7"
+                            }
+                        },
+                        {
+                            "key": "example:metadata",
+                            "value": {
+                                "kind": "compound",
+                                "entries": {
+                                    "completion": {
+                                        "kind": "decimal",
+                                        "value": "0.625"
+                                    },
+                                    "discovered": {
+                                        "kind": "integer",
+                                        "value": "18"
+                                    },
+                                    "total": {
+                                        "kind": "integer",
+                                        "value": "32"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "generators": [
+                        {
+                            "kind": "unixMillis",
+                            "key": "itemerness:created-at"
+                        }
+                    ]
+                }
+            },
+            "presentation": {
+                "layout": "itemerness:bitmap-canvas",
+                "theme": "itemerness:aurora-canvas",
+                "nameMessage": "item.survey-codex.name",
+                "blocks": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000051",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": "subtitle",
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000052",
+                        "type": "field",
+                        "labelMessage": "data.region.label",
+                        "data": "example:region",
+                        "format": "itemerness:key-message",
+                        "icon": "icon.region",
+                        "style": null,
+                        "anchor": "region",
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000053",
+                        "type": "description",
+                        "message": "item.survey-codex.description",
+                        "style": "description",
+                        "anchor": "body",
+                        "wrapping": "canvas-body"
+                    }
+                ]
+            },
+            "previewData": [
+                {
+                    "key": "example:region",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:aurora-expanse"
+                    }
+                },
+                {
+                    "key": "example:custom-label",
+                    "value": {
+                        "kind": "string",
+                        "value": "Expedition 7"
+                    }
+                },
+                {
+                    "key": "itemerness:created-at",
+                    "value": {
+                        "kind": "integer",
+                        "value": "1785000000000"
+                    }
+                }
+            ]
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000054",
+            "id": "nested-satchel",
+            "enabled": true,
+            "definition": {
+                "material": "minecraft:bundle",
+                "baseComponents": [],
+                "contentComponent": "BUNDLE",
+                "contents": [
+                    {
+                        "item": "itemerness:travel-token",
+                        "amount": 2
+                    }
+                ],
+                "definitionData": [],
+                "instance": {
+                    "mode": "UNIQUE",
+                    "idGenerator": "UUID_V4",
+                    "schemas": [
+                        {
+                            "id": "itemerness:common",
+                            "version": 1
+                        }
+                    ],
+                    "defaults": [
+                        {
+                            "key": "example:quality",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:uncommon"
+                            }
+                        }
+                    ],
+                    "generators": [
+                        {
+                            "kind": "unixMillis",
+                            "key": "itemerness:created-at"
+                        }
+                    ]
+                }
+            },
+            "presentation": {
+                "layout": "itemerness:plain",
+                "theme": "itemerness:default",
+                "nameMessage": "item.nested-satchel.name",
+                "blocks": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000055",
+                        "type": "nestedItemList",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000056",
+                        "type": "description",
+                        "message": "item.nested-satchel.description",
+                        "style": "description",
+                        "anchor": null,
+                        "wrapping": "body"
+                    }
+                ]
+            },
+            "previewData": [
+                {
+                    "key": "example:quality",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:uncommon"
+                    }
+                },
+                {
+                    "key": "itemerness:created-at",
+                    "value": {
+                        "kind": "integer",
+                        "value": "1785000000000"
+                    }
+                }
+            ]
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-000000000057",
+            "id": "framed-relic",
+            "enabled": true,
+            "definition": {
+                "material": "minecraft:echo_shard",
+                "baseComponents": [],
+                "contentComponent": null,
+                "contents": [],
+                "definitionData": [],
+                "instance": {
+                    "mode": "FUNGIBLE",
+                    "idGenerator": null,
+                    "schemas": [
+                        {
+                            "id": "itemerness:common",
+                            "version": 1
+                        }
+                    ],
+                    "defaults": [
+                        {
+                            "key": "example:quality",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:epic"
+                            }
+                        },
+                        {
+                            "key": "example:region",
+                            "value": {
+                                "kind": "string",
+                                "value": "example:ancient-vault"
+                            }
+                        }
+                    ],
+                    "generators": [
+                        {
+                            "kind": "unixMillis",
+                            "key": "itemerness:created-at"
+                        }
+                    ]
+                }
+            },
+            "presentation": {
+                "layout": "itemerness:equipment",
+                "theme": "itemerness:segmented",
+                "nameMessage": "item.framed-relic.name",
+                "blocks": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000058",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": "icon.quality",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000059",
+                        "type": "field",
+                        "labelMessage": "data.region.label",
+                        "data": "example:region",
+                        "format": "itemerness:key-message",
+                        "icon": "icon.region",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000005a",
+                        "type": "description",
+                        "message": "item.framed-relic.description",
+                        "style": "description",
+                        "anchor": null,
+                        "wrapping": "body"
+                    }
+                ]
+            },
+            "previewData": [
+                {
+                    "key": "example:quality",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:epic"
+                    }
+                },
+                {
+                    "key": "example:region",
+                    "value": {
+                        "kind": "string",
+                        "value": "example:ancient-vault"
+                    }
+                },
+                {
+                    "key": "itemerness:created-at",
+                    "value": {
+                        "kind": "integer",
+                        "value": "1785000000000"
+                    }
+                }
+            ]
+        }
+    ],
+    "accessPolicies": []
+}

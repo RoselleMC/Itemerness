@@ -3,6 +3,7 @@ package com.iroselle.itemerness.bukkit
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import io.papermc.paper.command.CommandBlockHolder
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import org.bukkit.Location
 import org.bukkit.World
 import org.bukkit.command.BlockCommandSender
@@ -97,6 +98,28 @@ internal class FoliaScheduler(
     fun runAsync(action: () -> Unit): ScheduledTask =
         plugin.server.asyncScheduler.runNow(plugin) { action() }
 
+    fun runAsyncDelayed(
+        delayMillis: Long,
+        action: () -> Unit,
+    ): ScheduledTask = plugin.server.asyncScheduler.runDelayed(
+        plugin,
+        { action() },
+        delayMillis,
+        TimeUnit.MILLISECONDS,
+    )
+
+    fun repeatAsync(
+        initialDelayMillis: Long,
+        periodMillis: Long,
+        action: () -> Unit,
+    ): ScheduledTask = plugin.server.asyncScheduler.runAtFixedRate(
+        plugin,
+        { action() },
+        initialDelayMillis,
+        periodMillis,
+        TimeUnit.MILLISECONDS,
+    )
+
     /** Best-effort command boundary used when plugin retirement can race task submission. */
     fun tryRunGlobal(action: () -> Unit): Boolean = scheduleOrNull { runGlobal(action) } != null
 
@@ -108,6 +131,19 @@ internal class FoliaScheduler(
 
     /** Best-effort async command boundary used when plugin retirement can race task submission. */
     fun tryRunAsync(action: () -> Unit): Boolean = scheduleOrNull { runAsync(action) } != null
+
+    fun tryRunAsyncTask(action: () -> Unit): ScheduledTask? = scheduleOrNull { runAsync(action) }
+
+    fun tryRunAsyncDelayed(
+        delayMillis: Long,
+        action: () -> Unit,
+    ): ScheduledTask? = scheduleOrNull { runAsyncDelayed(delayMillis, action) }
+
+    fun tryRepeatAsync(
+        initialDelayMillis: Long,
+        periodMillis: Long,
+        action: () -> Unit,
+    ): ScheduledTask? = scheduleOrNull { repeatAsync(initialDelayMillis, periodMillis, action) }
 
     /** Best-effort entity command boundary; a rejected task is reported through [retired]. */
     fun tryRunForEntity(

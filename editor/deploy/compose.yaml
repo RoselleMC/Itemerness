@@ -1,0 +1,61 @@
+# Single-instance self-hosted deployment.
+#
+# PostgreSQL is declared now because the control plane's next phase (drafts, revisions, RBAC,
+# deployment history) persists there. The current build keeps draft state in memory, so the
+# database is started but unused; leaving it in the file means the upgrade does not change the
+# operator's topology.
+services:
+  control-plane:
+    build:
+      # The repository root: the image needs the generated font-metrics artifact and the
+      # pinned Mojang source manifest, which live outside editor/. The root .dockerignore
+      # keeps the context to a couple of megabytes.
+      context: ../..
+      dockerfile: editor/deploy/Dockerfile
+    image: itemerness/editor:dev
+    environment:
+      PORT: 8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      DATABASE_URL: postgres://itemerness:${POSTGRES_PASSWORD:-change-me}@postgres:5432/itemerness
+      # Set to false for air-gapped installs. The browser can still mount a client jar by hand.
+      ITEMERNESS_ALLOW_ASSET_FETCH: ${ITEMERNESS_ALLOW_ASSET_FETCH:-true}
+      # Pepper for agent-token digests. A stolen token table is useless without it, and a
+      # changed value invalidates every issued token, so it belongs in backups.
+      ITEMERNESS_TOKEN_PEPPER: ${ITEMERNESS_TOKEN_PEPPER:?set a generated 32-byte hex value}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      # Bound to loopback by default. The control plane has no authentication yet, so
+      # publishing it on 0.0.0.0 would put an unauthenticated editor on the public internet.
+      # Put it behind a reverse proxy that terminates TLS and authenticates, then override.
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080"
+    volumes:
+      # Content-addressed Mojang asset cache. Safe to delete; it is rebuilt on demand.
+      - vanilla-cache:/data/vanilla-cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: itemerness
+      POSTGRES_USER: itemerness
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itemerness -d itemerness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  vanilla-cache:
+  postgres-data:
