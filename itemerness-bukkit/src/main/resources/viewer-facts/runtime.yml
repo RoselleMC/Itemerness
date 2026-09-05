@@ -1,0 +1,27 @@
+# Rendering context owned by Itemerness. Gameplay facts and attributes are registered by RunoRPG.
+schema-version: 1
+
+facts:
+  itemerness:locale:
+    type: locale
+    providers: [api, player-override, client]
+    default: en_us
+    cache-key: true
+
+  itemerness:theme:
+    type: namespaced-key
+    providers: [api, player-override]
+    nullable: true
+    cache-key: true
+
+  itemerness:resource-pack-ready:
+    type: boolean
+    providers: [bukkit-resource-pack-status]
+    default: false
+    cache-key: true
+
+  itemerness:asset-profile:
+    type: namespaced-key
+    providers: [api, bukkit-resource-pack-status]
+    default: itemerness:vanilla
+    cache-key: true

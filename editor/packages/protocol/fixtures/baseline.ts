@@ -190,7 +190,7 @@ const fonts: FontNode[] = [
     {
         uuid: uuid(),
         id: "minecraft:default",
-        metrics: "builtin:minecraft-default-26.1.2",
+        metrics: "builtin:minecraft-default-1.21.11",
         fallback: null,
         fallbackAdvancePixels: null,
         advances: null,
@@ -198,7 +198,7 @@ const fonts: FontNode[] = [
     {
         uuid: uuid(),
         id: "minecraft:uniform",
-        metrics: "builtin:minecraft-uniform-26.1.2",
+        metrics: "builtin:minecraft-uniform-1.21.11",
         fallback: null,
         fallbackAdvancePixels: null,
         advances: null,
@@ -273,6 +273,74 @@ const frameGlyph = (
     bitmap: null,
 });
 
+/**
+ * Epic Tooltip frame pieces, cut from the purchased pack by `tools/slice-epic-tooltip.py`.
+ *
+ * Each source strip is a single fixed 161px glyph — which is why Epic's own docs cap a tooltip line
+ * at 25 characters. Cutting each strip into `left / fill / center / fill / right` lets the frame
+ * track the text width instead. Code points run consecutively from U+E110 in the slicer's order,
+ * tier-major then row-major, and the widths below are that run's manifest.
+ */
+const EPIC_FRAME_ROWS = {
+    top: { height: 23, ascent: 19 },
+    body: { height: 10, ascent: 8 },
+    bottom: { height: 15, ascent: 8 },
+} as const;
+
+const EPIC_FRAME_ORDER: ReadonlyArray<
+    readonly [keyof typeof EPIC_FRAME_ROWS, string]
+> = [
+    ["top", "left"],
+    ["top", "fill"],
+    ["top", "center"],
+    ["top", "right"],
+    ["body", "left"],
+    ["body", "fill"],
+    ["body", "right"],
+    ["bottom", "left"],
+    ["bottom", "fill"],
+    ["bottom", "center"],
+    ["bottom", "right"],
+];
+
+/**
+ * Ink width of each piece, in `EPIC_FRAME_ORDER`. The tiers differ only in how wide their top
+ * ornament is; `tooltip_middle` is shared art with no ornament at all, so a body row is three-piece.
+ */
+const EPIC_FRAME_WIDTHS: Record<string, readonly number[]> = {
+    common: [26, 1, 37, 26, 2, 1, 2, 26, 1, 15, 26],
+    uncommon: [26, 1, 35, 26, 2, 1, 2, 26, 1, 15, 26],
+    rare: [26, 1, 51, 26, 2, 1, 2, 26, 1, 15, 26],
+    unique: [26, 1, 51, 26, 2, 1, 2, 26, 1, 15, 26],
+    legendary: [26, 1, 63, 26, 2, 1, 2, 26, 1, 15, 26],
+    corruption: [26, 1, 51, 26, 2, 1, 2, 26, 1, 15, 26],
+};
+
+/** Closes the seam a bitmap glyph's trailing pixel opens; see `frameRowSchema.kern`. */
+const EPIC_FRAME_KERN = "frame.kern.minus-one";
+
+const epicFramePieces = Object.entries(EPIC_FRAME_WIDTHS).flatMap(
+    ([tier, widths], tierIndex) =>
+        EPIC_FRAME_ORDER.map(([row, part], pieceIndex) => {
+            const metrics = EPIC_FRAME_ROWS[row];
+            const ink = widths[pieceIndex]!;
+            return {
+                id: `frame.${tier}.${row}-${part}`,
+                texture: `itemerness:font/frame/${tier}/${row}_${part}.png`,
+                codePoint:
+                    0xe110 + tierIndex * EPIC_FRAME_ORDER.length + pieceIndex,
+                ink,
+                metrics,
+                bounds: {
+                    left: 0,
+                    right: ink,
+                    top: -metrics.ascent,
+                    bottom: metrics.height - metrics.ascent,
+                },
+            };
+        }),
+);
+
 const glyphs: GlyphNode[] = [
     iconGlyph("icon.attack", 0xe001),
     iconGlyph("icon.quality", 0xe002),
@@ -317,6 +385,25 @@ const glyphs: GlyphNode[] = [
         advancePixels: 16,
         visualBounds: { left: 0, right: 16, top: -16, bottom: 0 },
         bitmap: "canvas.aurora.emblem",
+    },
+    ...epicFramePieces.map((piece) => ({
+        uuid: uuid(),
+        id: piece.id,
+        font: "itemerness:frame",
+        codePoint: piece.codePoint,
+        // Minecraft advances a bitmap glyph one pixel past its ink.
+        advancePixels: piece.ink + 1,
+        visualBounds: piece.bounds,
+        bitmap: piece.id,
+    })),
+    {
+        uuid: uuid(),
+        id: EPIC_FRAME_KERN,
+        font: "itemerness:frame",
+        codePoint: 0xe1ff,
+        advancePixels: -1,
+        visualBounds: { left: 0, right: 0, top: 0, bottom: 0 },
+        bitmap: null,
     },
 ];
 
@@ -369,6 +456,18 @@ const bitmaps: BitmapNode[] = [
         ascentPixels: 8,
         visualBounds: { left: 0, right: 1, top: -8, bottom: 2 },
     },
+    ...epicFramePieces.map((piece) => ({
+        uuid: uuid(),
+        id: piece.id,
+        baselineVariant: null,
+        texture: piece.texture,
+        sourceWidthPixels: piece.ink,
+        sourceHeightPixels: piece.metrics.height,
+        renderWidthPixels: piece.ink,
+        renderHeightPixels: piece.metrics.height,
+        ascentPixels: piece.metrics.ascent,
+        visualBounds: piece.bounds,
+    })),
 ];
 
 const viewerFacts: ViewerFactNode[] = [
@@ -609,6 +708,136 @@ const emberStyles = {
     },
 };
 
+/**
+ * The quality frames, copied from `plugins/Itemerness/themes/quality-*.yml` on the server.
+ *
+ * The tier decides the border, so these are not variations an author picks between: they are what
+ * "this item is rare" looks like. Each one falls back to the character frame, which is what a
+ * viewer without the pack sees.
+ *
+ * `unique` and `corruption` exist only on that server — `unique` reuses the original Epic Tooltip
+ * legendary art and `corruption` is its purple recolour — so this list cannot be derived from the
+ * sprite names in whatever pack happens to be mounted. It has to be kept in step with the theme
+ * files by hand, and `unique` deliberately shares `rare`'s palette there.
+ */
+const QUALITY_PALETTE: Record<
+    string,
+    { name: string; label: string; value: string; description: string }
+> = {
+    common: {
+        name: "#d8d8e0",
+        label: "#7a7a85",
+        value: "#e8e8f0",
+        description: "#9a9aa5",
+    },
+    uncommon: {
+        name: "#6ee87d",
+        label: "#5a8f62",
+        value: "#d8f5dc",
+        description: "#8fbf97",
+    },
+    rare: {
+        name: "#6cb8ff",
+        label: "#5a7d9f",
+        value: "#d8ecff",
+        description: "#8fadc9",
+    },
+    unique: {
+        name: "#6cb8ff",
+        label: "#5a7d9f",
+        value: "#d8ecff",
+        description: "#8fadc9",
+    },
+    legendary: {
+        name: "#ffbb55",
+        label: "#b3854a",
+        value: "#ffe9c9",
+        description: "#d9b98c",
+    },
+    corruption: {
+        name: "#c88cff",
+        label: "#8a6a9f",
+        value: "#eddcff",
+        description: "#b09ac4",
+    },
+};
+
+function plain(color: string) {
+    return {
+        color,
+        bold: false,
+        italic: false,
+        underlined: false,
+        strikethrough: false,
+    };
+}
+
+const qualityThemes: ThemeNode[] = Object.entries(QUALITY_PALETTE).map(
+    ([tier, palette]) => ({
+        uuid: uuid(),
+        id: `itemerness:quality-${tier}`,
+        renderer: "SEGMENTED_FRAME",
+        requiresResourcePack: true,
+        requiredCapabilities: [
+            "itemerness:segmented-frame-v1",
+            "itemerness:signed-advance-v1",
+        ],
+        // The frame draws its own opaque panel, so a stray unmanaged lore line would land outside it.
+        vanillaTooltipLines: "REQUIRE_MANAGED",
+        fallback: "itemerness:vanilla-frame",
+        fonts: {
+            text: "itemerness:body",
+            icons: "itemerness:icons",
+            frame: "itemerness:frame",
+            spacing: "itemerness:spacing",
+        },
+        styles: {
+            "item-name": plain(palette.name),
+            label: plain(palette.label),
+            value: plain(palette.value),
+            "requirement-met": plain("#8bd17c"),
+            "requirement-unmet": plain("#ff6961"),
+            description: plain(palette.description),
+        },
+        // The pieces carry the panel fill themselves, so vanilla's own background is blanked out
+        // rather than left to peek out as a second border around them.
+        tooltipStyle: "itemerness:transparent-canvas",
+        requireExactFontMetrics: false,
+        content: null,
+        characterFrame: null,
+        segmentedFrame: {
+            // The widest fixed run is legendary's top row at 115px, so the minimum clears every tier.
+            minimumWidthPixels: 140,
+            maximumWidthPixels: 220,
+            leftPaddingPixels: 8,
+            rightPaddingPixels: 8,
+            top: {
+                left: `frame.${tier}.top-left`,
+                fill: `frame.${tier}.top-fill`,
+                right: `frame.${tier}.top-right`,
+                center: `frame.${tier}.top-center`,
+                kern: EPIC_FRAME_KERN,
+            },
+            body: {
+                left: `frame.${tier}.body-left`,
+                fill: `frame.${tier}.body-fill`,
+                right: `frame.${tier}.body-right`,
+                center: null,
+                kern: EPIC_FRAME_KERN,
+            },
+            connector: null,
+            bottom: {
+                left: `frame.${tier}.bottom-left`,
+                fill: `frame.${tier}.bottom-fill`,
+                right: `frame.${tier}.bottom-right`,
+                center: `frame.${tier}.bottom-center`,
+                kern: EPIC_FRAME_KERN,
+            },
+        },
+        canvas: null,
+    }),
+);
+
 const themes: ThemeNode[] = [
     {
         uuid: uuid(),
@@ -707,25 +936,35 @@ const themes: ThemeNode[] = [
             maximumWidthPixels: 220,
             leftPaddingPixels: 12,
             rightPaddingPixels: 12,
+            // The placeholder segment glyphs predate the Epic pieces and have no artwork behind
+            // them, so this example stays three-piece and unkerned.
             top: {
                 left: "frame.segment.top-left",
                 fill: "frame.segment.top-fill",
                 right: "frame.segment.top-right",
+                center: null,
+                kern: null,
             },
             body: {
                 left: "frame.segment.body-left",
                 fill: "frame.segment.body-fill",
                 right: "frame.segment.body-right",
+                center: null,
+                kern: null,
             },
             connector: {
                 left: "frame.segment.connector-left",
                 fill: "frame.segment.connector-fill",
                 right: "frame.segment.connector-right",
+                center: null,
+                kern: null,
             },
             bottom: {
                 left: "frame.segment.bottom-left",
                 fill: "frame.segment.bottom-fill",
                 right: "frame.segment.bottom-right",
+                center: null,
+                kern: null,
             },
         },
         canvas: null,
@@ -793,6 +1032,7 @@ const themes: ThemeNode[] = [
             normalizeVisualOrigin: true,
         },
     },
+    ...qualityThemes,
 ];
 
 const emptyConstraints = {
@@ -1435,18 +1675,25 @@ const raw = {
             expectedFrameSprite: "itemerness:tooltip/transparent-canvas_frame",
             scaling: "stretch",
         },
+        ...Object.keys(QUALITY_PALETTE).map((tier) => ({
+            uuid: uuid(),
+            id: `itemerness:quality-${tier}`,
+            expectedBackgroundSprite: `itemerness:tooltip/quality-${tier}_background`,
+            expectedFrameSprite: `itemerness:tooltip/quality-${tier}_frame`,
+            scaling: "nine-slice" as const,
+        })),
     ],
     spacing: {
         font: "itemerness:spacing",
         negative: {
-            firstCodePoint: 0xf0000,
-            lastCodePoint: 0xf00ff,
+            firstCodePoint: 0xe300,
+            lastCodePoint: 0xe3ff,
             minimumAdvancePixels: -256,
             maximumAdvancePixels: -1,
         },
         positive: {
-            firstCodePoint: 0xf0100,
-            lastCodePoint: 0xf01ff,
+            firstCodePoint: 0xe400,
+            lastCodePoint: 0xe4ff,
             minimumAdvancePixels: 1,
             maximumAdvancePixels: 256,
         },

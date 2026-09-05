@@ -22,28 +22,31 @@ class PluginMetadataTest {
     }
 
     @Test
-    fun `packages canonical NBT and projection policy`() {
+    fun `packages storage metadata and projection policy`() {
         val configuration = resource("config.yml")
-        val dataKeys = resource("data-keys/common.yml")
+        val dataKeys = resource("data-keys/storage.yml")
 
         assertTrue("config-version: 3" in configuration)
         assertTrue("minecraft:custom_data.itemerness" in configuration)
         assertTrue("editor:" in configuration)
-        assertTrue("mode: fallback-read-only" in dataKeys)
+        assertTrue("itemerness:created-at" in dataKeys)
         assertTrue("placeholder-api:" in dataKeys)
+        assertFalse("example:" in dataKeys)
     }
 
     @Test
     fun `indexes every first run resource without unsafe paths`() {
         val entries = BundledResources.parseIndex(resource(BundledResources.INDEX_PATH))
 
-        assertTrue(entries.size >= 17)
-        assertTrue("items/examples.yml" in entries)
+        assertTrue(entries.size >= 14)
+        assertTrue("data-keys/storage.yml" in entries)
+        assertTrue("viewer-facts/runtime.yml" in entries)
+        assertFalse("items/examples.yml" in entries)
         assertTrue("themes/vanilla-frame.yml" in entries)
         assertTrue("themes/aurora-canvas.yml" in entries)
         assertTrue("assets/bitmaps.yml" in entries)
         assertTrue("access.yml" in entries)
-        assertTrue("examples/canonical-items.snbt" in entries)
+        assertFalse("examples/canonical-items.snbt" in entries)
         assertFalse("projection.yml" in entries)
         assertFalse("placeholders.yml" in entries)
         assertFalse("commands.yml" in entries)
@@ -75,34 +78,22 @@ class PluginMetadataTest {
     }
 
     @Test
-    fun `packages examples for every presentation path without canonical lore`() {
-        val items = resource("items/examples.yml")
-        val canonicalItems = resource("examples/canonical-items.snbt")
+    fun `does not install an Itemerness gameplay catalog`() {
+        val entries = BundledResources.parseIndex(resource(BundledResources.INDEX_PATH))
 
-        assertTrue("mode: fungible" in items)
-        assertTrue("mode: unique" in items)
-        assertTrue("type: conditional" in items)
-        assertTrue("type: repeat" in items)
-        assertTrue("nested-items: recursive" in items)
-        assertTrue("theme: itemerness:default" in items)
-        assertTrue("theme: itemerness:vanilla-frame" in items)
-        assertTrue("theme: itemerness:ember" in items)
-        assertTrue("theme: itemerness:segmented" in items)
-        assertTrue("theme: itemerness:aurora-canvas" in items)
-        assertTrue("minecraft:custom_data" in canonicalItems)
-        assertFalse("minecraft:lore" in canonicalItems)
-        assertFalse("PublicBukkitValues" in canonicalItems)
+        assertFalse(entries.any { it.startsWith("items/") })
+        assertFalse(entries.any { it.startsWith("examples/") })
     }
 
     @Test
     fun `keeps protocol surfaces internal and placeholder exposure on data keys`() {
         val entries = BundledResources.parseIndex(resource(BundledResources.INDEX_PATH))
-        val dataKeys = resource("data-keys/common.yml")
+        val dataKeys = resource("data-keys/storage.yml")
 
         assertFalse(entries.any { it.startsWith("internal/") })
         assertFalse(BundledResources.STATE_FILE_NAME in entries)
         assertTrue("exposed: false" in dataKeys)
-        assertTrue("exposed: true" in dataKeys)
+        assertFalse("example:" in dataKeys)
     }
 
     @Test

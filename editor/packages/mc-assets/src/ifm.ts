@@ -2,8 +2,8 @@ import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex } from "@noble/hashes/utils";
 
 /**
- * Reader for the generated vanilla font-metrics artifact
- * (`META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm`).
+ * Reader for a generated vanilla font-metrics artifact under
+ * `META-INF/itemerness/font-metrics/`.
  *
  * This is a byte-for-byte port of `BuiltinFontMetricsLoader` in `itemerness-bukkit`, including its
  * integrity checks. It matters for two reasons:
@@ -65,28 +65,92 @@ const MAX_CODE_POINT = 0x10ffff;
 const MIN_SURROGATE = 0xd800;
 const MAX_SURROGATE = 0xdfff;
 
-/** Expected topology of the 26.1.2 artifact, mirroring `EXPECTED_TABLES` on the JVM side. */
-export const EXPECTED_TABLES: ReadonlyMap<
-    string,
-    { fontId: string; fallback: string | null }
-> = new Map([
+interface ArtifactExpectation {
+    readonly clientSha1: string;
+    readonly assetIndexSha1: string;
+    readonly artifactSha256: string;
+    readonly tables: ReadonlyMap<
+        string,
+        { fontId: string; fallback: string | null }
+    >;
+}
+
+function artifactExpectation(
+    clientVersion: string,
+    clientSha1: string,
+    assetIndexSha1: string,
+    artifactSha256: string,
+): ArtifactExpectation {
+    return {
+        clientSha1,
+        assetIndexSha1,
+        artifactSha256,
+        tables: new Map([
+            [
+                `builtin:minecraft-default-${clientVersion}`,
+                {
+                    fontId: "minecraft:default",
+                    fallback: "minecraft:uniform",
+                },
+            ],
+            [
+                `builtin:minecraft-uniform-${clientVersion}`,
+                { fontId: "minecraft:uniform", fallback: null },
+            ],
+        ]),
+    };
+}
+
+const EXPECTATIONS: ReadonlyMap<string, ArtifactExpectation> = new Map([
     [
-        "builtin:minecraft-default-26.1.2",
-        { fontId: "minecraft:default", fallback: "minecraft:uniform" },
+        "1.21.11",
+        artifactExpectation(
+            "1.21.11",
+            "ba2df812c2d12e0219c489c4cd9a5e1f0760f5bd",
+            "3c6eabc1f3b6b03329c91816f0be1229820b4d83",
+            "585cc202b2174078cf8784d39ac2f16d7d35c104a83fdcf8d093ac076720a8c3",
+        ),
     ],
     [
-        "builtin:minecraft-uniform-26.1.2",
-        { fontId: "minecraft:uniform", fallback: null },
+        "26.1.1",
+        artifactExpectation(
+            "26.1.1",
+            "377031a9e733ba8ab4d355959a8f6fb8eb707556",
+            "9239758051a3501442ae38f4f70a79f3e4b6eafc",
+            "1aa86f9e5c3a076ff68def61eaa2cbf10197be6e06815779599d257a78e846ce",
+        ),
+    ],
+    [
+        "26.1.2",
+        artifactExpectation(
+            "26.1.2",
+            "4e618f09a0c649dde3fdf829df443ce0b8831e65",
+            "3391216608325aaf428712b211476abf6d5ddffa",
+            "c978141c91f21f40083cc4420388de0a763cef303a058142db410d35a46b8604",
+        ),
+    ],
+    [
+        "26.2",
+        artifactExpectation(
+            "26.2",
+            "2dc72797acbc1b63fc16a11c4ac393605f453754",
+            "773791767c043b4f9493b50c54257619cecb08a4",
+            "23044b49490bafefe9ec35988b1fc0825c0df79f1f847938bdf4bb645d47b5c9",
+        ),
     ],
 ]);
 
-export const EXPECTED_CLIENT_VERSION = "26.1.2";
-export const EXPECTED_CLIENT_SHA1 = "4e618f09a0c649dde3fdf829df443ce0b8831e65";
-export const EXPECTED_ASSET_INDEX_SHA1 =
-    "3391216608325aaf428712b211476abf6d5ddffa";
+/** Active deployment defaults, retained as exports for callers that show version metadata. */
+export const EXPECTED_CLIENT_VERSION = "1.21.11";
+const ACTIVE_EXPECTATION = EXPECTATIONS.get(EXPECTED_CLIENT_VERSION)!;
+export const EXPECTED_TABLES: ReadonlyMap<
+    string,
+    { fontId: string; fallback: string | null }
+> = ACTIVE_EXPECTATION.tables;
+export const EXPECTED_CLIENT_SHA1 = ACTIVE_EXPECTATION.clientSha1;
+export const EXPECTED_ASSET_INDEX_SHA1 = ACTIVE_EXPECTATION.assetIndexSha1;
 export const EXPECTED_SOURCE_SHA1 = "38547c6fabdfd5adc0d2227c4dfc6cf54713fbfa";
-export const EXPECTED_ARTIFACT_SHA256 =
-    "c978141c91f21f40083cc4420388de0a763cef303a058142db410d35a46b8604";
+export const EXPECTED_ARTIFACT_SHA256 = ACTIVE_EXPECTATION.artifactSha256;
 
 class ByteCursor {
     private position = 0;
@@ -238,16 +302,17 @@ export function readFontMetricsArtifact(
     if (schema !== ARTIFACT_SCHEMA)
         throw new FontMetricsArtifactError(`unsupported schema ${schema}`);
     const clientVersion = cursor.string();
-    if (clientVersion !== EXPECTED_CLIENT_VERSION) {
+    const expectation = EXPECTATIONS.get(clientVersion);
+    if (!expectation) {
         throw new FontMetricsArtifactError(
-            `client version ${clientVersion} does not match ${EXPECTED_CLIENT_VERSION}`,
+            `unsupported client version ${clientVersion}`,
         );
     }
     const clientSha1 = bytesToHex(cursor.bytes(SHA1_BYTES));
-    if (clientSha1 !== EXPECTED_CLIENT_SHA1)
+    if (clientSha1 !== expectation.clientSha1)
         throw new FontMetricsArtifactError("client SHA-1 does not match");
     const assetIndexSha1 = bytesToHex(cursor.bytes(SHA1_BYTES));
-    if (assetIndexSha1 !== EXPECTED_ASSET_INDEX_SHA1) {
+    if (assetIndexSha1 !== expectation.assetIndexSha1) {
         throw new FontMetricsArtifactError("asset index SHA-1 does not match");
     }
     const sourceSha1 = bytesToHex(cursor.bytes(SHA1_BYTES));
@@ -268,13 +333,13 @@ export function readFontMetricsArtifact(
         throw new FontMetricsArtifactError("payload integrity check failed");
     }
     const artifactSha256 = bytesToHex(sha256(bytes));
-    if (artifactSha256 !== EXPECTED_ARTIFACT_SHA256) {
+    if (artifactSha256 !== expectation.artifactSha256) {
         throw new FontMetricsArtifactError("artifact integrity check failed");
     }
 
     const payloadCursor = new ByteCursor(payload, "font metrics payload");
     const tableCount = payloadCursor.unsignedByte();
-    if (tableCount !== EXPECTED_TABLES.size)
+    if (tableCount !== expectation.tables.size)
         throw new FontMetricsArtifactError("font table count is invalid");
     const tables: FontMetricsTable[] = [];
     for (let index = 0; index < tableCount; index += 1) {
@@ -317,20 +382,20 @@ export function readFontMetricsArtifact(
     const byRevision = new Map(
         tables.map((table) => [table.metricsRevision, table]),
     );
-    if (byRevision.size !== EXPECTED_TABLES.size) {
+    if (byRevision.size !== expectation.tables.size) {
         throw new FontMetricsArtifactError(
             "font metric revisions do not match",
         );
     }
-    for (const [revision, expectation] of EXPECTED_TABLES) {
+    for (const [revision, tableExpectation] of expectation.tables) {
         const table = byRevision.get(revision);
         if (!table)
             throw new FontMetricsArtifactError(
                 "font metric revisions do not match",
             );
         if (
-            table.fontId !== expectation.fontId ||
-            table.fallback !== expectation.fallback
+            table.fontId !== tableExpectation.fontId ||
+            table.fallback !== tableExpectation.fallback
         ) {
             throw new FontMetricsArtifactError(
                 `font table topology for ${revision} does not match`,

@@ -651,7 +651,7 @@ class NmsProjectionChannelHandlerTest {
 
     @Test
     fun `packet item budget exhaustion sanitizes every item and does not publish partial capabilities`() {
-        val fixture = fixture()
+        val fixture = fixture(limits = NmsProjectionLimits.DEFAULT.copy(items = 256))
         fixture.handler.bindViewer(VIEWER_ID)
         val canonicalItems = List(257) { canonicalStack() }
         val source = ClientboundContainerSetContentPacket(2, 4, canonicalItems, ItemStack.EMPTY)
@@ -702,7 +702,7 @@ class NmsProjectionChannelHandlerTest {
 
     @Test
     fun `merchant limit fallback rebuilds the whole carrier without leaking canonical roots`() {
-        val fixture = fixture()
+        val fixture = fixture(limits = NmsProjectionLimits.DEFAULT.copy(items = 256))
         fixture.handler.bindViewer(VIEWER_ID)
         val offers = MerchantOffers().also { result ->
             repeat(129) {
@@ -1292,6 +1292,7 @@ class NmsProjectionChannelHandlerTest {
         },
         persistentEntityCapacity: Int = NmsConnectionProjectionState.DEFAULT_PERSISTENT_ENTITY_CAPACITY,
         terminal: NmsProjectionTerminal = NmsProjectionTerminal(),
+        limits: NmsProjectionLimits = NmsProjectionLimits.DEFAULT,
     ): Fixture {
         val connection = TrackingConnection()
         connection.isPending = false
@@ -1315,7 +1316,10 @@ class NmsProjectionChannelHandlerTest {
         val owner = NmsProjectionHandlerOwner().also(NmsProjectionHandlerOwner::activate)
         val handler = ProjectionChannelHandler(
             connection = connection,
-            packetProjector = NmsOutboundPacketProjector(NmsItemStackProjector(runtime)),
+            packetProjector = NmsOutboundPacketProjector(
+                itemProjector = NmsItemStackProjector(runtime),
+                limits = limits,
+            ),
             projectionState = state,
             resyncRequests = ProjectionResyncSink.REJECTING,
             owner = owner,

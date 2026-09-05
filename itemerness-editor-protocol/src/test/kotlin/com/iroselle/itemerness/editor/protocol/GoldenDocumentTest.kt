@@ -38,19 +38,19 @@ class GoldenDocumentTest {
      */
     private val builtinMetrics = BuiltinFontMetrics { revision ->
         when (revision) {
-            "minecraft-default-26.1.2" ->
+            "minecraft-default-1.21.11" ->
                 BuiltinFontTable(
                     fontId = "minecraft:default",
-                    metricsRevision = "builtin:minecraft-default-26.1.2",
+                    metricsRevision = "builtin:minecraft-default-1.21.11",
                     fallback = "minecraft:uniform",
                     fallbackGlyph = missingGlyph,
                     glyphs = mapOf('A'.code to GlyphMetricSource(6.0, VisualBoundsSource(0.0, 5.0, -7.0, 1.0))),
                 )
 
-            "minecraft-uniform-26.1.2" ->
+            "minecraft-uniform-1.21.11" ->
                 BuiltinFontTable(
                     fontId = "minecraft:uniform",
-                    metricsRevision = "builtin:minecraft-uniform-26.1.2",
+                    metricsRevision = "builtin:minecraft-uniform-1.21.11",
                     fallback = null,
                     fallbackGlyph = missingGlyph,
                     glyphs = mapOf(0x4F59 to GlyphMetricSource(9.0, VisualBoundsSource(0.0, 8.0, -7.0, 1.0))),
@@ -104,7 +104,7 @@ class GoldenDocumentTest {
     fun `resolves a builtin font selector to the generated table`() {
         val decoded = ProjectDocumentCodec.decode(documentJson, builtinMetrics)
         val default = decoded.presentation.fonts.first { it.id == "minecraft:default" }
-        assertEquals("builtin:minecraft-default-26.1.2", default.metricsRevision)
+        assertEquals("builtin:minecraft-default-1.21.11", default.metricsRevision)
         // The fallback pointer comes from the artifact, not the document. Without it CJK text has
         // no metrics at all, which is the exact bug the browser engine hit.
         assertEquals("minecraft:uniform", default.fallback)

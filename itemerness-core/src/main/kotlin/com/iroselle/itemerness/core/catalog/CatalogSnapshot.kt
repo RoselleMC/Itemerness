@@ -235,7 +235,16 @@ class CatalogItemDefinition internal constructor(
     ): CanonicalItemInstance {
         require(createdAgainstRevision >= 0) { "Creation revision must not be negative" }
         require(instanceRevision >= 0) { "Instance revision must not be negative" }
-        CanonicalStorageValidator.requireValid(key, schemaVersions, instanceId, data)
+        // Adding a required instance field with a static default is backwards compatible. Older
+        // stacks may not physically contain that field yet, so materialize only required defaults
+        // at the restore boundary. Nullable defaults must remain absent so declared migration
+        // fallbacks can still provide their values.
+        val restoredData = TreeMap<DataKey, ItemDataValue>()
+        instanceDefaults.forEach { (dataKey, value) ->
+            if (dataKeys.getValue(dataKey).nullable.not()) restoredData[dataKey] = value
+        }
+        restoredData.putAll(data)
+        CanonicalStorageValidator.requireValid(key, schemaVersions, instanceId, restoredData)
         require(schemaVersions == this.schemaVersions) {
             "Persisted schema versions do not match the current definition for $key"
         }
@@ -247,7 +256,7 @@ class CatalogItemDefinition internal constructor(
                 "Unique item $key is missing its instance ID"
             }
         }
-        data.forEach { (dataKey, value) ->
+        restoredData.forEach { (dataKey, value) ->
             val definition = requireNotNull(dataKeys[dataKey]) {
                 "Persisted data key $dataKey is not defined for $key"
             }
@@ -262,7 +271,7 @@ class CatalogItemDefinition internal constructor(
         dataKeys.values
             .filter { definition -> definition.scope == DataScope.INSTANCE && !definition.nullable }
             .forEach { definition ->
-                require(definition.key in data) {
+                require(definition.key in restoredData) {
                     "Persisted instance is missing required data key ${definition.key}"
                 }
             }
@@ -272,7 +281,7 @@ class CatalogItemDefinition internal constructor(
             instanceRevision = instanceRevision,
             schemaVersions = schemaVersions,
             instanceId = instanceId,
-            data = data,
+            data = restoredData,
         )
     }
 }

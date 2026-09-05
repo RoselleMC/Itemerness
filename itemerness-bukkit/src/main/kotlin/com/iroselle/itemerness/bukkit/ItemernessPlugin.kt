@@ -7,6 +7,7 @@ import com.iroselle.itemerness.bukkit.api.DefaultBukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
+import com.iroselle.itemerness.bukkit.event.ItemernessCatalogPublishedEvent
 import com.iroselle.itemerness.bukkit.catalog.PreparedRuntimeCatalogPublication
 import com.iroselle.itemerness.bukkit.editor.EditorAgentService
 import com.iroselle.itemerness.bukkit.editor.EditorAgentCoordinator
@@ -288,6 +289,13 @@ class ItemernessPlugin : JavaPlugin() {
                                     failures += failure
                                 }
                                 failures += factPublication.complete()
+                                try {
+                                    server.pluginManager.callEvent(
+                                        ItemernessCatalogPublishedEvent(published.domain.revision),
+                                    )
+                                } catch (failure: Throwable) {
+                                    failures += failure
+                                }
                                 if (failures.isNotEmpty()) {
                                     val failure = IllegalStateException(
                                         "${failures.size} viewer fact listener(s) failed after catalog commit",

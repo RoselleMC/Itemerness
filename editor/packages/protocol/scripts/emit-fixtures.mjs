@@ -8,7 +8,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -17,10 +17,10 @@ const { register } = require("tsx/esm/api");
 const unregister = register();
 
 const { baselineDocument } = await import(
-    resolve(here, "../fixtures/baseline.ts")
+    pathToFileURL(resolve(here, "../fixtures/baseline.ts")).href
 );
 const { canonicalize, contentHash } = await import(
-    resolve(here, "../src/canonical.ts")
+    pathToFileURL(resolve(here, "../src/canonical.ts")).href
 );
 await unregister();
 

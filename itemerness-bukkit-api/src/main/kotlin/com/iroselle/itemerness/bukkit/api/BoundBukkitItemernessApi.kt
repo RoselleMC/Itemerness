@@ -6,10 +6,10 @@ import com.iroselle.itemerness.api.DataKey
 import com.iroselle.itemerness.api.ItemDataMutation
 import com.iroselle.itemerness.api.ItemDataValue
 import com.iroselle.itemerness.api.ItemKey
+import java.util.UUID
 import java.util.concurrent.CompletionStage
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
-import java.util.UUID
 
 /**
  * Bukkit item operations bound to one active plugin lifecycle generation.
@@ -62,11 +62,7 @@ interface BoundBukkitItemernessApi : BoundItemernessApi {
         mutations: Collection<ItemDataMutation>,
     ): CompletionStage<ApiCallResult<BukkitSlotEditReceipt>>
 
-    /**
-     * Publishes this caller's typed contribution to an API-enabled viewer fact.
-     * The latest successful caller wins for the key and a semantic change schedules projection
-     * refresh through the platform-owned boundary.
-     */
+    /** Publishes this caller's typed contribution to an API-enabled viewer fact. */
     fun publishViewerFact(
         viewerId: UUID,
         key: ItemKey,

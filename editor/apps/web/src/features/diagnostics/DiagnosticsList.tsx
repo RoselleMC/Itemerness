@@ -1,15 +1,7 @@
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    composeLocalPreview,
-    type PresentationFonts,
-} from "@itemerness/mc-render";
 import type { Diagnostic } from "@itemerness/protocol";
-import {
-    presentationFontsOf,
-    useEditorStore,
-    viewerOf,
-} from "../../state/store.js";
+import { useEditorStore } from "../../state/store.js";
+import type { PreviewBundle } from "../preview/usePreview.js";
 
 /**
  * Diagnostics.
@@ -18,24 +10,19 @@ import {
  * `messageKey`, and typed `params`; the text is assembled from this browser's own catalog, which
  * is what makes a Chinese editor see Chinese diagnostics from an English-speaking server.
  */
-export function DiagnosticsList() {
+export function DiagnosticsList({ preview }: { preview: PreviewBundle }) {
     const { t } = useTranslation();
     const state = useEditorStore();
 
-    const fonts: PresentationFonts = useMemo(
-        () => presentationFontsOf(state),
-        [state.document, state.packs, state.artifact],
-    );
-    const diagnostics: readonly Diagnostic[] = useMemo(() => {
-        if (!state.selectedItemId) return state.diagnostics;
-        const preview = composeLocalPreview({
-            document: state.document,
-            itemId: state.selectedItemId,
-            viewer: viewerOf(state),
-            fonts,
-        });
-        return [...preview.diagnostics, ...state.diagnostics];
-    }, [state, fonts]);
+    const serverDiagnostics: readonly Diagnostic[] =
+        preview.server.status === "verified" || preview.server.status === "mock"
+            ? preview.server.artifact.diagnostics
+            : [];
+    const diagnostics: readonly Diagnostic[] = [
+        ...(preview.local?.diagnostics ?? []),
+        ...serverDiagnostics,
+        ...state.diagnostics,
+    ];
 
     return (
         <section className="diagnostics" aria-label={t("diagnostics.heading")}>

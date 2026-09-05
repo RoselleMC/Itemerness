@@ -562,8 +562,14 @@ object ProjectDocumentCodec {
     }
 
     private fun frameRow(node: JsonObject): FrameRowSource {
-        node.rejectUnknown("left", "fill", "right")
-        return FrameRowSource(node.requiredString("left"), node.requiredString("fill"), node.requiredString("right"))
+        node.rejectUnknown("left", "fill", "right", "center", "kern")
+        return FrameRowSource(
+            node.requiredString("left"),
+            node.requiredString("fill"),
+            node.requiredString("right"),
+            node.optionalString("center"),
+            node.optionalString("kern"),
+        )
     }
 
     private fun theme(node: JsonObject): ThemeSource {

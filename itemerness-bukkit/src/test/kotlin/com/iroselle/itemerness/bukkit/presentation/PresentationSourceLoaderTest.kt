@@ -40,7 +40,9 @@ class PresentationSourceLoaderTest {
                     .filter { it.endsWith(".yml") }
                     .toList()
             }
-        paths.forEach(::copyResource)
+        com.iroselle.itemerness.bukkit.TestResourcePaths.withProduction(paths)
+            .distinct()
+            .forEach(::copyResource)
     }
 
     @Test

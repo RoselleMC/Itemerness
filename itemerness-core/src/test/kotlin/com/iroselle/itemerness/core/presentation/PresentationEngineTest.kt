@@ -57,6 +57,79 @@ class PresentationEngineTest {
     }
 
     @Test
+    fun `plain theme keeps field icons when the viewer has a resource pack`() {
+        val data = PresentationFixtures.travelData()
+        val withPack = render(
+            "itemerness:travel-token",
+            data,
+            PresentationViewer(
+                locale = "zh_cn",
+                requestedTheme = ItemKey.parse("itemerness:default"),
+                resourcePackLoaded = true,
+            ),
+        )
+        val withoutPack = render(
+            "itemerness:travel-token",
+            data,
+            PresentationViewer(
+                locale = "zh_cn",
+                requestedTheme = ItemKey.parse("itemerness:default"),
+                resourcePackLoaded = false,
+            ),
+        )
+
+        val icons = withPack.lore.flatMap { it.runs }.filter { it.kind == PresentationRunKind.ICON }
+        assertEquals(2, icons.size)
+        assertTrue(icons.all { it.style.font == ItemKey.parse("itemerness:icons") })
+        assertTrue(icons.all { it.text.codePointCount(0, it.text.length) == 1 })
+        assertFalse(withoutPack.lore.flatMap { it.runs }.any { it.kind == PresentationRunKind.ICON })
+    }
+
+    @Test
+    fun `equipment icon gaps use the loaded resource pack spacing font`() {
+        val display = render(
+            "itemerness:ember-blade",
+            emberData(),
+            PresentationViewer(
+                locale = "zh_cn",
+                requestedTheme = ItemKey.parse("itemerness:default"),
+                resourcePackLoaded = true,
+            ),
+        )
+
+        val iconGaps = display.lore.flatMap { line ->
+            line.runs.mapIndexedNotNull { index, run ->
+                if (run.kind == PresentationRunKind.ICON) line.runs.getOrNull(index + 1) else null
+            }
+        }
+        assertTrue(iconGaps.isNotEmpty())
+        assertTrue(iconGaps.all { it.kind == PresentationRunKind.SPACING })
+        assertTrue(iconGaps.all { it.style.font == ItemKey.parse("itemerness:spacing") })
+        assertTrue(iconGaps.none { it.style.bold })
+        assertTrue(iconGaps.all { it.text.codePointCount(0, it.text.length) == 1 })
+        assertTrue(iconGaps.all { it.text.codePointAt(0) == 0xE402 })
+    }
+
+    @Test
+    fun `character frame gives every border and body row the exact same width`() {
+        val display = render(
+            "itemerness:framed-relic",
+            mapOf(
+                PresentationFixtures.quality to NamespacedKeyDataValue(ItemKey.parse("example:epic")),
+                PresentationFixtures.region to NamespacedKeyDataValue(ItemKey.parse("example:ancient-vault")),
+            ),
+            PresentationViewer(
+                locale = "zh_cn",
+                requestedTheme = ItemKey.parse("itemerness:vanilla-frame"),
+                resourcePackLoaded = true,
+            ),
+        )
+
+        assertEquals(ThemeRenderer.VANILLA_CHARACTER_FRAME, display.renderer)
+        assertEquals(1, display.lore.map(PresentationLine::logicalWidthPixels).distinct().size)
+    }
+
+    @Test
     fun `conditional facts and repeats are resolved before packet-time layout`() {
         val data = mapOf(
             PresentationFixtures.attack to DecimalDataValue(38.4),
@@ -113,7 +186,12 @@ class PresentationEngineTest {
         assertEquals(ThemeRenderer.SEGMENTED_FRAME, display.renderer)
         assertTrue(display.lore.size >= 5)
         assertTrue(display.lore.all { it.logicalWidthPixels <= 220 })
-        assertTrue(display.lore.first().runs.all { it.kind == PresentationRunKind.FRAME })
+        // The name shares the top row instead of floating above the border, so it carries frame
+        // pieces of its own and measures the same as every row below it.
+        assertTrue(display.displayName.runs.any { it.kind == PresentationRunKind.FRAME })
+        assertTrue(display.lore.all { it.logicalWidthPixels == display.displayName.logicalWidthPixels })
+        // That leaves the bottom border as the only row made purely of frame pieces.
+        assertTrue(display.lore.last().runs.all { it.kind == PresentationRunKind.FRAME })
         assertTrue(display.lore.any { line -> line.runs.any { it.kind == PresentationRunKind.WIDTH_ANCHOR } })
     }
 

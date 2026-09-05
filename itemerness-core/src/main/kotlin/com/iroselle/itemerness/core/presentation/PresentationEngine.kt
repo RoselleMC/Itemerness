@@ -81,7 +81,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 continue
             }
             try {
-                val display = ThemeRendererEngine(catalog, current).render(
+                val display = ThemeRendererEngine(catalog, current, request.viewer).render(
                     item = item,
                     semantic = semantic,
                     requestedTheme = requestedTheme,
@@ -370,6 +370,7 @@ private class RuntimePresentationException(
 private class ThemeRendererEngine(
     private val catalog: PresentationCatalogSnapshot,
     private val theme: CompiledTheme,
+    private val viewer: PresentationViewer,
 ) {
     private val measurer = PixelMeasurer(catalog)
     private val layouter = PixelTextLayouter(measurer)
@@ -396,14 +397,26 @@ private class ThemeRendererEngine(
                 anchored.lines
             }
             ThemeRenderer.VANILLA_CHARACTER_FRAME -> renderCharacterFrame(layout, styledBlocks)
-            ThemeRenderer.SEGMENTED_FRAME -> renderSegmentedFrame(layout, styledBlocks)
+            ThemeRenderer.SEGMENTED_FRAME -> {
+                val framed = renderSegmentedFrame(layout, styledBlocks, name)
+                name = framed.name
+                framed.lines
+            }
             ThemeRenderer.BITMAP_CANVAS -> renderCanvas(layout, styledBlocks)
         }
         validateOutput(name, lore)
         return PresentationDisplay(
             displayName = name,
             lore = lore,
-            tooltipStyle = if (theme.source.renderer in setOf(ThemeRenderer.NATIVE_TOOLTIP_STYLE, ThemeRenderer.BITMAP_CANVAS)) theme.tooltipStyle else null,
+            // A segmented frame paints its own panel, so like a canvas it needs its tooltip style
+            // honoured — that style is what blanks vanilla's background out from under it.
+            tooltipStyle = if (
+                theme.source.renderer in setOf(
+                    ThemeRenderer.NATIVE_TOOLTIP_STYLE,
+                    ThemeRenderer.SEGMENTED_FRAME,
+                    ThemeRenderer.BITMAP_CANVAS,
+                )
+            ) theme.tooltipStyle else null,
             renderer = theme.source.renderer,
             selectedTheme = theme.id,
             requestedTheme = requestedTheme,
@@ -437,7 +450,7 @@ private class ThemeRendererEngine(
 
     private fun styleRuns(run: SemanticRun): List<StyledRun> {
         if (run.assetId != null) {
-            if (!theme.source.requiresResourcePack) return emptyList()
+            if (!viewer.resourcePackLoaded) return emptyList()
             val glyph = requireNotNull(catalog.glyphs[run.assetId]) { "Unknown glyph ${run.assetId}" }
             return listOf(
                 StyledRun(
@@ -588,23 +601,41 @@ private class ThemeRendererEngine(
     }
 
     private fun exactWidthAnchorRuns(pixels: Int, textStyle: PresentationTextStyle): List<PresentationTextRun> {
+        return exactInvisibleAdvanceRuns(pixels, textStyle, PresentationRunKind.WIDTH_ANCHOR)
+    }
+
+    private fun exactSpacingRuns(pixels: Int, textStyle: PresentationTextStyle): List<PresentationTextRun> {
+        return exactInvisibleAdvanceRuns(pixels, textStyle, PresentationRunKind.SPACING)
+    }
+
+    private fun exactInvisibleAdvanceRuns(
+        pixels: Int,
+        textStyle: PresentationTextStyle,
+        kind: PresentationRunKind,
+    ): List<PresentationTextRun> {
         if (pixels <= 0) return emptyList()
-        if (theme.source.requiresResourcePack && catalog.spacing != null) {
-            return spacingRuns(pixels, PresentationRunKind.WIDTH_ANCHOR)
+        if (viewer.resourcePackLoaded && catalog.spacing != null) {
+            return spacingRuns(pixels, kind)
         }
+        val fallbackKind = if (kind == PresentationRunKind.SPACING) PresentationRunKind.TEXT else kind
 
         // The supported clients give bold U+200C an exact one-pixel advance while the
-        // glyph remains inkless. This lets the resource-pack-free renderer enforce
-        // an exact tooltip minimum width without visible filler characters.
+        // glyph remains inkless. This lets resource-pack-free layouts enforce exact
+        // gaps and widths without visible filler characters.
         val unit = PresentationTextRun(
             text = ZERO_WIDTH_NON_JOINER,
-            style = textStyle.copy(bold = true),
-            kind = PresentationRunKind.WIDTH_ANCHOR,
+            style = textStyle.copy(
+                bold = true,
+                italic = false,
+                underlined = false,
+                strikethrough = false,
+            ),
+            kind = fallbackKind,
             unbreakable = true,
         )
         val measuredUnit = measurer.measure(listOf(unit))
         if (measuredUnit.logicalWidthPixels != 1 || measuredUnit.visualBounds.bottom > measuredUnit.visualBounds.top) {
-            throw TextLayoutException(ThemeFallbackCode.MISSING_GLYPH, "The vanilla one-pixel width anchor metric is unavailable")
+            throw TextLayoutException(ThemeFallbackCode.MISSING_GLYPH, "The vanilla one-pixel invisible advance metric is unavailable")
         }
         return listOf(unit.copy(text = ZERO_WIDTH_NON_JOINER.repeat(pixels)))
     }
@@ -612,7 +643,8 @@ private class ThemeRendererEngine(
     private fun addIconGap(values: List<StyledRun>, flow: LayoutSource.Flow?): List<StyledRun> {
         if (flow == null || values.firstOrNull()?.run?.kind != PresentationRunKind.ICON) return values
         val first = values.first()
-        val gap = paddingRuns(flow.fieldIconGapPixels, first.run.style).map { run ->
+        val textStyle = first.run.style.copy(font = theme.fonts.getValue("text"))
+        val gap = exactSpacingRuns(flow.fieldIconGapPixels, textStyle).map { run ->
             StyledRun(run, first.role)
         }
         return listOf(first) + gap + values.drop(1)
@@ -653,7 +685,7 @@ private class ThemeRendererEngine(
 
     private fun boundedPaddingRuns(pixels: Int, textStyle: PresentationTextStyle): List<PresentationTextRun> {
         if (pixels <= 0) return emptyList()
-        if (theme.source.requiresResourcePack && catalog.spacing != null) {
+        if (viewer.resourcePackLoaded && catalog.spacing != null) {
             return spacingRuns(pixels, PresentationRunKind.SPACING)
         }
         val space = PresentationTextRun(" ", textStyle.copy(bold = false, italic = false), unbreakable = true)
@@ -714,47 +746,123 @@ private class ThemeRendererEngine(
         frameStyle: PresentationTextStyle,
     ): PresentationLine {
         val edge = PresentationTextRun(vertical, frameStyle, PresentationRunKind.FRAME, true)
-        val textFont = content.runs.firstOrNull()?.style?.font ?: theme.fonts.getValue("text")
-        val paddingStyle = style("value", textFont).copy(bold = false, italic = false)
-        val space = PresentationTextRun(" ", paddingStyle, PresentationRunKind.TEXT, true)
-        val spaceWidth = measurer.measure(listOf(space)).logicalWidthPixels.coerceAtLeast(1)
-        val leftCount = ceil(frame.leftPaddingPixels.toDouble() / spaceWidth).toInt()
-        val base = listOf(edge, space.copy(text = " ".repeat(leftCount))) + content.runs
+        val paddingStyle = style("value", theme.fonts.getValue("text"))
+        val base = listOf(edge) + exactSpacingRuns(frame.leftPaddingPixels, paddingStyle) + content.runs
         val withoutRight = measurer.measure(base + edge).logicalWidthPixels
-        val rightNeed = max(frame.rightPaddingPixels, target - withoutRight)
-        val rightCount = ceil(rightNeed.toDouble() / spaceWidth).toInt()
-        val result = measurer.measure(base + space.copy(text = " ".repeat(rightCount)) + edge)
-        if (kotlin.math.abs(result.logicalWidthPixels - target) > frame.alignmentTolerancePixels) {
-            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Character frame cannot meet its alignment tolerance")
+        val rightNeed = target - withoutRight
+        if (rightNeed < frame.rightPaddingPixels) {
+            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Character frame has insufficient right padding")
+        }
+        val result = measurer.measure(base + exactSpacingRuns(rightNeed, paddingStyle) + edge)
+        if (result.logicalWidthPixels != target) {
+            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Character frame cannot meet its exact target width")
         }
         return result
     }
 
-    private fun renderSegmentedFrame(layout: CompiledLayout, blocks: List<StyledBlock>): List<PresentationLine> {
+    /**
+     * Renders a segmented frame around the item, name included.
+     *
+     * The name shares the top row rather than sitting above it. That is how Epic's own font is meant
+     * to be used — its instructions put the top glyph at the start of the *name* line — and it is
+     * what keeps the name inside the frame. Leaving it out would strand it above the border with
+     * nothing behind it, because a theme that paints its own panel also blanks vanilla's background.
+     */
+    private fun renderSegmentedFrame(
+        layout: CompiledLayout,
+        blocks: List<StyledBlock>,
+        name: PresentationLine,
+    ): AnchoredFlow {
         val frame = requireNotNull(theme.source.segmentedFrame)
         val contentMaximum = frame.maximumWidthPixels - frame.leftPaddingPixels - frame.rightPaddingPixels - 8
         val flow = renderFlow(layout, blocks, contentMaximum)
-        val target = max(frame.minimumWidthPixels, flow.targetWidth + frame.leftPaddingPixels + frame.rightPaddingPixels + 8)
+        // The name is budgeted like any other row: it was ellipsized against the theme's own
+        // maximum, which does not account for the frame's caps and padding.
+        val fittedName = layouter.ellipsizeLine(name.runs, contentMaximum)
+        val content = max(flow.targetWidth, fittedName.logicalWidthPixels)
+        val target = max(frame.minimumWidthPixels, content + frame.leftPaddingPixels + frame.rightPaddingPixels + 8)
         if (target > frame.maximumWidthPixels) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented frame width exceeded")
+        val framedName = segmentedBody(frame.top, fittedName, target, frame.leftPaddingPixels, frame.rightPaddingPixels)
         val output = ArrayList<PresentationLine>()
-        output += segmentedBorder(frame.top, target)
         flow.lines.forEachIndexed { index, line ->
             if (index in flow.sectionBoundaries && frame.connector != null) output += segmentedBorder(frame.connector, target)
             output += segmentedBody(frame.body, line, target, frame.leftPaddingPixels, frame.rightPaddingPixels)
         }
         output += segmentedBorder(frame.bottom, target)
-        return output
+        return AnchoredFlow(framedName, output)
+    }
+
+    /**
+     * One frame piece with its kern appended.
+     *
+     * A Minecraft bitmap glyph advances one pixel past its ink, so butting pieces together leaves a
+     * gap at every seam. The kern cancels that pixel. It has to live in the same font as the piece
+     * so the two share a style and a whole frame row stays one run.
+     */
+    private fun framePiece(id: String, kern: PresentationTextRun?): PresentationTextRun {
+        val run = assetRun(id, PresentationRunKind.FRAME)
+        if (kern == null) return run
+        if (run.style != kern.style) {
+            throw TextLayoutException(
+                ThemeFallbackCode.LAYOUT_OVERFLOW,
+                "Frame piece $id and its kern must share a font",
+            )
+        }
+        return run.copy(text = run.text + kern.text)
+    }
+
+    private fun kernRun(row: FrameRowSource): PresentationTextRun? =
+        row.kern?.let { assetRun(it, PresentationRunKind.FRAME) }
+
+    /**
+     * The background of one frame row: the two caps with the fill tiled between them, split around
+     * a centre ornament when the row has one.
+     *
+     * Border rows and body rows share this so a row's artwork cannot drift depending on whether it
+     * carries text. [exact] is the difference: a body row has to have its interior covered to the
+     * pixel, because the text is then drawn back over that interior.
+     */
+    private fun frameStrip(row: FrameRowSource, target: Int, exact: Boolean): FrameStrip {
+        val kern = kernRun(row)
+        val left = framePiece(row.left, kern)
+        val fill = framePiece(row.fill, kern)
+        val right = framePiece(row.right, kern)
+        val center = row.center?.let { framePiece(it, kern) }
+        val leftWidth = measurer.measure(listOf(left)).logicalWidthPixels
+        val rightWidth = measurer.measure(listOf(right)).logicalWidthPixels
+        val centerWidth = center?.let { measurer.measure(listOf(it)).logicalWidthPixels } ?: 0
+        val unit = measurer.measure(listOf(fill)).logicalWidthPixels.coerceAtLeast(1)
+        val span = target - leftWidth - rightWidth - centerWidth
+        if (span < 0) {
+            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented row caps do not fit the target width")
+        }
+        val count = if (exact) {
+            if (span % unit != 0) {
+                throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented fill cannot exactly cover its interior")
+            }
+            span / unit
+        } else {
+            ceil(span.toDouble() / unit).toInt()
+        }
+        // With an ornament the fill splits around it, biasing the odd pixel to the left so the
+        // ornament sits where a reader expects the centre of the frame.
+        val leading = if (center == null) count else (count + 1) / 2
+        val runs = if (center == null) {
+            listOf(left, fill.copy(text = fill.text.repeat(count)), right)
+        } else {
+            listOf(
+                left,
+                fill.copy(text = fill.text.repeat(leading)),
+                center,
+                fill.copy(text = fill.text.repeat(count - leading)),
+                right,
+            )
+        }
+        return FrameStrip(runs, target - leftWidth - rightWidth)
     }
 
     private fun segmentedBorder(row: FrameRowSource, target: Int): PresentationLine {
-        val left = assetRun(row.left, PresentationRunKind.FRAME)
-        val fill = assetRun(row.fill, PresentationRunKind.FRAME)
-        val right = assetRun(row.right, PresentationRunKind.FRAME)
-        val fixed = measurer.measure(listOf(left, right)).logicalWidthPixels
-        val unit = measurer.measure(listOf(fill)).logicalWidthPixels.coerceAtLeast(1)
-        val count = ceil((target - fixed).coerceAtLeast(0).toDouble() / unit).toInt()
-        val runs = listOf(left, fill.copy(text = fill.text.repeat(count)), right)
-        val line = measurer.measure(runs)
+        val line = measurer.measure(frameStrip(row, target, exact = false).runs)
         if (line.logicalWidthPixels > theme.source.segmentedFrame!!.maximumWidthPixels) {
             throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented border cannot fit the target width")
         }
@@ -768,28 +876,19 @@ private class ThemeRendererEngine(
         leftPadding: Int,
         rightPadding: Int,
     ): PresentationLine {
-        val left = assetRun(row.left, PresentationRunKind.FRAME)
-        val fill = assetRun(row.fill, PresentationRunKind.FRAME)
-        val right = assetRun(row.right, PresentationRunKind.FRAME)
-        val leftWidth = measurer.measure(listOf(left)).logicalWidthPixels
-        val rightWidth = measurer.measure(listOf(right)).logicalWidthPixels
-        val interiorWidth = target - leftWidth - rightWidth
-        val fillUnit = measurer.measure(listOf(fill)).logicalWidthPixels.coerceAtLeast(1)
-        if (interiorWidth < 0 || interiorWidth % fillUnit != 0) {
-            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented body fill cannot exactly cover its interior")
-        }
-        val fillRun = fill.copy(text = fill.text.repeat(interiorWidth / fillUnit))
-        val contentWidth = content.logicalWidthPixels
-        val remaining = interiorWidth - leftPadding - contentWidth
+        val strip = frameStrip(row, target, exact = true)
+        val interiorWidth = strip.interiorWidth
+        val remaining = interiorWidth - leftPadding - content.logicalWidthPixels
         if (remaining < rightPadding) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented content exceeds its frame")
+        // The strip is drawn first, then the cursor rewinds across the whole interior so the text
+        // lands on top of it. An ornament rides in the strip and stays clear of the text vertically.
         val runs = ArrayList<PresentationTextRun>()
-        runs += left
-        runs += fillRun
+        runs += strip.runs.dropLast(1)
         runs += spacingRuns(-interiorWidth, PresentationRunKind.SPACING)
         runs += spacingRuns(leftPadding, PresentationRunKind.SPACING)
         runs += content.runs
         runs += spacingRuns(remaining, PresentationRunKind.WIDTH_ANCHOR)
-        runs += right
+        runs += strip.runs.last()
         val measured = measurer.measure(runs)
         if (measured.logicalWidthPixels != target) {
             throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented body did not preserve its target width")
@@ -1004,7 +1103,7 @@ private class ThemeRendererEngine(
 
     private fun paddingRuns(pixels: Int, textStyle: PresentationTextStyle): List<PresentationTextRun> {
         if (pixels <= 0) return emptyList()
-        if (theme.source.requiresResourcePack && catalog.spacing != null) {
+        if (viewer.resourcePackLoaded && catalog.spacing != null) {
             return spacingRuns(pixels, PresentationRunKind.SPACING)
         }
         val space = PresentationTextRun(" ", textStyle.copy(bold = false, italic = false), unbreakable = true)
@@ -1014,8 +1113,9 @@ private class ThemeRendererEngine(
 
     private fun indentLine(line: PresentationLine, pixels: Int): PresentationLine {
         if (pixels <= 0) return line
-        val style = line.runs.firstOrNull()?.style ?: style("value", theme.fonts.getValue("text"))
-        return measurer.measure(paddingRuns(pixels, style) + line.runs)
+        val textFont = theme.fonts.getValue("text")
+        val textStyle = (line.runs.firstOrNull()?.style ?: style("value", textFont)).copy(font = textFont)
+        return measurer.measure(paddingRuns(pixels, textStyle) + line.runs)
     }
 
     private fun validateOutput(name: PresentationLine, lore: List<PresentationLine>) {
@@ -1024,8 +1124,16 @@ private class ThemeRendererEngine(
         if (all.any { it.logicalWidthPixels > catalog.budgets.maximumWidthPixels }) {
             throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Line width budget exceeded")
         }
+        // Segmented frames are self-drawn and visualBounds carries less meaning: the frame pieces
+        // sit inside their bounds and the actual rendering is controlled by the decorator, not by
+        // the text renderer. Relax the visualBounds check for them.
+        val visualBudget = if (theme.source.renderer == ThemeRenderer.SEGMENTED_FRAME) {
+            (catalog.budgets.maximumWidthPixels * 1.1).toInt()
+        } else {
+            catalog.budgets.maximumWidthPixels
+        }
         if (all.any { line ->
-                line.visualBounds.right - line.visualBounds.left > catalog.budgets.maximumWidthPixels
+                line.visualBounds.right - line.visualBounds.left > visualBudget
             }
         ) {
             throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Visual ink width exceeds the horizontal budget")
@@ -1084,6 +1192,12 @@ private class ThemeRendererEngine(
     private data class AnchoredFlow(
         val name: PresentationLine,
         val lines: List<PresentationLine>,
+    )
+
+    /** A frame row's background runs, plus the interior width the text is drawn back over. */
+    private data class FrameStrip(
+        val runs: List<PresentationTextRun>,
+        val interiorWidth: Int,
     )
 
     private data class CanvasElement(

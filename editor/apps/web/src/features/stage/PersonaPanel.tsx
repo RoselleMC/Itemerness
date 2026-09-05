@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { DataValue } from "@itemerness/protocol";
+import type { DataValue, ProjectDocument } from "@itemerness/protocol";
 import { useEditorStore, type PackSimulation } from "../../state/store.js";
 import { humanizePath } from "../common/messages.js";
 
@@ -13,30 +13,33 @@ import { humanizePath } from "../common/messages.js";
  * on content rows.
  */
 export function PersonaPanel({
+    facts: available,
     open,
     onOpenChange,
 }: {
+    /**
+     * Facts of the document being previewed, which for a RunoRPG item is the projection rather
+     * than the draft. Reading the draft instead would leave the panel empty for exactly the items
+     * whose conditions depend on the player.
+     */
+    facts: ProjectDocument["viewerFacts"];
     open: boolean;
     onOpenChange(open: boolean): void;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
-    const doc = store.document;
 
     // Gameplay facts only. The infrastructure facts (locale, pack status, asset profile) already
     // have first-class controls: the locale chips and the pack simulation below.
-    const facts = doc.viewerFacts.filter(
+    const facts = available.filter(
         (fact) => !fact.id.startsWith("itemerness:") && fact.type !== "LOCALE",
     );
 
     const commit = (factId: string, value: DataValue | null) =>
-        store.updateViewerFact(factId, (fact) => ({
-            ...fact,
-            previewValue: value,
-        }));
+        store.setFactPreview(factId, value);
 
     const current = (fact: (typeof facts)[number]): DataValue | null =>
-        fact.previewValue ?? fact.defaultValue;
+        store.factPreviews[fact.id] ?? fact.previewValue ?? fact.defaultValue;
 
     return (
         <details
@@ -83,7 +86,7 @@ export function PersonaPanel({
                         <option value="">
                             {t("stage.personaProfileAuto")}
                         </option>
-                        {doc.assetProfiles.map((profile) => (
+                        {store.document.assetProfiles.map((profile) => (
                             <option key={profile.id} value={profile.id}>
                                 {profile.id}
                             </option>

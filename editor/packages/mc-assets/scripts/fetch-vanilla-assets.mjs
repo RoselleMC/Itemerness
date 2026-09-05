@@ -3,12 +3,12 @@
  * Builds the local vanilla asset bundle used by the metrics cross-check and by local preview work.
  *
  * Mojang assets are never committed. This script downloads only the files pinned in
- * `tools/font-metrics/26.1.2.sources.json` plus the GUI and item textures the preview needs,
+ * `tools/font-metrics/<version>.sources.json` plus the GUI and item textures the preview needs,
  * verifies every SHA-1 the manifest declares, and writes one zip into a gitignored cache. The
  * control plane's CDN proxy performs the same steps server-side for users who prefer not to hunt
  * down a client jar.
  *
- * Usage: node scripts/fetch-vanilla-assets.mjs [--out <path>]
+ * Usage: node scripts/fetch-vanilla-assets.mjs [--version <version>] [--out <path>]
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,16 +18,24 @@ import { unzipSync, zipSync } from "fflate";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../..");
+const versionFlag = process.argv.indexOf("--version");
+const clientVersion =
+    versionFlag >= 0 && process.argv[versionFlag + 1]
+        ? process.argv[versionFlag + 1]
+        : "1.21.11";
 const manifestPath = resolve(
     repoRoot,
-    "tools/font-metrics/26.1.2.sources.json",
+    `tools/font-metrics/${clientVersion}.sources.json`,
 );
 
 const outFlag = process.argv.indexOf("--out");
 const outputPath =
     outFlag >= 0 && process.argv[outFlag + 1]
         ? resolve(process.argv[outFlag + 1])
-        : resolve(repoRoot, "editor/vanilla-cache/vanilla-26.1.2.zip");
+        : resolve(
+              repoRoot,
+              `editor/vanilla-cache/vanilla-${clientVersion}.zip`,
+          );
 
 const sha1 = (bytes) => createHash("sha1").update(bytes).digest("hex");
 

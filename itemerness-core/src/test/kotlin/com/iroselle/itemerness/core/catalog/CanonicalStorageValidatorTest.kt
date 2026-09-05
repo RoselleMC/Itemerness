@@ -8,6 +8,7 @@ import com.iroselle.itemerness.api.ItemInstanceMode
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.api.ListDataValue
 import com.iroselle.itemerness.api.StringDataValue
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -268,7 +269,7 @@ class CanonicalStorageValidatorTest {
     }
 
     @Test
-    fun `restore rejects a missing required instance value`() {
+    fun `restore materializes a missing required instance default`() {
         val required = dataDefinition(
             key = VALUE_KEY,
             type = DataType.StringType,
@@ -281,18 +282,44 @@ class CanonicalStorageValidatorTest {
             ),
         )
 
-        val failure = assertThrows(IllegalArgumentException::class.java) {
-            catalog.restoreInstance(
-                itemKey = ITEM_KEY,
-                createdAgainstRevision = 1,
-                instanceRevision = 0,
-                schemaVersions = SCHEMA_VERSIONS,
-                instanceId = null,
-                data = emptyMap(),
-            )
-        }
+        val restored = catalog.restoreInstance(
+            itemKey = ITEM_KEY,
+            createdAgainstRevision = 1,
+            instanceRevision = 0,
+            schemaVersions = SCHEMA_VERSIONS,
+            instanceId = null,
+            data = emptyMap(),
+        )
 
-        assertTrue(failure.message.orEmpty().contains("missing required data key"))
+        assertEquals(StringDataValue("default"), restored.data[VALUE_KEY])
+        assertEquals(0L, restored.instanceRevision)
+    }
+
+    @Test
+    fun `restore leaves a missing nullable default absent for integration fallbacks`() {
+        val optional = dataDefinition(
+            key = VALUE_KEY,
+            type = DataType.StringType,
+            default = StringDataValue("default"),
+            nullable = true,
+        )
+        val catalog = snapshot(
+            definition(
+                dataKeys = mapOf(VALUE_KEY to optional),
+                defaults = mapOf(VALUE_KEY to StringDataValue("default")),
+            ),
+        )
+
+        val restored = catalog.restoreInstance(
+            itemKey = ITEM_KEY,
+            createdAgainstRevision = 1,
+            instanceRevision = 0,
+            schemaVersions = SCHEMA_VERSIONS,
+            instanceId = null,
+            data = emptyMap(),
+        )
+
+        assertFalse(VALUE_KEY in restored.data)
     }
 
     @Test
@@ -379,11 +406,12 @@ class CanonicalStorageValidatorTest {
         key: DataKey,
         type: DataType,
         default: ItemDataValue,
+        nullable: Boolean = false,
     ): DataKeyDefinition = DataKeyDefinition(
         key = key,
         type = type,
         scope = DataScope.INSTANCE,
-        nullable = false,
+        nullable = nullable,
         hasDefault = true,
         defaultValue = default,
         affectsStacking = true,

@@ -287,11 +287,37 @@ internal class ProjectionStateStore : ProjectionContextSource,
         }
         ?.assetProfile
 
+    /**
+     * Resolves an explicitly trusted dynamic pack when Bukkit reports only its UUID.
+     *
+     * The binding must still declare a SHA-1. This keeps a bare UUID from becoming an implicit
+     * capability grant while allowing pack senders whose UUID is content-derived to participate.
+     */
+    fun matchAssetProfileByPackId(
+        catalogRevision: Long,
+        packId: UUID,
+    ): ItemKey? = catalogs.get()[catalogRevision]?.presentation?.resourcePackBindings?.values
+        ?.filter { binding ->
+            binding.enabled && binding.packId == packId && binding.sha1 != null
+        }
+        ?.singleOrNull()
+        ?.assetProfile
+
     fun matchAssetProfile(
         retainedCatalog: ProjectionCatalogHandle,
         packId: UUID,
         sha1: String,
     ): ItemKey? = matchAssetProfile(ownedCatalog(retainedCatalog), packId, sha1)
+
+    fun matchAssetProfileByPackId(
+        retainedCatalog: ProjectionCatalogHandle,
+        packId: UUID,
+    ): ItemKey? = ownedCatalog(retainedCatalog).presentation.resourcePackBindings.values
+        .filter { binding ->
+            binding.enabled && binding.packId == packId && binding.sha1 != null
+        }
+        .singleOrNull()
+        ?.assetProfile
 
     fun capabilities(
         catalogRevision: Long,

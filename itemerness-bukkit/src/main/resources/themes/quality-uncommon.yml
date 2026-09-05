@@ -1,0 +1,33 @@
+# Rarity ladder tier 2 of 5. Sprites come from tools/generate-tooltip-sprites.py.
+schema-version: 1
+
+themes:
+  itemerness:quality-uncommon:
+    renderer: native-tooltip-style
+    requires-resource-pack: true
+    requires-capabilities:
+      - itemerness:native-tooltip-style-v1
+    vanilla-tooltip-lines: preserve
+    fallback: itemerness:vanilla-frame
+    tooltip-style: itemerness:quality-uncommon
+    fonts:
+      text: itemerness:body
+      icons: itemerness:icons
+    content:
+      minimum-width-pixels: 140
+      maximum-width-pixels: 220
+      left-padding-pixels: 8
+      right-padding-pixels: 8
+    styles:
+      item-name:
+        color: "#6ee87d"
+      label:
+        color: "#5a8f62"
+      value:
+        color: "#d8f5dc"
+      requirement-met:
+        color: "#8bd17c"
+      requirement-unmet:
+        color: "#ff6961"
+      description:
+        color: "#8fbf97"

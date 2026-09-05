@@ -19,7 +19,7 @@ import { chromium } from "@playwright/test";
 const url =
     process.argv[2] ?? process.env.E2E_BASE_URL ?? "http://127.0.0.1:8080";
 const bundle = fileURLToPath(
-    new URL("../../../vanilla-cache/vanilla-26.1.2.zip", import.meta.url),
+    new URL("../../../vanilla-cache/vanilla-1.21.11.zip", import.meta.url),
 );
 
 const browser = await chromium.launch({
@@ -51,7 +51,7 @@ if (existsSync(bundle)) {
     await page.getByTestId("open-assets").click();
     await page.getByTestId("asset-file-input").setInputFiles(bundle);
     await page.getByTestId("pack-list").waitFor({ timeout: 60_000 });
-    process.stderr.write("mounted vanilla 26.1.2 assets\n");
+    process.stderr.write("mounted vanilla 1.21.11 assets\n");
     await page.getByTestId("close-overlay").click();
 } else {
     process.stderr.write(

@@ -686,6 +686,20 @@ class CatalogCompiler {
             ?.let(BaseItemComponent::Damage)
         "minecraft:repair_cost" -> integerComponent(value, path, 0, Int.MAX_VALUE, diagnostics)
             ?.let(BaseItemComponent::RepairCost)
+        "minecraft:attribute_modifiers" -> {
+            val entries = (value as? SourceDataValue.ListValue)?.values
+            if (entries == null || entries.isNotEmpty()) {
+                diagnostics.add(
+                    CatalogDiagnosticCode.INVALID_COMPONENT,
+                    path,
+                    "Only an empty attribute modifier list is supported; use [] to suppress material attributes",
+                )
+                null
+            } else {
+                BaseItemComponent.EmptyAttributeModifiers
+            }
+        }
+        "minecraft:enchantments" -> compileEnchantments(value, path, diagnostics)
         "minecraft:unbreakable" -> {
             val enabled = when (value) {
                 is SourceDataValue.BooleanValue -> value.value
@@ -725,6 +739,35 @@ class CatalogCompiler {
             )
             null
         }
+    }
+
+    private fun compileEnchantments(
+        value: SourceDataValue,
+        path: String,
+        diagnostics: DiagnosticCollector,
+    ): BaseItemComponent.Enchantments? {
+        val entries = (value as? SourceDataValue.CompoundValue)?.entries
+        if (entries == null) {
+            diagnostics.add(CatalogDiagnosticCode.INVALID_COMPONENT, path, "Expected an enchantment-to-level mapping")
+            return null
+        }
+        if (entries.isEmpty() || entries.size > MAX_COMPONENT_LIST_SIZE) {
+            diagnostics.add(
+                CatalogDiagnosticCode.INVALID_COMPONENT,
+                path,
+                "Enchantments must contain between 1 and $MAX_COMPONENT_LIST_SIZE entries",
+            )
+            return null
+        }
+        val initialCount = diagnostics.size
+        val levels = TreeMap<ItemKey, Int>()
+        entries.forEach { (rawKey, rawLevel) ->
+            val key = diagnostics.parseItemKey(rawKey, "$path.$rawKey") ?: return@forEach
+            integerComponent(rawLevel, "$path.$rawKey", 1, 255, diagnostics)?.let { level ->
+                levels[key] = level
+            }
+        }
+        return if (diagnostics.size == initialCount) BaseItemComponent.Enchantments(levels) else null
     }
 
     private fun compileCustomModelData(

@@ -72,8 +72,10 @@ class ProjectionStateStoreTest {
 
         assertEquals(expected, store.matchAssetProfile(runtime.domain.revision, packId, "0".repeat(39) + "1"))
         assertEquals(expected, store.matchAssetProfile(runtime.domain.revision, packId, "0".repeat(39) + "1".uppercase()))
+        assertEquals(expected, store.matchAssetProfileByPackId(runtime.domain.revision, packId))
         assertNull(store.matchAssetProfile(runtime.domain.revision, packId, "f".repeat(40)))
         assertNull(store.matchAssetProfile(runtime.domain.revision, UUID.randomUUID(), "0".repeat(39) + "1"))
+        assertNull(store.matchAssetProfileByPackId(runtime.domain.revision, UUID.randomUUID()))
     }
 
     @Test
@@ -684,7 +686,9 @@ class ProjectionStateStoreTest {
             .useLines { lines ->
                 lines.map(String::trim).filter { it.isNotEmpty() && !it.startsWith('#') }.toList()
             }
-        paths.forEach(::copyResource)
+        com.iroselle.itemerness.bukkit.TestResourcePaths.withProduction(paths)
+            .distinct()
+            .forEach(::copyResource)
     }
 
     private fun copyResource(path: String) {

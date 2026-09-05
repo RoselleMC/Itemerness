@@ -725,7 +725,9 @@ class BukkitItemStackApiTest {
                     .filter { it.isNotEmpty() && !it.startsWith('#') }
                     .toList()
             }
-        resources.forEach(::copyResource)
+        com.iroselle.itemerness.bukkit.TestResourcePaths.withProduction(resources)
+            .distinct()
+            .forEach(::copyResource)
         val itemFile = directory.resolve("items/examples.yml")
         var items = Files.readString(itemFile).replaceFirst("enabled: false", "enabled: true")
         if (enableNested) {

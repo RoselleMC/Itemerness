@@ -21,18 +21,21 @@ import {
 /**
  * Tooltip geometry and painting.
  *
- * The vertical metrics come from an audit of the 26.1.2 client: every text component is ten logical
- * pixels tall, an extra two pixels sit between the first and second component, a single-component
- * tooltip is two pixels shorter, and the background is inset three pixels on each side. These are
- * version facts, not a stable contract, so they live in one named profile that has to be re-audited
- * when the Minecraft baseline moves rather than being sprinkled through the painter.
+ * The vertical metrics and background coordinates come from an audit of the 1.21.11 client. Every
+ * text component is ten logical pixels tall, an extra two pixels sit between the first and second
+ * component, and a single-component tooltip is two pixels shorter. TooltipRenderUtil draws the
+ * sprite nine pixels beyond the three-pixel content padding on every edge; keeping those values
+ * separate prevents the sprite's transparent border from covering the text in the preview.
  */
 export interface TooltipProfile {
     readonly clientVersion: string;
     readonly lineHeightPixels: number;
     /** Extra gap inserted after the display name, before the first lore line. */
     readonly firstLineGapPixels: number;
+    /** Visible space between the text content and the tooltip background. */
     readonly paddingPixels: number;
+    /** Transparent/nine-slice sprite area outside the visible three-pixel content padding. */
+    readonly spriteOutsetPixels: number;
     /** A one-component tooltip measures two pixels shorter than the naive line count. */
     readonly singleComponentHeightAdjustPixels: number;
     /** Distance from a line's top edge down to the text baseline. */
@@ -40,20 +43,24 @@ export interface TooltipProfile {
     readonly shadowOffsetPixels: number;
 }
 
-export const PROFILE_26_1_2: TooltipProfile = {
-    clientVersion: "26.1.2",
+export const PROFILE_1_21_11: TooltipProfile = {
+    clientVersion: "1.21.11",
     lineHeightPixels: 10,
     firstLineGapPixels: 2,
     paddingPixels: 3,
+    spriteOutsetPixels: 9,
     singleComponentHeightAdjustPixels: -2,
     textAscentPixels: 7,
     shadowOffsetPixels: 1,
 };
 
+/** Kept as a source-compatible alias while callers move to the 1.21.11 baseline name. */
+export const PROFILE_26_1_2 = PROFILE_1_21_11;
+
 /** Top edge of component `index`, in GUI pixels from the content origin. */
 export function componentTop(
     index: number,
-    profile: TooltipProfile = PROFILE_26_1_2,
+    profile: TooltipProfile = PROFILE_1_21_11,
 ): number {
     return index === 0
         ? 0
@@ -62,7 +69,7 @@ export function componentTop(
 
 export function contentHeight(
     componentCount: number,
-    profile: TooltipProfile = PROFILE_26_1_2,
+    profile: TooltipProfile = PROFILE_1_21_11,
 ): number {
     if (componentCount <= 0) return 0;
     const base = componentCount * profile.lineHeightPixels;
@@ -111,7 +118,7 @@ export function layoutTooltip(
     fonts: PresentationFonts,
     options: RenderOptions = {},
 ): TooltipGeometry {
-    const profile = options.profile ?? PROFILE_26_1_2;
+    const profile = options.profile ?? PROFILE_1_21_11;
     const measured = lines.map((line) =>
         measureLine(line.runs, fonts, { lenient: true }),
     );
@@ -143,8 +150,11 @@ export function layoutTooltip(
         profile,
         contentWidthPixels,
         contentHeightPixels: height,
-        totalWidthPixels: contentWidthPixels + profile.paddingPixels * 2,
-        totalHeightPixels: height + profile.paddingPixels * 2,
+        totalWidthPixels:
+            contentWidthPixels +
+            (profile.paddingPixels + profile.spriteOutsetPixels) * 2,
+        totalHeightPixels:
+            height + (profile.paddingPixels + profile.spriteOutsetPixels) * 2,
         components,
         inkOutsideBackground,
     };
@@ -158,14 +168,21 @@ export function renderTooltip(
 ): { geometry: TooltipGeometry; drawList: DrawList } {
     const geometry = layoutTooltip(lines, fonts, options);
     const { profile } = geometry;
-    const originX = profile.paddingPixels;
-    const originY = profile.paddingPixels;
+    const originX = profile.paddingPixels + profile.spriteOutsetPixels;
+    const originY = profile.paddingPixels + profile.spriteOutsetPixels;
     const ops: DrawOp[] = [];
 
-    const backgroundX = 0;
-    const backgroundY = 0;
-    const backgroundWidth = geometry.totalWidthPixels;
-    const backgroundHeight = geometry.totalHeightPixels;
+    const hasTooltipSprite = Boolean(
+        options.backgroundSprite || options.frameSprite,
+    );
+    const backgroundX = hasTooltipSprite ? 0 : profile.spriteOutsetPixels;
+    const backgroundY = hasTooltipSprite ? 0 : profile.spriteOutsetPixels;
+    const backgroundWidth = hasTooltipSprite
+        ? geometry.totalWidthPixels
+        : geometry.contentWidthPixels + profile.paddingPixels * 2;
+    const backgroundHeight = hasTooltipSprite
+        ? geometry.totalHeightPixels
+        : geometry.contentHeightPixels + profile.paddingPixels * 2;
 
     if (options.backgroundSprite) {
         ops.push(

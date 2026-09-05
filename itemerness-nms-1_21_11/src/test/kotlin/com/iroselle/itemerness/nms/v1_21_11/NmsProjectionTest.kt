@@ -510,6 +510,7 @@ class NmsProjectionTest {
 
     @Test
     fun `bundle shares one item budget across every nested packet`() {
+        val projector = packetProjector(NmsProjectionLimits.DEFAULT.copy(items = 256))
         fun content(id: Int) = ClientboundContainerSetContentPacket(
             id,
             1,
@@ -520,11 +521,11 @@ class NmsProjectionTest {
         val second = content(2)
 
         // Each child stays below the item bound on its own.
-        assertSame(first, packetProjector().project(first, VIEWER_ID))
-        assertSame(second, packetProjector().project(second, VIEWER_ID))
+        assertSame(first, projector.project(first, VIEWER_ID))
+        assertSame(second, projector.project(second, VIEWER_ID))
 
         assertThrows(IllegalStateException::class.java) {
-            packetProjector().project(bundle(first, second), VIEWER_ID)
+            projector.project(bundle(first, second), VIEWER_ID)
         }
     }
 
@@ -565,8 +566,12 @@ class NmsProjectionTest {
         },
     )
 
-    private fun packetProjector(): NmsOutboundPacketProjector =
-        NmsOutboundPacketProjector(NmsItemStackProjector(runtime()))
+    private fun packetProjector(
+        limits: NmsProjectionLimits = NmsProjectionLimits.DEFAULT,
+    ): NmsOutboundPacketProjector = NmsOutboundPacketProjector(
+        itemProjector = NmsItemStackProjector(runtime()),
+        limits = limits,
+    )
 
     private fun connectionState(): NmsConnectionProjectionState = NmsConnectionProjectionState(
         connectionGeneration = 41,

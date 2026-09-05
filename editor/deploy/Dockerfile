@@ -45,12 +45,12 @@ COPY --from=build /runtime-deps/package.json ./package.json
 COPY --from=build /runtime-deps/node_modules/ ./node_modules/
 COPY --from=build /workspace/apps/control-plane/dist/ ./dist/
 COPY --from=build /workspace/apps/web/dist/ ./web/
-# Read at runtime by the metrics endpoint and the vanilla asset proxy respectively.
-COPY itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm \
-     ./itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm
-COPY tools/font-metrics/26.1.2.sources.json ./tools/font-metrics/26.1.2.sources.json
+# Read at runtime by the version-selected metrics endpoint and vanilla asset proxy.
+COPY itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/*.ifm \
+     ./itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/
+COPY tools/font-metrics/*.sources.json ./tools/font-metrics/
 
-RUN mkdir -p /data/vanilla-cache && chown -R node:node /data /app
+RUN mkdir -p /data/vanilla-cache /data/agent-state && chown -R node:node /data /app
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

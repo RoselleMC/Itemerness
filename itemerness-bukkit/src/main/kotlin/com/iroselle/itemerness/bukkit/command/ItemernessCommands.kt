@@ -84,6 +84,10 @@ internal class ItemernessCommands(
                         ),
                 ),
         )
+        .then(
+            Commands.argument("unicode-arguments", StringArgumentType.greedyString())
+                .executes { context -> giveUnicode(context) },
+        )
 
     private fun give(
         context: CommandContext<CommandSourceStack>,
@@ -95,6 +99,19 @@ internal class ItemernessCommands(
             context.getArgument("item-id", ItemKey::class.java),
             amount,
         )
+    }
+
+    private fun giveUnicode(context: CommandContext<CommandSourceStack>): Int = execute {
+        val parsed = runCatching {
+            UnicodeGiveArguments.parse(StringArgumentType.getString(context, "unicode-arguments"))
+        }.getOrElse { failure ->
+            throw INVALID_GIVE_ARGUMENTS.create(failure.message ?: "invalid arguments")
+        }
+        val target = context.source.sender.server.onlinePlayers.singleOrNull { player ->
+            player.name.equals(parsed.playerName, ignoreCase = true) ||
+                player.playerProfile.name?.equals(parsed.playerName, ignoreCase = true) == true
+        } ?: throw UNKNOWN_PLAYER.create(parsed.playerName)
+        actions.give(context.source.sender, target, parsed.itemKey, parsed.amount)
     }
 
     private fun inspect(): LiteralArgumentBuilder<CommandSourceStack> = Commands.literal("inspect")
@@ -310,6 +327,30 @@ internal class ItemernessCommands(
     private companion object {
         val INVALID_SLOT = DynamicCommandExceptionType { value ->
             LiteralMessage("Unknown inventory slot: $value")
+        }
+        val INVALID_GIVE_ARGUMENTS = DynamicCommandExceptionType { value ->
+            LiteralMessage(value.toString())
+        }
+        val UNKNOWN_PLAYER = DynamicCommandExceptionType { value ->
+            LiteralMessage("Unknown online player: $value")
+        }
+    }
+}
+
+internal data class UnicodeGiveArguments(
+    val playerName: String,
+    val itemKey: ItemKey,
+    val amount: Int,
+) {
+    companion object {
+        fun parse(input: String): UnicodeGiveArguments {
+            val parts = input.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+            require(parts.size in 2..3) {
+                "Usage: /itemerness give <online player> <namespace:item-id> [amount]"
+            }
+            val amount = parts.getOrNull(2)?.toIntOrNull() ?: if (parts.size == 2) 1 else null
+            require(amount != null && amount in 1..99) { "Amount must be an integer from 1 to 99" }
+            return UnicodeGiveArguments(parts[0], ItemKey.parse(parts[1]), amount)
         }
     }
 }

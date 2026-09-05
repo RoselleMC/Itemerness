@@ -170,8 +170,15 @@ internal class ViewerStatePublisher(
         val clientLocale = normalizeLocale(player.locale())
         val pack = packs[player.uniqueId]
         val bukkitProfile = pack?.takeIf { it.loaded }
-            ?.verifiedSha1
-            ?.let { sha1 -> projection.matchAssetProfile(captureState.catalogHandle, pack.id, sha1) }
+            ?.let { loadedPack ->
+                loadedPack.verifiedSha1
+                    ?.let { sha1 ->
+                        projection.matchAssetProfile(captureState.catalogHandle, loadedPack.id, sha1)
+                    }
+                    // Dynamic pack status events expose the pushed UUID but not its hash. An
+                    // enabled local binding is the explicit trust declaration for that UUID.
+                    ?: projection.matchAssetProfileByPackId(captureState.catalogHandle, loadedPack.id)
+            }
             ?: VANILLA_PROFILE
         val resolvedFacts = ViewerFactResolver.resolve(
             runtime.presentation,
@@ -179,7 +186,10 @@ internal class ViewerStatePublisher(
                 API_PROVIDER to captureState.apiFacts.values,
                 CLIENT_PROVIDER to mapOf(LOCALE_FACT to StringDataValue(clientLocale)),
                 BUKKIT_RESOURCE_PACK_PROVIDER to mapOf(
-                    RESOURCE_PACK_FACT to BooleanDataValue(bukkitProfile != VANILLA_PROFILE),
+                    // Pack presence and advanced profile capabilities are separate. Basic icon
+                    // glyphs need only a successfully loaded pack, while custom renderers still
+                    // require the exact profile resolved above.
+                    RESOURCE_PACK_FACT to BooleanDataValue(pack?.loaded == true),
                     ASSET_PROFILE_FACT to NamespacedKeyDataValue(bukkitProfile),
                 ),
             ),

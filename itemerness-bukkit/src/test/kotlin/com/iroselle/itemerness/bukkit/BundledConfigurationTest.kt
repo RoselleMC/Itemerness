@@ -19,11 +19,14 @@ class BundledConfigurationTest {
     )
 
     @Test
-    fun `cross references every bundled item example`() {
+    fun `cross references the internal protocol item fixture`() {
         val dataKeyDocument = document("data-keys/common.yml")
         val dataKeys = mapping(dataKeyDocument["keys"], "data keys")
         val schemaId = requiredString(dataKeyDocument, "id", "data-key schema")
-        val viewerFacts = mergedSection("viewer-facts/", "facts")
+        val viewerFacts = mapping(
+            document("viewer-facts/common.yml")["facts"],
+            "fixture viewer facts",
+        )
         val formats = mergedSection("formats/", "formats")
         val layouts = mergedSection("layouts/", "layouts")
         val themes = mergedSection("themes/", "themes")
@@ -82,6 +85,23 @@ class BundledConfigurationTest {
         validateThemes(themes, fonts, glyphs, bitmaps, assetProfiles)
         validateResourceFreeFrame(themes)
         validateDefaults(layouts, themes)
+    }
+
+    @Test
+    fun `production resources contain storage and rendering context but no ITN RPG content`() {
+        val entries = resourcePaths()
+        val storage = mapping(document("data-keys/storage.yml")["keys"], "storage keys")
+        val runtimeFacts = mapping(
+            document("viewer-facts/runtime.yml")["facts"],
+            "runtime facts",
+        )
+
+        assertTrue(storage.keys.all { it.startsWith("itemerness:") })
+        assertTrue(runtimeFacts.keys.all { it.startsWith("itemerness:") })
+        assertFalse(entries.any { it == "items/examples.yml" })
+        assertFalse(entries.any { it == "data-keys/common.yml" })
+        assertFalse(entries.any { it == "viewer-facts/common.yml" })
+        assertFalse(entries.any { it.startsWith("examples/") })
     }
 
     private fun validateViewerFacts(viewerFacts: Map<String, Any?>) {

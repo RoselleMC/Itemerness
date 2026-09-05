@@ -64,6 +64,7 @@ import java.util.function.Consumer
 import org.bukkit.Material
 import org.bukkit.Server
 import org.bukkit.entity.Player
+import org.bukkit.event.player.PlayerResourcePackStatusEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.PlayerInventory
 import org.bukkit.packs.ResourcePack
@@ -108,6 +109,49 @@ class ViewerStatePublisherTest {
             }
         }
         assertNull(trustedServerPackSha1(malformed, packId))
+    }
+
+    @Test
+    fun `a loaded unbound resource pack enables basic icons without granting profile capabilities`() {
+        installBundledResources()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        val runtime = (catalog.reload() as RuntimeCatalogUpdate.Published).active
+        val projection = ProjectionStateStore().also { state ->
+            state.publishCatalog(runtime, runtime.presentation)
+        }
+        val bridge = proxy<BukkitCanonicalItemBridge> { _, method, _ ->
+            when (method.name) {
+                "inspect" -> CanonicalItemInspection.Unmanaged
+                else -> defaultValue(method.returnType)
+            }
+        }
+        val publisher = publisher(catalog = catalog, bridge = bridge, projection = projection)
+        val viewerId = UUID.randomUUID()
+        val viewer = player(
+            viewerId = viewerId,
+            inventory = inventory(TestItemStack(false), TestItemStack(false)),
+        )
+
+        assertTrue(publisher.capture(viewer))
+        publisher.onResourcePack(
+            PlayerResourcePackStatusEvent(
+                viewer,
+                UUID.randomUUID(),
+                PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED,
+            ),
+        )
+        assertTrue(publisher.capture(viewer))
+
+        val snapshot = requireNotNull(projection.viewer(viewerId))
+        assertEquals(ItemKey.parse("itemerness:vanilla"), snapshot.assetProfile)
+        assertTrue(snapshot.capabilities.isEmpty())
+        assertEquals(
+            BooleanProjectionValue(true),
+            snapshot.facts.single { fact ->
+                fact.key == ItemKey.parse("itemerness:resource-pack-ready")
+            }.value,
+        )
+        publisher.close()
     }
 
     @Test
@@ -778,7 +822,9 @@ class ViewerStatePublisherTest {
             .useLines { lines ->
                 lines.map(String::trim).filter { it.isNotEmpty() && !it.startsWith('#') }.toList()
             }
-        paths.forEach(::copyResource)
+        com.iroselle.itemerness.bukkit.TestResourcePaths.withProduction(paths)
+            .distinct()
+            .forEach(::copyResource)
     }
 
     private fun copyResource(path: String) {

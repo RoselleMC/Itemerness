@@ -18,11 +18,11 @@ import { loadSprite, VANILLA_TOOLTIP_SPRITES } from "../src/sprites.js";
  * whose entire job is to keep the browser honest.
  */
 const BUNDLE_PATH = fileURLToPath(
-    new URL("../../../vanilla-cache/vanilla-26.1.2.zip", import.meta.url),
+    new URL("../../../vanilla-cache/vanilla-1.21.11.zip", import.meta.url),
 );
 const ARTIFACT_PATH = fileURLToPath(
     new URL(
-        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm",
+        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-1.21.11.ifm",
         import.meta.url,
     ),
 );
@@ -32,7 +32,7 @@ const bundleAvailable = existsSync(BUNDLE_PATH);
 describe.skipIf(!bundleAvailable)("vanilla asset cross-check", () => {
     const stack = new PackStack().with(
         mountArchive(new Uint8Array(readFileSync(BUNDLE_PATH)), {
-            name: "vanilla-26.1.2",
+            name: "vanilla-1.21.11",
             kind: "vanilla",
         }),
     );

@@ -47,3 +47,34 @@ tooltip-styles:
     expected-background-sprite: itemerness:tooltip/transparent-canvas_background
     expected-frame-sprite: itemerness:tooltip/transparent-canvas_frame
     scaling: stretch
+
+  # Rarity ladder. Sprites come from tools/generate-tooltip-sprites.py.
+  itemerness:quality-common:
+    component-value: itemerness:quality-common
+    expected-background-sprite: itemerness:tooltip/quality-common_background
+    expected-frame-sprite: itemerness:tooltip/quality-common_frame
+    scaling: nine-slice
+
+  itemerness:quality-uncommon:
+    component-value: itemerness:quality-uncommon
+    expected-background-sprite: itemerness:tooltip/quality-uncommon_background
+    expected-frame-sprite: itemerness:tooltip/quality-uncommon_frame
+    scaling: nine-slice
+
+  itemerness:quality-rare:
+    component-value: itemerness:quality-rare
+    expected-background-sprite: itemerness:tooltip/quality-rare_background
+    expected-frame-sprite: itemerness:tooltip/quality-rare_frame
+    scaling: nine-slice
+
+  itemerness:quality-epic:
+    component-value: itemerness:quality-epic
+    expected-background-sprite: itemerness:tooltip/quality-epic_background
+    expected-frame-sprite: itemerness:tooltip/quality-epic_frame
+    scaling: nine-slice
+
+  itemerness:quality-legendary:
+    component-value: itemerness:quality-legendary
+    expected-background-sprite: itemerness:tooltip/quality-legendary_background
+    expected-frame-sprite: itemerness:tooltip/quality-legendary_frame
+    scaling: nine-slice

@@ -673,7 +673,9 @@ internal class PresentationSourceLoader(
                 ThemeRenderer.PLAIN -> setOf("icons")
                 ThemeRenderer.VANILLA_CHARACTER_FRAME -> setOf("frame", "wrapping", "safety")
                 ThemeRenderer.NATIVE_TOOLTIP_STYLE -> setOf("tooltip-style", "content")
-                ThemeRenderer.SEGMENTED_FRAME -> setOf("frame", "wrapping")
+                // A segmented frame paints its own panel, so like a canvas it needs to be able to
+                // blank vanilla's background out from under it.
+                ThemeRenderer.SEGMENTED_FRAME -> setOf("frame", "wrapping", "tooltip-style")
                 ThemeRenderer.BITMAP_CANVAS -> setOf("experimental", "tooltip-style", "canvas", "safety")
             }
             node.rejectUnknown(*(common + rendererKeys).toTypedArray())
@@ -859,11 +861,13 @@ internal class PresentationSourceLoader(
     }
 
     private fun parseFrameRow(node: YamlObject): FrameRowSource {
-        node.rejectUnknown("left", "fill", "right")
+        node.rejectUnknown("left", "fill", "right", "center", "kern")
         return FrameRowSource(
             node.requiredString("left"),
             node.requiredString("fill"),
             node.requiredString("right"),
+            node.optionalString("center"),
+            node.optionalString("kern"),
         )
     }
 

@@ -1,0 +1,18 @@
+# Itemerness-owned runtime metadata only. RPG data is declared by RunoRPG integration schemas.
+schema-version: 1
+id: itemerness:storage
+
+keys:
+  itemerness:created-at:
+    type: long
+    scope: instance
+    affects-stacking: true
+    presentation-readable: false
+    read-sources:
+      - canonical-nbt
+    access:
+      read: public
+      write:
+        - internal
+    placeholder-api:
+      exposed: false

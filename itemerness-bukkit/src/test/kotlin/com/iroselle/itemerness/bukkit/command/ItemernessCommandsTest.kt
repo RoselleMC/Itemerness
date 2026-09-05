@@ -30,6 +30,7 @@ class ItemernessCommandsTest {
         assertNotNull(root.at("reload", "check").command)
         assertNotNull(root.at("validate", "json").command)
         assertNotNull(root.at("give", "player", "item-id").command)
+        assertNotNull(root.at("give", "unicode-arguments").command)
         assertNotNull(root.at("inspect", "hand", "view", "locale", "raw").command)
         assertNotNull(root.at("data", "get", "player", "slot", "key").command)
         assertNotNull(root.at("data", "set", "player", "slot", "key", "value").command)
@@ -52,6 +53,14 @@ class ItemernessCommandsTest {
         assertEquals(99, amountType.maximum)
         assertNotNull(locale.customSuggestions)
         assertInstanceOf(StringArgumentType::class.java, value.type)
+    }
+
+    @Test
+    fun `unicode give fallback preserves Chinese names and namespaced item ids`() {
+        assertEquals(
+            UnicodeGiveArguments("夏咕咕", ItemKey.parse("runocraft:wq-crude-iron-sword"), 2),
+            UnicodeGiveArguments.parse("夏咕咕 runocraft:wq-crude-iron-sword 2"),
+        )
     }
 
     private fun CommandNode<CommandSourceStack>.at(vararg path: String): CommandNode<CommandSourceStack> =

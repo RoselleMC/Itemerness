@@ -59,3 +59,533 @@ bitmaps:
     render-width-pixels: 1
     render-height-pixels: 10
     ascent-pixels: 8
+
+  # Epic Tooltip frame pieces, cut by tools/slice-epic-tooltip.py.
+  frame.common.top-left:
+    texture: itemerness:font/frame/common/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.common.top-fill:
+    texture: itemerness:font/frame/common/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.common.top-center:
+    texture: itemerness:font/frame/common/top_center.png
+    source-width-pixels: 37
+    source-height-pixels: 23
+    render-width-pixels: 37
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 37, top: -19, bottom: 4}
+  frame.common.top-right:
+    texture: itemerness:font/frame/common/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.common.body-left:
+    texture: itemerness:font/frame/common/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.common.body-fill:
+    texture: itemerness:font/frame/common/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.common.body-right:
+    texture: itemerness:font/frame/common/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.common.bottom-left:
+    texture: itemerness:font/frame/common/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.common.bottom-fill:
+    texture: itemerness:font/frame/common/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.common.bottom-center:
+    texture: itemerness:font/frame/common/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.common.bottom-right:
+    texture: itemerness:font/frame/common/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.uncommon.top-left:
+    texture: itemerness:font/frame/uncommon/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.uncommon.top-fill:
+    texture: itemerness:font/frame/uncommon/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.uncommon.top-center:
+    texture: itemerness:font/frame/uncommon/top_center.png
+    source-width-pixels: 35
+    source-height-pixels: 23
+    render-width-pixels: 35
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 35, top: -19, bottom: 4}
+  frame.uncommon.top-right:
+    texture: itemerness:font/frame/uncommon/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.uncommon.body-left:
+    texture: itemerness:font/frame/uncommon/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.uncommon.body-fill:
+    texture: itemerness:font/frame/uncommon/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.uncommon.body-right:
+    texture: itemerness:font/frame/uncommon/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.uncommon.bottom-left:
+    texture: itemerness:font/frame/uncommon/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.uncommon.bottom-fill:
+    texture: itemerness:font/frame/uncommon/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.uncommon.bottom-center:
+    texture: itemerness:font/frame/uncommon/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.uncommon.bottom-right:
+    texture: itemerness:font/frame/uncommon/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.rare.top-left:
+    texture: itemerness:font/frame/rare/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.rare.top-fill:
+    texture: itemerness:font/frame/rare/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.rare.top-center:
+    texture: itemerness:font/frame/rare/top_center.png
+    source-width-pixels: 51
+    source-height-pixels: 23
+    render-width-pixels: 51
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.rare.top-right:
+    texture: itemerness:font/frame/rare/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.rare.body-left:
+    texture: itemerness:font/frame/rare/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.rare.body-fill:
+    texture: itemerness:font/frame/rare/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.rare.body-right:
+    texture: itemerness:font/frame/rare/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.rare.bottom-left:
+    texture: itemerness:font/frame/rare/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.rare.bottom-fill:
+    texture: itemerness:font/frame/rare/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.rare.bottom-center:
+    texture: itemerness:font/frame/rare/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.rare.bottom-right:
+    texture: itemerness:font/frame/rare/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.unique.top-left:
+    texture: itemerness:font/frame/unique/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.unique.top-fill:
+    texture: itemerness:font/frame/unique/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.unique.top-center:
+    texture: itemerness:font/frame/unique/top_center.png
+    source-width-pixels: 51
+    source-height-pixels: 23
+    render-width-pixels: 51
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.unique.top-right:
+    texture: itemerness:font/frame/unique/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.unique.body-left:
+    texture: itemerness:font/frame/unique/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.unique.body-fill:
+    texture: itemerness:font/frame/unique/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.unique.body-right:
+    texture: itemerness:font/frame/unique/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.unique.bottom-left:
+    texture: itemerness:font/frame/unique/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.unique.bottom-fill:
+    texture: itemerness:font/frame/unique/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.unique.bottom-center:
+    texture: itemerness:font/frame/unique/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.unique.bottom-right:
+    texture: itemerness:font/frame/unique/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.legendary.top-left:
+    texture: itemerness:font/frame/legendary/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.legendary.top-fill:
+    texture: itemerness:font/frame/legendary/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.legendary.top-center:
+    texture: itemerness:font/frame/legendary/top_center.png
+    source-width-pixels: 63
+    source-height-pixels: 23
+    render-width-pixels: 63
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 63, top: -19, bottom: 4}
+  frame.legendary.top-right:
+    texture: itemerness:font/frame/legendary/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.legendary.body-left:
+    texture: itemerness:font/frame/legendary/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.legendary.body-fill:
+    texture: itemerness:font/frame/legendary/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.legendary.body-right:
+    texture: itemerness:font/frame/legendary/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.legendary.bottom-left:
+    texture: itemerness:font/frame/legendary/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.legendary.bottom-fill:
+    texture: itemerness:font/frame/legendary/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.legendary.bottom-center:
+    texture: itemerness:font/frame/legendary/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.legendary.bottom-right:
+    texture: itemerness:font/frame/legendary/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.corruption.top-left:
+    texture: itemerness:font/frame/corruption/top_left.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.corruption.top-fill:
+    texture: itemerness:font/frame/corruption/top_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 23
+    render-width-pixels: 1
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.corruption.top-center:
+    texture: itemerness:font/frame/corruption/top_center.png
+    source-width-pixels: 51
+    source-height-pixels: 23
+    render-width-pixels: 51
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.corruption.top-right:
+    texture: itemerness:font/frame/corruption/top_right.png
+    source-width-pixels: 26
+    source-height-pixels: 23
+    render-width-pixels: 26
+    render-height-pixels: 23
+    ascent-pixels: 19
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.corruption.body-left:
+    texture: itemerness:font/frame/corruption/body_left.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.corruption.body-fill:
+    texture: itemerness:font/frame/corruption/body_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 10
+    render-width-pixels: 1
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.corruption.body-right:
+    texture: itemerness:font/frame/corruption/body_right.png
+    source-width-pixels: 2
+    source-height-pixels: 10
+    render-width-pixels: 2
+    render-height-pixels: 10
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.corruption.bottom-left:
+    texture: itemerness:font/frame/corruption/bottom_left.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.corruption.bottom-fill:
+    texture: itemerness:font/frame/corruption/bottom_fill.png
+    source-width-pixels: 1
+    source-height-pixels: 15
+    render-width-pixels: 1
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.corruption.bottom-center:
+    texture: itemerness:font/frame/corruption/bottom_center.png
+    source-width-pixels: 15
+    source-height-pixels: 15
+    render-width-pixels: 15
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.corruption.bottom-right:
+    texture: itemerness:font/frame/corruption/bottom_right.png
+    source-width-pixels: 26
+    source-height-pixels: 15
+    render-width-pixels: 26
+    render-height-pixels: 15
+    ascent-pixels: 8
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
