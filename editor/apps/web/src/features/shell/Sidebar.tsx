@@ -3,21 +3,29 @@ import { useTranslation } from "react-i18next";
 import { SUPPORTED_UI_LANGUAGES } from "../../i18n/index.js";
 import { useEditorStore, type EditorMode } from "../../state/store.js";
 import type { DocumentSyncStatus } from "../../api/documentAutosave.js";
-import {
-    humanizePath,
-    itemDisplayName,
-    resolveMessage,
-} from "../common/messages.js";
+import { humanizePath, resolveMessage } from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
+import { newItemTemplate } from "../runorpg/templateProjection.js";
+import { itemTemplateRegistryOf } from "@itemerness/protocol";
 
 /**
  * The library rail.
  *
- * Four modes — items, themes, layouts, data — share one list. Rows lead with what a human
- * recognises: the item's texture and localized name, a theme's colour swatch, a data key's label.
- * The namespaced ids still exist and are stable; they live in each inspector's advanced fold.
+ * The item inventory is authoritative RunoRPG content only. Itemerness remains the storage and
+ * projection layer; it does not expose a second RPG item, attribute, or affix namespace.
+ *
+ * Themes come first because a frame is what an author reaches for before anything else; templates
+ * define an item kind; the item list is every concrete item made from them. The kind filter lists
+ * the templates themselves rather than a second, hand-maintained taxonomy — a template *is* a kind,
+ * and two competing lists of kinds would immediately disagree.
  */
-const MODES: readonly EditorMode[] = ["items", "themes", "layouts", "data"];
+const MODES: readonly EditorMode[] = [
+    "themes",
+    "templates",
+    "items",
+    "layouts",
+    "data",
+];
 
 export function Sidebar({
     onOpenOverlay,
@@ -32,6 +40,16 @@ export function Sidebar({
     const store = useEditorStore();
     const { document } = store;
     const [query, setQuery] = useState("");
+    /** Template id, or "all". Only the item library filters; a template list needs no filter. */
+    const [kind, setKind] = useState("all");
+    const registry = itemTemplateRegistryOf(document);
+    const templates = registry.templates;
+    const templateOfItem = new Map(
+        registry.bindings.map((binding) => [
+            binding.instanceId,
+            binding.templateId,
+        ]),
+    );
     const [agent, setAgent] = useState<{
         connected: boolean;
         serverId: string | null;
@@ -94,62 +112,154 @@ export function Sidebar({
                     onChange={(event) => setQuery(event.target.value)}
                     data-testid="item-search"
                 />
+                {store.mode === "items" ? (
+                    <label className="template-category-filter">
+                        <span>{t("sidebar.category")}</span>
+                        <select
+                            value={kind}
+                            onChange={(event) => setKind(event.target.value)}
+                            data-testid="template-category"
+                        >
+                            <option value="all">
+                                {t("sidebar.categoryValue.all")}
+                            </option>
+                            {templates.map((template) => (
+                                <option key={template.uuid} value={template.id}>
+                                    {template.displayName}
+                                </option>
+                            ))}
+                            <option value="unbound">
+                                {t("sidebar.categoryValue.unbound")}
+                            </option>
+                        </select>
+                    </label>
+                ) : null}
             </header>
+
+            {store.mode === "templates" ? (
+                <ul className="item-list" data-testid="template-list">
+                    <li className="item-list-heading">
+                        <span>{t("sidebar.itemTemplates")}</span>
+                        <small>{templates.length}</small>
+                    </li>
+                    {templates
+                        .filter(
+                            (template) =>
+                                matches(template.displayName) ||
+                                matches(template.id),
+                        )
+                        .map((template) => (
+                            <li key={template.uuid}>
+                                <button
+                                    type="button"
+                                    className={`item-row ${store.selectedTemplateId === template.id ? "selected" : ""} ${template.enabled ? "" : "disabled-item"}`}
+                                    onClick={() =>
+                                        store.selectTemplate(template.id)
+                                    }
+                                    data-testid={`item-template-${template.id.replaceAll(":", "-")}`}
+                                >
+                                    <ItemIcon
+                                        materialId={template.material}
+                                        label={template.displayName}
+                                        size={24}
+                                    />
+                                    <span className="item-row-text">
+                                        <span className="item-row-name">
+                                            {template.displayName}
+                                        </span>
+                                        <span className="item-row-note">
+                                            {t("sidebar.templateInstances", {
+                                                count: registry.bindings.filter(
+                                                    (binding) =>
+                                                        binding.templateId ===
+                                                        template.id,
+                                                ).length,
+                                            })}
+                                        </span>
+                                    </span>
+                                </button>
+                            </li>
+                        ))}
+                    <li>
+                        <button
+                            type="button"
+                            className="item-row add-item"
+                            onClick={() =>
+                                store.addTemplate(
+                                    newItemTemplate(
+                                        templates,
+                                        t("sidebar.newTemplateName"),
+                                    ),
+                                )
+                            }
+                            data-testid="add-template"
+                        >
+                            {t("sidebar.addTemplate")}
+                        </button>
+                    </li>
+                </ul>
+            ) : null}
 
             {store.mode === "items" ? (
                 <>
                     <ul className="item-list" data-testid="item-tree">
-                        {document.items
-                            .map((item) => ({
-                                item,
-                                id: `${document.namespace}:${item.id}`,
-                                name: itemDisplayName(
-                                    document,
-                                    store.viewerLocale,
-                                    item.presentation.nameMessage,
-                                ),
-                            }))
-                            .filter(
-                                (row) =>
-                                    matches(row.name) || matches(row.item.id),
-                            )
-                            .map((row) => (
-                                <li key={row.item.uuid}>
+                        <li className="item-list-heading">
+                            <span>{t("sidebar.runoRpgTemplates")}</span>
+                            <small>
+                                {store.runoRpgCatalog?.items.length ?? "…"}
+                            </small>
+                        </li>
+                        {(store.runoRpgCatalog?.items ?? [])
+                            .filter((item) => {
+                                if (
+                                    !matches(item.displayName) &&
+                                    !matches(item.id) &&
+                                    !matches(item.legacyReference ?? "")
+                                ) {
+                                    return false;
+                                }
+                                const template = templateOfItem.get(item.id);
+                                if (kind === "all") return true;
+                                if (kind === "unbound")
+                                    return template === undefined;
+                                return template === kind;
+                            })
+                            .map((item) => (
+                                <li key={item.id}>
                                     <button
                                         type="button"
-                                        className={`item-row ${store.selectedItemId === row.id ? "selected" : ""} ${row.item.enabled ? "" : "disabled-item"}`}
-                                        onClick={() => store.selectItem(row.id)}
-                                        data-testid={`item-${row.item.id}`}
+                                        className={`item-row ${store.selectedItemId === item.id ? "selected" : ""} ${item.enabled ? "" : "disabled-item"}`}
+                                        onClick={() =>
+                                            store.selectItem(item.id)
+                                        }
+                                        data-testid={`runorpg-template-${item.localId.replaceAll("/", "-")}`}
                                     >
                                         <ItemIcon
-                                            materialId={
-                                                row.item.definition.material
-                                            }
-                                            label={row.name}
+                                            materialId={item.material}
+                                            label={item.displayName}
                                             size={24}
                                         />
                                         <span className="item-row-text">
                                             <span className="item-row-name">
-                                                {row.name}
+                                                {item.displayName}
                                             </span>
-                                            {!row.item.enabled ? (
-                                                <span className="item-row-note">
-                                                    {t("sidebar.disabled")}
-                                                </span>
-                                            ) : null}
+                                            <span className="item-row-note">
+                                                {item.enabled
+                                                    ? (templates.find(
+                                                          (template) =>
+                                                              template.id ===
+                                                              templateOfItem.get(
+                                                                  item.id,
+                                                              ),
+                                                      )?.displayName ??
+                                                      "RunoRPG")
+                                                    : t("sidebar.disabled")}
+                                            </span>
                                         </span>
                                     </button>
                                 </li>
                             ))}
                     </ul>
-                    <button
-                        type="button"
-                        className="add-item"
-                        onClick={() => store.addItem(t("sidebar.newItemName"))}
-                        data-testid="add-item"
-                    >
-                        + {t("sidebar.addItem")}
-                    </button>
                 </>
             ) : null}
 

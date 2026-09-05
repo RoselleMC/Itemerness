@@ -17,3 +17,11 @@ docs/
 # Local Minecraft test servers and their generated data
 run/
 runs/
+
+# Local visual-analysis and generated packaging work
+.baseline/
+**/__pycache__/
+*.py[cod]
+tooltip-frames-work/
+quality-template/
+itemerness-quality-frames.zip

@@ -1,0 +1,870 @@
+{
+    "frame.common.top-left": {
+        "codepoint": 57616,
+        "texture": "itemerness:font/frame/common/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.common.top-fill": {
+        "codepoint": 57617,
+        "texture": "itemerness:font/frame/common/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.common.top-center": {
+        "codepoint": 57618,
+        "texture": "itemerness:font/frame/common/top_center.png",
+        "width": 37,
+        "ink": 37,
+        "advance": 38,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            65,
+            101
+        ]
+    },
+    "frame.common.top-right": {
+        "codepoint": 57619,
+        "texture": "itemerness:font/frame/common/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.common.body-left": {
+        "codepoint": 57620,
+        "texture": "itemerness:font/frame/common/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.common.body-fill": {
+        "codepoint": 57621,
+        "texture": "itemerness:font/frame/common/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.common.body-right": {
+        "codepoint": 57622,
+        "texture": "itemerness:font/frame/common/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.common.bottom-left": {
+        "codepoint": 57623,
+        "texture": "itemerness:font/frame/common/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.common.bottom-fill": {
+        "codepoint": 57624,
+        "texture": "itemerness:font/frame/common/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.common.bottom-center": {
+        "codepoint": 57625,
+        "texture": "itemerness:font/frame/common/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.common.bottom-right": {
+        "codepoint": 57626,
+        "texture": "itemerness:font/frame/common/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.uncommon.top-left": {
+        "codepoint": 57627,
+        "texture": "itemerness:font/frame/uncommon/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.uncommon.top-fill": {
+        "codepoint": 57628,
+        "texture": "itemerness:font/frame/uncommon/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.uncommon.top-center": {
+        "codepoint": 57629,
+        "texture": "itemerness:font/frame/uncommon/top_center.png",
+        "width": 35,
+        "ink": 35,
+        "advance": 36,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            63,
+            97
+        ]
+    },
+    "frame.uncommon.top-right": {
+        "codepoint": 57630,
+        "texture": "itemerness:font/frame/uncommon/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.uncommon.body-left": {
+        "codepoint": 57631,
+        "texture": "itemerness:font/frame/uncommon/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.uncommon.body-fill": {
+        "codepoint": 57632,
+        "texture": "itemerness:font/frame/uncommon/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.uncommon.body-right": {
+        "codepoint": 57633,
+        "texture": "itemerness:font/frame/uncommon/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.uncommon.bottom-left": {
+        "codepoint": 57634,
+        "texture": "itemerness:font/frame/uncommon/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.uncommon.bottom-fill": {
+        "codepoint": 57635,
+        "texture": "itemerness:font/frame/uncommon/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.uncommon.bottom-center": {
+        "codepoint": 57636,
+        "texture": "itemerness:font/frame/uncommon/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.uncommon.bottom-right": {
+        "codepoint": 57637,
+        "texture": "itemerness:font/frame/uncommon/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.rare.top-left": {
+        "codepoint": 57638,
+        "texture": "itemerness:font/frame/rare/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.rare.top-fill": {
+        "codepoint": 57639,
+        "texture": "itemerness:font/frame/rare/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.rare.top-center": {
+        "codepoint": 57640,
+        "texture": "itemerness:font/frame/rare/top_center.png",
+        "width": 51,
+        "ink": 51,
+        "advance": 52,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            61,
+            111
+        ]
+    },
+    "frame.rare.top-right": {
+        "codepoint": 57641,
+        "texture": "itemerness:font/frame/rare/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.rare.body-left": {
+        "codepoint": 57642,
+        "texture": "itemerness:font/frame/rare/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.rare.body-fill": {
+        "codepoint": 57643,
+        "texture": "itemerness:font/frame/rare/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.rare.body-right": {
+        "codepoint": 57644,
+        "texture": "itemerness:font/frame/rare/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.rare.bottom-left": {
+        "codepoint": 57645,
+        "texture": "itemerness:font/frame/rare/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.rare.bottom-fill": {
+        "codepoint": 57646,
+        "texture": "itemerness:font/frame/rare/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.rare.bottom-center": {
+        "codepoint": 57647,
+        "texture": "itemerness:font/frame/rare/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.rare.bottom-right": {
+        "codepoint": 57648,
+        "texture": "itemerness:font/frame/rare/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.unique.top-left": {
+        "codepoint": 57649,
+        "texture": "itemerness:font/frame/unique/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.unique.top-fill": {
+        "codepoint": 57650,
+        "texture": "itemerness:font/frame/unique/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.unique.top-center": {
+        "codepoint": 57651,
+        "texture": "itemerness:font/frame/unique/top_center.png",
+        "width": 51,
+        "ink": 51,
+        "advance": 52,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            55,
+            105
+        ]
+    },
+    "frame.unique.top-right": {
+        "codepoint": 57652,
+        "texture": "itemerness:font/frame/unique/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.unique.body-left": {
+        "codepoint": 57653,
+        "texture": "itemerness:font/frame/unique/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.unique.body-fill": {
+        "codepoint": 57654,
+        "texture": "itemerness:font/frame/unique/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.unique.body-right": {
+        "codepoint": 57655,
+        "texture": "itemerness:font/frame/unique/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.unique.bottom-left": {
+        "codepoint": 57656,
+        "texture": "itemerness:font/frame/unique/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.unique.bottom-fill": {
+        "codepoint": 57657,
+        "texture": "itemerness:font/frame/unique/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.unique.bottom-center": {
+        "codepoint": 57658,
+        "texture": "itemerness:font/frame/unique/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.unique.bottom-right": {
+        "codepoint": 57659,
+        "texture": "itemerness:font/frame/unique/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.legendary.top-left": {
+        "codepoint": 57660,
+        "texture": "itemerness:font/frame/legendary/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.legendary.top-fill": {
+        "codepoint": 57661,
+        "texture": "itemerness:font/frame/legendary/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.legendary.top-center": {
+        "codepoint": 57662,
+        "texture": "itemerness:font/frame/legendary/top_center.png",
+        "width": 63,
+        "ink": 63,
+        "advance": 64,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            49,
+            111
+        ]
+    },
+    "frame.legendary.top-right": {
+        "codepoint": 57663,
+        "texture": "itemerness:font/frame/legendary/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.legendary.body-left": {
+        "codepoint": 57664,
+        "texture": "itemerness:font/frame/legendary/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.legendary.body-fill": {
+        "codepoint": 57665,
+        "texture": "itemerness:font/frame/legendary/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.legendary.body-right": {
+        "codepoint": 57666,
+        "texture": "itemerness:font/frame/legendary/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.legendary.bottom-left": {
+        "codepoint": 57667,
+        "texture": "itemerness:font/frame/legendary/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.legendary.bottom-fill": {
+        "codepoint": 57668,
+        "texture": "itemerness:font/frame/legendary/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.legendary.bottom-center": {
+        "codepoint": 57669,
+        "texture": "itemerness:font/frame/legendary/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.legendary.bottom-right": {
+        "codepoint": 57670,
+        "texture": "itemerness:font/frame/legendary/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.corruption.top-left": {
+        "codepoint": 57671,
+        "texture": "itemerness:font/frame/corruption/top_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.corruption.top-fill": {
+        "codepoint": 57672,
+        "texture": "itemerness:font/frame/corruption/top_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.corruption.top-center": {
+        "codepoint": 57673,
+        "texture": "itemerness:font/frame/corruption/top_center.png",
+        "width": 51,
+        "ink": 51,
+        "advance": 52,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            55,
+            105
+        ]
+    },
+    "frame.corruption.top-right": {
+        "codepoint": 57674,
+        "texture": "itemerness:font/frame/corruption/top_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 23,
+        "ascent": 19,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.corruption.body-left": {
+        "codepoint": 57675,
+        "texture": "itemerness:font/frame/corruption/body_left.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            0,
+            1
+        ]
+    },
+    "frame.corruption.body-fill": {
+        "codepoint": 57676,
+        "texture": "itemerness:font/frame/corruption/body_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            2,
+            2
+        ]
+    },
+    "frame.corruption.body-right": {
+        "codepoint": 57677,
+        "texture": "itemerness:font/frame/corruption/body_right.png",
+        "width": 2,
+        "ink": 2,
+        "advance": 3,
+        "height": 10,
+        "ascent": 8,
+        "span": [
+            159,
+            160
+        ]
+    },
+    "frame.corruption.bottom-left": {
+        "codepoint": 57678,
+        "texture": "itemerness:font/frame/corruption/bottom_left.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            0,
+            25
+        ]
+    },
+    "frame.corruption.bottom-fill": {
+        "codepoint": 57679,
+        "texture": "itemerness:font/frame/corruption/bottom_fill.png",
+        "width": 1,
+        "ink": 1,
+        "advance": 2,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            26,
+            26
+        ]
+    },
+    "frame.corruption.bottom-center": {
+        "codepoint": 57680,
+        "texture": "itemerness:font/frame/corruption/bottom_center.png",
+        "width": 15,
+        "ink": 15,
+        "advance": 16,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            73,
+            87
+        ]
+    },
+    "frame.corruption.bottom-right": {
+        "codepoint": 57681,
+        "texture": "itemerness:font/frame/corruption/bottom_right.png",
+        "width": 26,
+        "ink": 26,
+        "advance": 27,
+        "height": 15,
+        "ascent": 8,
+        "span": [
+            135,
+            160
+        ]
+    },
+    "frame.kern.minus-one": {
+        "codepoint": 57855,
+        "texture": null,
+        "width": 0,
+        "ink": 0,
+        "advance": -1,
+        "height": 0,
+        "ascent": 0,
+        "span": null
+    }
+}

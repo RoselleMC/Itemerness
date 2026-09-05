@@ -74,12 +74,12 @@ describe("viewerOf resource-pack identity", () => {
         expect(result.metricsRevision).toBe("itemerness:example-pack-v1");
     });
 
-    it("does not grant a profile for an arbitrary mounted resource pack", () => {
+    it("marks an arbitrary mounted resource pack loaded without granting its profile", () => {
         const result = viewer(documentWithBindings([binding]), [
             pack("2222222222222222222222222222222222222222"),
         ]);
 
-        expect(result.resourcePackLoaded).toBe(false);
+        expect(result.resourcePackLoaded).toBe(true);
         expect(result.assetProfile).toBeNull();
         expect(result.capabilities).toEqual([]);
         expect(result.metricsRevision).toBeNull();

@@ -44,8 +44,8 @@ internal object PresentationFixtures {
         items = itemSources,
         spacing = SpacingSource(
             "itemerness:spacing",
-            SpacingRangeSource(0xF0000, 0xF00FF, -256, -1),
-            SpacingRangeSource(0xF0100, 0xF01FF, 1, 256),
+            SpacingRangeSource(0xE300, 0xE3FF, -256, -1),
+            SpacingRangeSource(0xE400, 0xE4FF, 1, 256),
         ),
         tooltipStyles = setOf("itemerness:ember", "itemerness:transparent-canvas"),
     )

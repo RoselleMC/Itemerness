@@ -51,9 +51,13 @@ export function PreviewStage({
         .map((run) => run.text)
         .join("");
     const overall = overallFidelity(preview.claims);
-    const targetItem = state.document.items.find(
+    // The previewed document, not the authoring one: a RunoRPG item lives only in the projection,
+    // and looking it up in the draft would silently drop the editing overlay for every item the
+    // library actually lists.
+    const targetItem = preview.document.items.find(
         (entry) =>
-            `${state.document.namespace}:${entry.id}` === preview.targetItemId,
+            `${preview.document.namespace}:${entry.id}` ===
+            preview.targetItemId,
     );
 
     return (
@@ -87,6 +91,7 @@ export function PreviewStage({
                     </button>
                 </div>
                 <PersonaPanel
+                    facts={preview.document.viewerFacts}
                     open={openPanel === "persona"}
                     onOpenChange={(open) =>
                         setOpenPanel((current) =>
@@ -124,7 +129,7 @@ export function PreviewStage({
                                 geometry={geometry}
                                 lineOrigins={preview.local?.lineOrigins ?? []}
                                 item={targetItem}
-                                layout={state.document.layouts.find(
+                                layout={preview.document.layouts.find(
                                     (entry) =>
                                         entry.id ===
                                         targetItem.presentation.layout,

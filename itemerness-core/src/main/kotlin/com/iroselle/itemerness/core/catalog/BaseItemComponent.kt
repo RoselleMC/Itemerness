@@ -24,6 +24,19 @@ sealed interface BaseItemComponent {
 
     data class RepairCost(val value: Int) : BaseItemComponent
 
+    /** An explicit empty override that suppresses material-provided vanilla combat attributes. */
+    data object EmptyAttributeModifiers : BaseItemComponent
+
+    class Enchantments(levels: Map<ItemKey, Int>) : BaseItemComponent {
+        val levels: Map<ItemKey, Int> = Collections.unmodifiableMap(java.util.TreeMap(levels))
+
+        override fun equals(other: Any?): Boolean = other is Enchantments && levels == other.levels
+
+        override fun hashCode(): Int = levels.hashCode()
+
+        override fun toString(): String = "Enchantments(levels=$levels)"
+    }
+
     class CustomModelData(
         floats: Collection<Float>,
         flags: Collection<Boolean>,

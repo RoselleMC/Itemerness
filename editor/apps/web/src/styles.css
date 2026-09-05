@@ -60,6 +60,9 @@ code {
 .error {
     color: var(--error);
 }
+.success {
+    color: var(--ok);
+}
 
 button {
     font: inherit;
@@ -99,14 +102,48 @@ button:focus-visible {
 /* ---- shell ------------------------------------------------------------------------------ */
 .app {
     display: grid;
-    grid-template-columns: 248px minmax(0, 1fr) 372px;
+    grid-template-columns: 248px minmax(0, 1fr) 7px minmax(
+            0,
+            var(--inspector-width, 372px)
+        );
     height: 100vh;
     overflow: hidden;
 }
 @media (max-width: 1180px) {
     .app {
-        grid-template-columns: 220px minmax(0, 1fr) 330px;
+        grid-template-columns: 220px minmax(0, 1fr) 7px minmax(
+                0,
+                var(--inspector-width, 372px)
+            );
     }
+}
+.app[data-resizing-inspector="true"] {
+    cursor: col-resize;
+    user-select: none;
+}
+.inspector-resizer {
+    position: relative;
+    z-index: 6;
+    min-width: 7px;
+    cursor: col-resize;
+    touch-action: none;
+    background: var(--bg-raised);
+}
+.inspector-resizer::before {
+    content: "";
+    position: absolute;
+    inset: 0 2px;
+    background: var(--line);
+    transition: background-color 120ms ease;
+}
+.inspector-resizer:hover::before,
+.inspector-resizer:focus-visible::before,
+.app[data-resizing-inspector="true"] .inspector-resizer::before {
+    background: var(--accent);
+}
+.inspector-resizer:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
 }
 
 /* ---- sidebar ---------------------------------------------------------------------------- */
@@ -132,6 +169,18 @@ button:focus-visible {
 .sidebar-search {
     width: 100%;
 }
+.template-category-filter {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.template-category-filter select {
+    width: 100%;
+    min-width: 0;
+}
 
 .item-list {
     list-style: none;
@@ -139,6 +188,26 @@ button:focus-visible {
     padding: 4px 8px;
     overflow-y: auto;
     flex: 1;
+}
+.item-list-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 8px 5px;
+    color: var(--dim);
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+}
+.item-list-heading:first-child {
+    padding-top: 6px;
+}
+.item-list-heading small {
+    flex: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
 }
 .item-row {
     display: flex;
@@ -416,7 +485,6 @@ button:focus-visible {
 
 /* ---- inspector -------------------------------------------------------------------------- */
 .inspector {
-    border-left: 1px solid var(--line);
     background: var(--bg-raised);
     overflow-y: auto;
     padding: 18px 18px 30px;
@@ -424,6 +492,7 @@ button:focus-visible {
     display: flex;
     flex-direction: column;
     gap: 22px;
+    container-type: inline-size;
 }
 .inspector h3 {
     margin: 0 0 10px;
@@ -437,6 +506,93 @@ button:focus-visible {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+.runorpg-template-title {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+}
+.runorpg-template-title h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 14px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.runorpg-template-title code {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.runorpg-template-title .name-input {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 4px;
+}
+.runorpg-template-save {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+.runorpg-template-save .primary-command {
+    width: 100%;
+}
+.runorpg-template-data-grid {
+    display: grid;
+    gap: 8px;
+}
+.runorpg-template-data-grid label {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.runorpg-template-data-grid input {
+    width: 100%;
+    min-width: 0;
+}
+.runorpg-inline-modifiers {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+}
+.runorpg-inline-modifiers > li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(72px, 0.65fr) 30px;
+    gap: 6px;
+    padding-block: 6px;
+    border-bottom: 1px dashed var(--line);
+}
+.runorpg-inline-modifiers > li > select:first-child {
+    grid-column: 1 / -1;
+}
+.runorpg-inline-modifiers input,
+.runorpg-inline-modifiers select {
+    width: 100%;
+    min-width: 0;
+}
+.runorpg-inline-modifiers button,
+.nested-content-row button {
+    padding-inline: 7px;
+}
+.nested-content-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.nested-content-row input {
+    flex: 1 1 120px;
+    min-width: 0;
+}
+.block-order-controls {
+    z-index: 1;
 }
 
 .name-input {
@@ -688,6 +844,397 @@ button:focus-visible {
 }
 
 /* ---- overlay panel internals (assets / translations / diagnostics) ---------------------- */
+.runorpg-main {
+    grid-column: 2 / -1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 18px 22px;
+    background: var(--bg-raised);
+}
+.runorpg-main .runorpg-catalog {
+    height: 100%;
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+}
+.runorpg-main .runorpg-header {
+    padding-right: 0;
+}
+.runorpg-main .runorpg-workspace {
+    min-height: 0;
+    max-height: none;
+    flex: 1;
+}
+.runorpg-catalog {
+    min-width: 0;
+}
+.runorpg-header,
+.runorpg-title-row,
+.runorpg-attributes-head,
+.runorpg-save-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.catalog-entry-order {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.catalog-entry-order button,
+.contract-order-controls button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+}
+
+.runorpg-contract-editor {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    container-type: inline-size;
+}
+.block-group > .runorpg-contract-editor .runorpg-contract-head {
+    padding-right: 68px;
+}
+.runorpg-contract-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+.runorpg-contract-head strong {
+    font-size: 12px;
+}
+.runorpg-contract-head p {
+    margin: 3px 0 0;
+}
+.runorpg-contract-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+}
+.runorpg-contract-list > li {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 34px;
+    align-items: start;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg-raised);
+}
+.contract-order-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.contract-fields {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.contract-fields label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+.contract-fields input,
+.contract-fields select {
+    width: 100%;
+    min-width: 0;
+}
+.contract-field-wide {
+    grid-column: 1 / -1;
+}
+.contract-options {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.contract-options .toggle-row {
+    flex-direction: row;
+}
+
+@container (max-width: 500px) {
+    .contract-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .contract-field-wide {
+        grid-column: auto;
+    }
+    .runorpg-contract-head {
+        flex-direction: column;
+    }
+    .block-group > .runorpg-contract-editor .runorpg-contract-head {
+        padding-right: 68px;
+    }
+}
+.runorpg-header {
+    padding-right: 72px;
+    margin-bottom: 14px;
+}
+.runorpg-header-actions,
+.runorpg-create-actions,
+.runorpg-create-options,
+.skill-options {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.runorpg-create {
+    padding: 14px 0;
+    margin-bottom: 4px;
+    border-block: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.runorpg-create-grid,
+.skill-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+.runorpg-create label,
+.skill-grid label,
+.skill-lore {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.runorpg-create input,
+.runorpg-create textarea,
+.skill-grid input,
+.skill-grid select,
+.skill-lore input {
+    width: 100%;
+}
+.runorpg-create textarea {
+    min-height: 58px;
+    resize: vertical;
+}
+.runorpg-create-options {
+    flex-wrap: wrap;
+}
+.runorpg-create-actions {
+    justify-content: flex-end;
+}
+.runorpg-header h2,
+.runorpg-header p,
+.runorpg-title-row h3,
+.runorpg-attributes-head h3,
+.runorpg-attributes-head p {
+    margin: 0;
+}
+.runorpg-workspace {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    min-height: 520px;
+    max-height: calc(100dvh - 190px);
+    border-top: 1px solid var(--line);
+}
+.runorpg-library {
+    min-width: 0;
+    padding: 14px 14px 0 0;
+    border-right: 1px solid var(--line);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.runorpg-library input {
+    width: 100%;
+}
+.runorpg-library ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+}
+.runorpg-library li + li {
+    border-top: 1px solid var(--line);
+}
+.runorpg-library li button {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 8px 9px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.runorpg-library li button.selected {
+    background: var(--accent-dim);
+}
+.runorpg-library li span,
+.runorpg-library li small {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.runorpg-library li small {
+    color: var(--muted);
+}
+.runorpg-editor {
+    min-width: 0;
+    padding: 14px 0 0 20px;
+    overflow-y: auto;
+}
+.runorpg-title-row h3 {
+    color: var(--text);
+    font-size: 15px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.runorpg-title-row code {
+    overflow-wrap: anywhere;
+}
+.runorpg-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 18px;
+    margin: 18px 0;
+}
+.runorpg-meta-grid label,
+.runorpg-meta-grid > div,
+.modifier-primary label,
+.modifier-secondary label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.runorpg-meta-grid input {
+    width: 100%;
+}
+.runorpg-meta-grid code {
+    overflow-wrap: anywhere;
+}
+.vanilla-attribute-lock {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-block: 1px solid var(--line);
+}
+.vanilla-attribute-lock strong {
+    color: var(--ok);
+}
+.vanilla-attribute-lock p {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+.runorpg-attributes-head {
+    margin: 18px 0 10px;
+}
+.runorpg-modifiers {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.runorpg-modifiers > li {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+}
+.runorpg-skills > li {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.skill-options {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+.modifier-primary,
+.modifier-secondary {
+    display: grid;
+    align-items: end;
+    gap: 8px;
+}
+.modifier-primary {
+    grid-template-columns: minmax(180px, 1fr) auto minmax(90px, 0.35fr) 34px;
+}
+.modifier-secondary {
+    grid-template-columns: minmax(140px, 0.7fr) minmax(160px, 1fr) minmax(
+            90px,
+            0.35fr
+        );
+    margin-top: 8px;
+}
+.modifier-primary input,
+.modifier-secondary input,
+.modifier-secondary select {
+    width: 100%;
+    min-width: 0;
+}
+.operation-segments {
+    display: flex;
+}
+.operation-segments button {
+    border-radius: 0;
+    min-width: 64px;
+}
+.operation-segments button:first-child {
+    border-radius: 7px 0 0 7px;
+}
+.operation-segments button:last-child {
+    border-radius: 0 7px 7px 0;
+    margin-left: -1px;
+}
+.operation-segments button.selected {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+}
+.modifier-remove {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    color: var(--error);
+    font-size: 19px;
+}
+.runorpg-save-row {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 0;
+    margin-top: 12px;
+    background: var(--bg-raised);
+    border-top: 1px solid var(--line);
+}
+.primary-command {
+    color: #ffffff;
+    background: #356ab4;
+    border-color: #4d82ca;
+}
+.primary-command:hover:not(:disabled) {
+    background: #4078c4;
+}
+
 .dropzone {
     display: flex;
     flex-direction: column;
@@ -790,17 +1337,22 @@ td {
 /* ---- mode tabs -------------------------------------------------------------------------- */
 .mode-tabs {
     display: flex;
+    /* Six libraries do not fit one sidebar row at every width. Wrapping keeps every tab
+       clickable; a single overflowing row would push the last ones outside the rail. */
+    flex-wrap: wrap;
     gap: 2px;
     background: var(--bg-inset);
     border-radius: 9px;
     padding: 3px;
 }
 .mode-tabs button {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
     border: none;
     border-radius: 7px;
-    padding: 4px 0;
+    padding: 4px 6px;
     font-size: 12px;
+    white-space: nowrap;
     color: var(--muted);
 }
 .mode-tabs button.selected {
@@ -1109,6 +1661,15 @@ button.danger:hover {
         border-right: 0;
         border-bottom: 1px solid var(--line);
     }
+    .inspector-resizer {
+        display: none;
+    }
+    .runorpg-main {
+        grid-column: auto;
+        min-height: 720px;
+        overflow: visible;
+        padding: 16px 14px;
+    }
     .item-list {
         flex: none;
         max-height: 210px;
@@ -1174,4 +1735,84 @@ button.danger:hover {
     .overlay-panel {
         padding: 18px 16px;
     }
+    .runorpg-header {
+        padding-right: 58px;
+    }
+    .runorpg-workspace {
+        grid-template-columns: minmax(0, 1fr);
+        max-height: none;
+    }
+    .runorpg-library {
+        max-height: 250px;
+        padding-right: 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+    }
+    .runorpg-editor {
+        padding-left: 0;
+        overflow: visible;
+    }
+    .runorpg-meta-grid,
+    .runorpg-create-grid,
+    .skill-grid,
+    .modifier-primary,
+    .modifier-secondary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .modifier-remove {
+        justify-self: end;
+    }
+    .runorpg-save-row {
+        position: static;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* Item type templates: the prefab inspector and the template bar above a bound instance. */
+.inspector .field {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.inspector .field > input,
+.inspector .field > select,
+.inspector .field > textarea {
+    width: 100%;
+    min-width: 0;
+}
+.inspector .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.template-instance-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.template-instance-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+}
+.runorpg-template-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-raised);
 }

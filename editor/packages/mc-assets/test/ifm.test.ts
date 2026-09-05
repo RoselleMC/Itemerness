@@ -14,7 +14,7 @@ import {
  */
 const ARTIFACT_PATH = fileURLToPath(
     new URL(
-        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm",
+        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-1.21.11.ifm",
         import.meta.url,
     ),
 );

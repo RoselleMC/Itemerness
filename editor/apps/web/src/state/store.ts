@@ -10,11 +10,19 @@ import {
 import { PresentationFonts } from "@itemerness/mc-render";
 import {
     contentHash,
+    itemTemplateRegistryOf,
+    withItemTemplateRegistry,
+    type DataValue,
     type Diagnostic,
+    type ItemTemplate,
+    type ItemTemplateBinding,
+    type ItemTemplateRegistry,
     type PreviewViewer,
     type ProjectDocument,
+    type RunoRpgCatalog,
 } from "@itemerness/protocol";
 import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
+import { newUuid } from "../features/common/uuid.js";
 
 /**
  * Editor state.
@@ -29,8 +37,14 @@ export interface AssetSlot {
     readonly entryCount: number;
 }
 
-/** Which library the shell is editing. Every mode keeps the list | preview | inspector shape. */
-export type EditorMode = "items" | "themes" | "layouts" | "data";
+/**
+ * Which library the shell is editing. Every mode keeps the list | preview | inspector shape.
+ *
+ * `templates` edits the prefabs an item kind is made from, `items` edits the concrete items created
+ * from them. There is no third "instances" surface: an item made from a template is edited in the
+ * same place every other live item is, which is the only way the two can be guaranteed to agree.
+ */
+export type EditorMode = "themes" | "templates" | "items" | "layouts" | "data";
 
 /**
  * Whether the previewed player counts as having accepted the server resource pack.
@@ -45,6 +59,7 @@ interface EditorState {
     snapshotHash: string;
     mode: EditorMode;
     selectedItemId: string | null;
+    selectedTemplateId: string | null;
     selectedThemeId: string | null;
     selectedLayoutId: string | null;
     selectedDataKeyId: string | null;
@@ -64,11 +79,42 @@ interface EditorState {
     artifact: FontMetricsArtifact | null;
     mountError: string | null;
     diagnostics: Diagnostic[];
+    /** Session-memory copy shared by the template library and the full RPG editor. */
+    runoRpgCatalog: RunoRpgCatalog | null;
+    /**
+     * Posed viewer facts, by fact id.
+     *
+     * A pose is a question about the previewed player, not a content decision, and half the facts
+     * worth posing — a RunoRPG item's level and attributes — exist only in the projection. Writing
+     * them into the document would either be dropped on the next render or, worse, publish a fact
+     * declaration the author never asked for.
+     */
+    factPreviews: Record<string, DataValue>;
 
     setDocument(document: ProjectDocument): void;
     updateDocument(mutate: (draft: ProjectDocument) => ProjectDocument): void;
     setMode(mode: EditorMode): void;
     selectItem(itemId: string | null): void;
+    selectTemplate(templateId: string | null): void;
+    /** Appends a template and selects it. The caller supplies an already-valid node. */
+    addTemplate(template: ItemTemplate): void;
+    /**
+     * Replaces one template by node identity and bumps its revision, which is what makes bound
+     * instances report the change instead of silently drifting.
+     */
+    updateTemplate(
+        uuid: string,
+        mutate: (template: ItemTemplate) => ItemTemplate,
+    ): void;
+    /** Drops a template and every binding that pointed at it. */
+    removeTemplate(uuid: string): void;
+    /** Inserts or replaces the binding for one instance. */
+    setTemplateBinding(binding: ItemTemplateBinding): void;
+    removeTemplateBinding(instanceId: string): void;
+    /** Rewrites the whole registry in one document edit, so autosave sees a single change. */
+    updateTemplateRegistry(
+        mutate: (registry: ItemTemplateRegistry) => ItemTemplateRegistry,
+    ): void;
     selectTheme(themeId: string): void;
     selectLayout(layoutId: string): void;
     selectDataKey(dataKeyId: string): void;
@@ -127,6 +173,8 @@ interface EditorState {
     movePack(packId: string, delta: number): void;
     loadArtifact(bytes: Uint8Array): void;
     setDiagnostics(diagnostics: Diagnostic[]): void;
+    setRunoRpgCatalog(catalog: RunoRpgCatalog): void;
+    setFactPreview(factId: string, value: DataValue | null): void;
     resetDraft(): void;
 }
 
@@ -136,9 +184,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     document: baselineDocument,
     snapshotHash: contentHash(baselineDocument),
     mode: "items",
-    selectedItemId: baselineDocument.items[0]
-        ? `${baselineDocument.namespace}:${baselineDocument.items[0].id}`
-        : null,
+    selectedItemId: null,
+    selectedTemplateId: null,
     selectedThemeId: baselineDocument.themes[0]?.id ?? null,
     selectedLayoutId: baselineDocument.layouts[0]?.id ?? null,
     selectedDataKeyId: baselineDocument.dataSchemas[0]?.keys[0]?.id ?? null,
@@ -148,13 +195,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     managesVanillaTooltipLines: false,
     viewerLocale: baselineDocument.defaultLocale,
     themeOverride: null,
-    guiScale: 3,
+    guiScale: 1,
     annotations: false,
     compareLocales: false,
     packs: [],
     artifact: null,
     mountError: null,
     diagnostics: [],
+    runoRpgCatalog: null,
+    factPreviews: {},
 
     setDocument(document) {
         set((state) => {
@@ -173,7 +222,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 ),
             );
             const selectedItemId =
-                state.selectedItemId && itemIds.has(state.selectedItemId)
+                state.selectedItemId &&
+                (itemIds.has(state.selectedItemId) ||
+                    state.runoRpgCatalog?.items.some(
+                        (item) => item.id === state.selectedItemId,
+                    ))
                     ? state.selectedItemId
                     : document.items[0]
                       ? `${document.namespace}:${document.items[0].id}`
@@ -182,10 +235,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 state.selectedThemeId && themeIds.has(state.selectedThemeId)
                     ? state.selectedThemeId
                     : (document.themes[0]?.id ?? null);
+            const templates = itemTemplateRegistryOf(document).templates;
             return {
                 document,
                 snapshotHash: contentHash(document),
                 selectedItemId,
+                selectedTemplateId:
+                    state.selectedTemplateId &&
+                    templates.some(
+                        (template) => template.id === state.selectedTemplateId,
+                    )
+                        ? state.selectedTemplateId
+                        : (templates[0]?.id ?? null),
                 selectedThemeId,
                 selectedLayoutId:
                     state.selectedLayoutId &&
@@ -228,6 +289,79 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
     selectItem(selectedItemId) {
         set({ selectedItemId, selectedBlockUuid: null });
+    },
+    selectTemplate(selectedTemplateId) {
+        set({ selectedTemplateId, selectedBlockUuid: null });
+    },
+    addTemplate(template) {
+        get().updateTemplateRegistry((registry) => ({
+            ...registry,
+            templates: [...registry.templates, template],
+        }));
+        set({ selectedTemplateId: template.id, selectedBlockUuid: null });
+    },
+    updateTemplate(uuid, mutate) {
+        let renamedTo: string | null = null;
+        get().updateTemplateRegistry((registry) => ({
+            ...registry,
+            templates: registry.templates.map((template) => {
+                if (template.uuid !== uuid) return template;
+                const next = mutate(template);
+                if (next.id !== template.id) renamedTo = next.id;
+                return { ...next, revision: template.revision + 1 };
+            }),
+        }));
+        if (renamedTo !== null) set({ selectedTemplateId: renamedTo });
+    },
+    removeTemplate(uuid) {
+        const registry = itemTemplateRegistryOf(get().document);
+        const removed = registry.templates.find(
+            (template) => template.uuid === uuid,
+        );
+        if (!removed) return;
+        const remaining = registry.templates.filter(
+            (template) => template.uuid !== uuid,
+        );
+        get().updateTemplateRegistry(() => ({
+            ...registry,
+            templates: remaining,
+            bindings: registry.bindings.filter(
+                (binding) => binding.templateId !== removed.id,
+            ),
+        }));
+        set({
+            selectedTemplateId:
+                get().selectedTemplateId === removed.id
+                    ? (remaining[0]?.id ?? null)
+                    : get().selectedTemplateId,
+        });
+    },
+    setTemplateBinding(binding) {
+        get().updateTemplateRegistry((registry) => ({
+            ...registry,
+            bindings: [
+                ...registry.bindings.filter(
+                    (entry) => entry.instanceId !== binding.instanceId,
+                ),
+                binding,
+            ],
+        }));
+    },
+    removeTemplateBinding(instanceId) {
+        get().updateTemplateRegistry((registry) => ({
+            ...registry,
+            bindings: registry.bindings.filter(
+                (entry) => entry.instanceId !== instanceId,
+            ),
+        }));
+    },
+    updateTemplateRegistry(mutate) {
+        get().updateDocument((draft) =>
+            withItemTemplateRegistry(
+                draft,
+                mutate(itemTemplateRegistryOf(draft)),
+            ),
+        );
     },
     selectBlock(selectedBlockUuid) {
         set({ selectedBlockUuid });
@@ -322,7 +456,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             items: [
                 ...draft.items,
                 {
-                    uuid: crypto.randomUUID(),
+                    uuid: newUuid(),
                     id,
                     enabled: false,
                     definition: {
@@ -345,7 +479,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                         nameMessage: nameKey,
                         blocks: [
                             {
-                                uuid: crypto.randomUUID(),
+                                uuid: newUuid(),
                                 type: "description",
                                 message: textKey,
                                 style: "description",
@@ -463,6 +597,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setDiagnostics(diagnostics) {
         set({ diagnostics });
     },
+    setRunoRpgCatalog(runoRpgCatalog) {
+        set((state) => ({
+            runoRpgCatalog,
+            selectedItemId:
+                state.selectedItemId &&
+                runoRpgCatalog.items.some(
+                    (item) => item.id === state.selectedItemId,
+                )
+                    ? state.selectedItemId
+                    : (runoRpgCatalog.items[0]?.id ?? null),
+        }));
+    },
+    setFactPreview(factId, value) {
+        set((state) => {
+            const factPreviews = { ...state.factPreviews };
+            if (value === null) delete factPreviews[factId];
+            else factPreviews[factId] = value;
+            return { factPreviews };
+        });
+    },
     resetDraft() {
         set({
             document: baselineDocument,
@@ -510,15 +664,18 @@ export function viewerOf(state: {
     managesVanillaTooltipLines: boolean;
 }): PreviewViewer {
     const matchedProfile = matchedAssetProfile(state.document, state.packs);
-    // `loaded` can simulate acceptance without local assets, but it cannot manufacture an asset
-    // profile. Only an enabled binding whose declared SHA-1 matches the mounted archive may grant
-    // profile capabilities or a metrics revision.
+    // Pack acceptance and asset-profile identity are independent. Any mounted resource pack can
+    // supply glyph pixels, while only an exact enabled SHA-1 binding may grant capabilities or a
+    // metrics revision.
+    const mountedResourcePack = state.packs.some(
+        (slot) => slot.pack.kind === "resource-pack",
+    );
     const hasPack =
         state.packSimulation === "loaded"
             ? true
             : state.packSimulation === "none"
               ? false
-              : matchedProfile !== null;
+              : mountedResourcePack;
     const explicitProfile = state.assetProfileOverride
         ? (state.document.assetProfiles.find(
               (profile) => profile.id === state.assetProfileOverride,

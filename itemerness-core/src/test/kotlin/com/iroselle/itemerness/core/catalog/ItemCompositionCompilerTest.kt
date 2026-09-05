@@ -18,6 +18,10 @@ class ItemCompositionCompilerTest {
                 components = listOf(
                     component("minecraft:max_stack_size", integer(1)),
                     component("minecraft:max_damage", integer(900)),
+                    component(
+                        "minecraft:enchantments",
+                        compound("minecraft:efficiency" to integer(2)),
+                    ),
                     component("minecraft:damage", integer(12)),
                     component("minecraft:unbreakable", boolean(true)),
                     component("minecraft:enchantment_glint_override", boolean(false)),
@@ -41,8 +45,12 @@ class ItemCompositionCompilerTest {
         assertTrue(compilation.successful, compilation.diagnostics.toString())
         val definition = compilation.candidate!!.materialize(1)
             .findItem(ItemKey.parse("example:blade")) as CatalogItemDefinition
-        assertEquals(9, definition.baseComponents.size)
+        assertEquals(10, definition.baseComponents.size)
         assertEquals(BaseItemComponent.MaxDamage(900), definition.baseComponents.filterIsInstance<BaseItemComponent.MaxDamage>().single())
+        assertEquals(
+            mapOf(ItemKey.parse("minecraft:efficiency") to 2),
+            definition.baseComponents.filterIsInstance<BaseItemComponent.Enchantments>().single().levels,
+        )
         assertEquals(BaseItemComponent.Food(4, 1.5f, true), definition.baseComponents.filterIsInstance<BaseItemComponent.Food>().single())
     }
 
@@ -66,7 +74,7 @@ class ItemCompositionCompilerTest {
         assertFalse(compilation.successful)
         assertEquals(3, compilation.diagnostics.count { it.code == CatalogDiagnosticCode.INVALID_COMPONENT })
         assertTrue(compilation.diagnostics.any { "owned by Itemerness" in it.message })
-        assertTrue(compilation.diagnostics.any { "Unsupported base component" in it.message })
+        assertTrue(compilation.diagnostics.any { "Only an empty attribute modifier list" in it.message })
         assertTrue(compilation.diagnostics.any { "cannot be combined" in it.message })
     }
 

@@ -5,11 +5,7 @@ import {
     type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    componentTop,
-    PROFILE_26_1_2,
-    type TooltipGeometry,
-} from "@itemerness/mc-render";
+import { componentTop, type TooltipGeometry } from "@itemerness/mc-render";
 import type {
     ItemNode,
     LayoutNode,
@@ -95,16 +91,17 @@ export function CanvasOverlay({
     }, [inlineEdit]);
 
     const scale = guiScale;
-    const padding = PROFILE_26_1_2.paddingPixels;
-    const lineHeight = PROFILE_26_1_2.lineHeightPixels;
+    const profile = geometry.profile;
+    const contentOrigin = profile.paddingPixels + profile.spriteOutsetPixels;
+    const lineHeight = profile.lineHeightPixels;
 
     /** Geometry of tooltip component `componentIndex` (0 = name) in CSS pixels. */
     const lineBox = (componentIndex: number) => ({
-        top: (padding + componentTop(componentIndex)) * scale,
-        left: padding * scale,
+        top: (contentOrigin + componentTop(componentIndex, profile)) * scale,
+        left: contentOrigin * scale,
         width:
             (geometry.contentWidthPixels ||
-                geometry.totalWidthPixels - padding * 2) * scale,
+                geometry.totalWidthPixels - contentOrigin * 2) * scale,
         height: lineHeight * scale,
     });
 
@@ -188,7 +185,7 @@ export function CanvasOverlay({
                 <CanvasAnchors
                     layout={layout}
                     scale={scale}
-                    padding={padding}
+                    padding={contentOrigin}
                 />
             ) : null}
 

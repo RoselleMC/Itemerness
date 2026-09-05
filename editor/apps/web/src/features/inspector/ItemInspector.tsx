@@ -11,6 +11,7 @@ import { useEditorStore } from "../../state/store.js";
 import { humanizePath, resolveMessage } from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
 import type { PreviewBundle } from "../preview/usePreview.js";
+import { newUuid } from "../common/uuid.js";
 
 /**
  * The inspector: edit what the preview shows, in the words the preview shows it.
@@ -188,13 +189,13 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
         );
         const labelKey = hasShared
             ? sharedKey
-            : `item.${item.id}.label.${crypto.randomUUID().slice(0, 4)}`;
+            : `item.${item.id}.label.${newUuid().slice(0, 4)}`;
         if (!hasShared)
             store.setMessage(doc.defaultLocale, labelKey, humanizePath(path));
         updateBlocks((blocks) => [
             ...blocks,
             {
-                uuid: crypto.randomUUID(),
+                uuid: newUuid(),
                 type: "field",
                 labelMessage: labelKey,
                 data: dataKey,
@@ -209,7 +210,7 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
     };
 
     const addTextRow = () => {
-        const textKey = `item.${item.id}.text.${crypto.randomUUID().slice(0, 4)}`;
+        const textKey = `item.${item.id}.text.${newUuid().slice(0, 4)}`;
         store.setMessage(
             doc.defaultLocale,
             textKey,
@@ -218,7 +219,7 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
         updateBlocks((blocks) => [
             ...blocks,
             {
-                uuid: crypto.randomUUID(),
+                uuid: newUuid(),
                 type: "description",
                 message: textKey,
                 style: "description",
@@ -234,7 +235,7 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
             doc.viewerFacts[0];
         const dataKey = presentationKeys[0];
         if (!fact || !dataKey) return;
-        const textKey = `item.${item.id}.text.${crypto.randomUUID().slice(0, 4)}`;
+        const textKey = `item.${item.id}.text.${newUuid().slice(0, 4)}`;
         store.setMessage(
             doc.defaultLocale,
             textKey,
@@ -243,7 +244,7 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
         updateBlocks((blocks) => [
             ...blocks,
             {
-                uuid: crypto.randomUUID(),
+                uuid: newUuid(),
                 type: "conditional",
                 condition: {
                     operator: "GREATER_THAN_OR_EQUAL",
@@ -255,7 +256,7 @@ export function ItemInspector({ preview }: { preview: PreviewBundle }) {
                 },
                 thenBlocks: [
                     {
-                        uuid: crypto.randomUUID(),
+                        uuid: newUuid(),
                         type: "description",
                         message: textKey,
                         style: "description",

@@ -11,6 +11,7 @@ import com.iroselle.itemerness.core.catalog.BaseItemComponent
 import com.iroselle.itemerness.core.catalog.BaseItemComponentSource
 import com.iroselle.itemerness.core.catalog.CanonicalItemInstance
 import com.iroselle.itemerness.core.catalog.CatalogCompiler
+import com.iroselle.itemerness.core.catalog.CatalogItemDefinition
 import com.iroselle.itemerness.core.catalog.CatalogSource
 import com.iroselle.itemerness.core.catalog.InstanceIdGenerator
 import com.iroselle.itemerness.core.catalog.ItemContentSource
@@ -26,6 +27,32 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class BukkitCatalogItemFactoryTest {
+    @Test
+    fun `compiles an explicit empty vanilla attribute modifier override`() {
+        val source = CatalogSource(
+            schemas = emptyList(),
+            items = listOf(
+                item(
+                    id = "example:rpg-sword",
+                    mode = ItemInstanceMode.UNIQUE,
+                    components = listOf(
+                        BaseItemComponentSource(
+                            "minecraft:attribute_modifiers",
+                            SourceDataValue.ListValue(emptyList()),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val compilation = CatalogCompiler().compile(source)
+
+        assertTrue(compilation.successful, compilation.diagnostics.toString())
+        val definition = compilation.candidate!!.materialize(1)
+            .findItem(ItemKey.parse("example:rpg-sword")) as CatalogItemDefinition
+        assertEquals(listOf(BaseItemComponent.EmptyAttributeModifiers), definition.baseComponents)
+    }
+
     @Test
     fun `materializes canonical nested items and splits fungible child stacks`() {
         val source = CatalogSource(

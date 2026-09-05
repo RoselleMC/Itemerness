@@ -632,7 +632,9 @@ class RuntimeCatalogManagerTest {
                     .filter { it.isNotEmpty() && !it.startsWith('#') }
                     .toList()
             }
-        resources.forEach(::copyResource)
+        com.iroselle.itemerness.bukkit.TestResourcePaths.withProduction(resources)
+            .distinct()
+            .forEach(::copyResource)
     }
 
     private fun copyResource(path: String) {

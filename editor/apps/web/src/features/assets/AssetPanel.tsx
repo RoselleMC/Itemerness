@@ -6,8 +6,7 @@ import {
 } from "@itemerness/mc-assets";
 import { fontLibraryOf, useEditorStore } from "../../state/store.js";
 import { useDragReorder } from "../common/dragReorder.js";
-
-const VANILLA_VERSION = "26.1.2";
+import { fetchVanillaAssets, VANILLA_ASSET_VERSION } from "./vanillaAssets.js";
 
 /**
  * Mounting resource packs.
@@ -41,12 +40,12 @@ export function AssetPanel() {
     async function fetchVanilla() {
         setBusy(true);
         try {
-            const response = await fetch(
-                `/api/v1/vanilla-assets/${VANILLA_VERSION}/bundle`,
+            const bytes = await fetchVanillaAssets();
+            state.mountPack(
+                bytes,
+                `vanilla-${VANILLA_ASSET_VERSION}`,
+                "vanilla",
             );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            state.mountPack(bytes, `vanilla-${VANILLA_VERSION}`, "vanilla");
         } catch (error) {
             useEditorStore.setState({ mountError: (error as Error).message });
         } finally {
@@ -110,7 +109,9 @@ export function AssetPanel() {
                 disabled={busy}
                 data-testid="fetch-vanilla"
             >
-                {t("assets.fetchVanilla", { version: VANILLA_VERSION })}
+                {t("assets.fetchVanilla", {
+                    version: VANILLA_ASSET_VERSION,
+                })}
             </button>
             <p className="muted small">{t("assets.fetchVanillaHint")}</p>
 

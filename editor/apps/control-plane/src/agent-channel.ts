@@ -69,7 +69,14 @@ export class AgentRegistry {
     private generationCounter = 0;
     private requestCounter = 0;
 
-    constructor(private readonly pepper: string) {}
+    constructor(
+        private readonly pepper: string,
+        initialTokens: readonly AgentToken[] = [],
+    ) {
+        for (const token of initialTokens) {
+            this.tokens.set(token.lookupId, { ...token });
+        }
+    }
 
     /**
      * Issues a token. The plaintext is returned once and never stored; only a peppered digest is
@@ -114,6 +121,15 @@ export class AgentRegistry {
         return [...this.tokens.values()].map(
             ({ secretDigest: _ignored, ...rest }) => rest,
         );
+    }
+
+    tokenSnapshot(): readonly AgentToken[] {
+        return [...this.tokens.values()].map((token) => ({ ...token }));
+    }
+
+    /** Removes a just-issued token when durable storage fails before its plaintext is returned. */
+    discardToken(lookupId: string): void {
+        this.tokens.delete(lookupId);
     }
 
     authenticate(presented: string | undefined): AgentToken | null {

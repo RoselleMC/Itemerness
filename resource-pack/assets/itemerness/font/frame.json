@@ -1,0 +1,604 @@
+{
+    "providers": [
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue110"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue111"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue112"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue113"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue114"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue115"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue116"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue117"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue118"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue119"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/common/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue11a"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue11b"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue11c"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue11d"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue11e"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue11f"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue120"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue121"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue122"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue123"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue124"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/uncommon/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue125"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue126"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue127"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue128"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue129"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue12a"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue12b"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue12c"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue12d"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue12e"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue12f"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/rare/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue130"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue131"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue132"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue133"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue134"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue135"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue136"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue137"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue138"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue139"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue13a"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/unique/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue13b"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue13c"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue13d"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue13e"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue13f"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue140"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue141"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue142"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue143"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue144"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue145"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/legendary/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue146"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/top_left.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue147"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/top_fill.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue148"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/top_center.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue149"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/top_right.png",
+            "ascent": 19,
+            "height": 23,
+            "chars": [
+                "\ue14a"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/body_left.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue14b"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/body_fill.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue14c"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/body_right.png",
+            "ascent": 8,
+            "height": 10,
+            "chars": [
+                "\ue14d"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/bottom_left.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue14e"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/bottom_fill.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue14f"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/bottom_center.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue150"
+            ]
+        },
+        {
+            "type": "bitmap",
+            "file": "itemerness:font/frame/corruption/bottom_right.png",
+            "ascent": 8,
+            "height": 15,
+            "chars": [
+                "\ue151"
+            ]
+        },
+        {
+            "type": "space",
+            "advances": {
+                "\ue1ff": -1
+            }
+        }
+    ]
+}

@@ -10,11 +10,14 @@ import {
     contentHash,
     previewRequestSchema,
     projectDocumentSchema,
+    runoRpgCatalogItemCreateSchema,
+    runoRpgCatalogItemUpdateSchema,
     type Diagnostic,
     type ProjectDocument,
 } from "@itemerness/protocol";
 import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
 import { AgentRegistry } from "./agent-channel.js";
+import { AgentTokenStore } from "./agent-token-store.js";
 import { compilePreviewRequest } from "./preview-service.js";
 import {
     VanillaAssetError,
@@ -26,6 +29,15 @@ import {
     rejectBoundaryRequest,
     type OriginPolicy,
 } from "./request-security.js";
+import {
+    RunoRpgCatalogError,
+    RunoRpgCatalogService,
+} from "./runorpg-catalog.js";
+import { ServerResourcePackService } from "./server-resource-pack.js";
+import {
+    packIdFromSha1,
+    withServerResourcePackBinding,
+} from "./resource-pack-binding.js";
 
 /**
  * The control plane.
@@ -49,9 +61,10 @@ const repositoryRoot = resolve(
 const webRoot = resolve(
     process.env.ITEMERNESS_WEB_ROOT ?? join(here, "../../web/dist"),
 );
+const clientVersion = process.env.ITEMERNESS_CLIENT_VERSION ?? "1.21.11";
 const artifactPath = join(
     repositoryRoot,
-    "itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm",
+    `itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-${clientVersion}.ifm`,
 );
 const port = Number(process.env.PORT ?? 8080);
 const requestBoundary = createRequestBoundary(
@@ -71,13 +84,58 @@ const draft: DraftState = {
     revision: 1,
 };
 
-const vanilla = new VanillaAssetService(defaultVanillaOptions(repositoryRoot));
+/**
+ * Points the draft at the pack this deployment serves.
+ *
+ * Without it every `NATIVE_TOOLTIP_STYLE` theme falls back to character art, because the shipped
+ * document's binding is an all-zero placeholder that matches nothing. Doing it here rather than
+ * committing the values keeps a deployment-specific SHA-1 out of the fixture, and means the frames
+ * are correct on the very first page load instead of after someone remembers to run a script.
+ *
+ * Run at boot and again whenever the browser asks what pack is served — which is the request it
+ * makes immediately before mounting it. `/betterhud reload` rewrites the pack and changes its
+ * SHA-1, and a binding pinned at boot would quietly stop matching until the next restart.
+ */
+async function bindServerResourcePack(): Promise<void> {
+    const status = await serverResourcePack.status();
+    if (!status.available || !status.sha1) return;
+    const bound = withServerResourcePackBinding(draft.document, status.sha1);
+    if (bound === draft.document) return;
+    draft.document = bound;
+    draft.snapshotHash = contentHash(bound);
+    draft.revision += 1;
+    app.log.info(
+        { sha1: status.sha1, packId: packIdFromSha1(status.sha1) },
+        "bound the authoring document to the served resource pack",
+    );
+    broadcast({
+        type: "draft.updated",
+        snapshotHash: draft.snapshotHash,
+        revision: draft.revision,
+    });
+}
+
+const vanilla = new VanillaAssetService(
+    defaultVanillaOptions(repositoryRoot, clientVersion),
+);
+const runoRpgCatalog = new RunoRpgCatalogService({
+    catalogRoot: process.env.ITEMERNESS_CATALOG_ROOT ?? null,
+    attributesFile: process.env.RUNORPG_ATTRIBUTES_FILE ?? null,
+    snapshotFile: process.env.RUNORPG_EDITOR_SNAPSHOT ?? null,
+});
+const serverResourcePack = new ServerResourcePackService(
+    process.env.ITEMERNESS_RESOURCE_PACK ?? null,
+);
 
 // The pepper is what stops a stolen token table from being replayed. A generated value means a
 // restart invalidates outstanding tokens, which is correct for a dev deployment and wrong for a
 // real one; production sets it explicitly and backs it up with the database.
+const agentTokenStore = new AgentTokenStore(
+    process.env.ITEMERNESS_AGENT_TOKEN_STORE ?? null,
+);
 const agents = new AgentRegistry(
     process.env.ITEMERNESS_TOKEN_PEPPER ?? randomBytes(32).toString("hex"),
+    await agentTokenStore.load(),
 );
 
 let cachedArtifact: Buffer | null = null;
@@ -219,6 +277,109 @@ app.get("/api/v1/agent/status", async () => {
     };
 });
 
+app.get("/api/v1/runorpg/catalog", async (_request, reply) => {
+    const catalog = await runoRpgCatalog.catalog();
+    return reply
+        .header("cache-control", "no-store")
+        .code(catalog.available ? 200 : 503)
+        .send(catalog);
+});
+
+app.post("/api/v1/runorpg/catalog/item", async (request, reply) => {
+    const parsed = runoRpgCatalogItemCreateSchema.safeParse(request.body);
+    if (!parsed.success) {
+        return reply.code(400).send({
+            error: "invalid RunoRPG item create request",
+            issues: parsed.error.issues.slice(0, 32),
+        });
+    }
+    try {
+        const created = await runoRpgCatalog.create(parsed.data);
+        return reply
+            .code(201)
+            .header("cache-control", "no-store")
+            .send({
+                created: `runocraft:${created.localId}`,
+            });
+    } catch (error) {
+        if (error instanceof RunoRpgCatalogError) {
+            const status =
+                error.code === "conflict"
+                    ? 409
+                    : error.code === "invalid-source"
+                      ? 422
+                      : error.code === "read-only"
+                        ? 403
+                        : 503;
+            return reply.code(status).send({
+                error: error.code,
+                detail: error.message,
+            });
+        }
+        request.log.error({ err: error }, "RunoRPG catalog create failed");
+        return reply.code(500).send({ error: "catalog create failed" });
+    }
+});
+
+app.put("/api/v1/runorpg/catalog/item", async (request, reply) => {
+    const parsed = runoRpgCatalogItemUpdateSchema.safeParse(request.body);
+    if (!parsed.success) {
+        return reply.code(400).send({
+            error: "invalid RunoRPG item update",
+            issues: parsed.error.issues.slice(0, 32),
+        });
+    }
+    try {
+        const saved = await runoRpgCatalog.update(parsed.data);
+        return reply.header("cache-control", "no-store").send({
+            saved: saved.id,
+        });
+    } catch (error) {
+        if (error instanceof RunoRpgCatalogError) {
+            const status =
+                error.code === "conflict"
+                    ? 409
+                    : error.code === "not-found"
+                      ? 404
+                      : error.code === "invalid-source"
+                        ? 422
+                        : error.code === "read-only"
+                          ? 403
+                          : 503;
+            return reply.code(status).send({
+                error: error.code,
+                detail: error.message,
+            });
+        }
+        request.log.error({ err: error }, "RunoRPG catalog update failed");
+        return reply.code(500).send({ error: "catalog update failed" });
+    }
+});
+
+app.get(
+    "/api/v1/server-assets/resource-pack/status",
+    async (_request, reply) => {
+        const status = await serverResourcePack.status();
+        await bindServerResourcePack();
+        return reply.header("cache-control", "no-store").send(status);
+    },
+);
+
+app.get("/api/v1/server-assets/resource-pack", async (request, reply) => {
+    try {
+        const pack = await serverResourcePack.bytes();
+        return reply
+            .header("content-type", "application/zip")
+            .header("cache-control", "no-cache")
+            .header("etag", `"${pack.sha1}"`)
+            .header("x-itemerness-pack-name", encodeURIComponent(pack.name))
+            .send(pack.bytes);
+    } catch (error) {
+        request.log.warn({ err: error }, "server resource pack unavailable");
+        return reply.code(503).send({ error: (error as Error).message });
+    }
+});
+
 /**
  * Issues an agent token. The plaintext is returned exactly once.
  *
@@ -247,6 +408,12 @@ app.post("/api/v1/agent/tokens", async (request, reply) => {
         name: typeof body.name === "string" ? body.name : serverId,
         environment,
     });
+    try {
+        await agentTokenStore.save(agents.tokenSnapshot());
+    } catch (error) {
+        agents.discardToken(token.lookupId);
+        throw error;
+    }
     request.log.info(
         { lookupId: token.lookupId, serverId },
         "issued an agent token",
@@ -263,6 +430,7 @@ app.delete("/api/v1/agent/tokens/:lookupId", async (request, reply) => {
     const { lookupId } = request.params as { lookupId: string };
     if (!agents.revokeToken(lookupId))
         return reply.code(404).send({ error: "unknown token" });
+    await agentTokenStore.save(agents.tokenSnapshot());
     return { revoked: lookupId };
 });
 
@@ -298,7 +466,7 @@ app.post("/api/v1/preview", async (request, reply) => {
 
 app.get("/api/v1/font-metrics/:version", async (request, reply) => {
     const { version } = request.params as { version: string };
-    if (version !== "26.1.2")
+    if (version !== clientVersion)
         return reply.code(404).send({ error: "unknown metrics version" });
     const bytes = await fontMetricsArtifact();
     if (!bytes)
@@ -428,6 +596,8 @@ if (existsSync(webRoot)) {
 } else {
     app.log.warn({ webRoot }, "web bundle not found; serving API only");
 }
+
+await bindServerResourcePack();
 
 // Development stays loopback-only because this build has no human authentication. The container
 // explicitly sets HOST=0.0.0.0 and publishes it through a loopback-bound host port by default.

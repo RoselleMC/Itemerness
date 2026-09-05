@@ -1,9 +1,8 @@
 # Files copied into plugins/Itemerness on first enable.
 access.yml
-data-keys/common.yml
-viewer-facts/common.yml
+data-keys/storage.yml
+viewer-facts/runtime.yml
 formats/default.yml
-items/examples.yml
 layouts/plain.yml
 layouts/equipment.yml
 layouts/bitmap-canvas.yml
@@ -17,4 +16,3 @@ assets/glyphs.yml
 assets/bitmaps.yml
 locales/en_us.yml
 locales/zh_cn.yml
-examples/canonical-items.snbt

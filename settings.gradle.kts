@@ -38,6 +38,7 @@ dependencyResolutionManagement {
 rootProject.name = "Itemerness"
 
 include("itemerness-api")
+include("itemerness-bukkit-api")
 include("itemerness-core")
 include("itemerness-projection-spi")
 include("itemerness-bukkit-spi")

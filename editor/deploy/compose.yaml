@@ -19,6 +19,15 @@ services:
       DATABASE_URL: postgres://itemerness:${POSTGRES_PASSWORD:-change-me}@postgres:5432/itemerness
       # Set to false for air-gapped installs. The browser can still mount a client jar by hand.
       ITEMERNESS_ALLOW_ASSET_FETCH: ${ITEMERNESS_ALLOW_ASSET_FETCH:-true}
+      ITEMERNESS_CLIENT_VERSION: ${ITEMERNESS_CLIENT_VERSION:-1.21.11}
+      ITEMERNESS_CATALOG_ROOT: /data/itemerness
+      # RunoRPG writes this snapshot itself; it is the authoritative source for attributes,
+      # item kinds and the MythicMobs skill index. The attribute script below stays only as a
+      # fallback for deployments that have not mounted the snapshot yet.
+      RUNORPG_EDITOR_SNAPSHOT: /data/runorpg-editor-snapshot.json
+      RUNORPG_ATTRIBUTES_FILE: /data/runorpg-attributes.kts
+      ITEMERNESS_RESOURCE_PACK: /data/server-resource-pack.zip
+      ITEMERNESS_AGENT_TOKEN_STORE: /data/agent-state/tokens.json
       # Pepper for agent-token digests. A stolen token table is useless without it, and a
       # changed value invalidates every issued token, so it belongs in backups.
       ITEMERNESS_TOKEN_PEPPER: ${ITEMERNESS_TOKEN_PEPPER:?set a generated 32-byte hex value}
@@ -31,6 +40,13 @@ services:
     volumes:
       # Content-addressed Mojang asset cache. Safe to delete; it is rebuilt on demand.
       - vanilla-cache:/data/vanilla-cache
+      - agent-state:/data/agent-state
+      # The catalog is writable because editor saves are atomic and backed up beside it. The
+      # attribute script and generated BetterHud pack are inputs and stay read-only.
+      - ${ITEMERNESS_CATALOG_HOST_PATH:?set the Itemerness plugin data path}:/data/itemerness
+      - ${RUNORPG_EDITOR_SNAPSHOT_HOST_FILE:-/dev/null}:/data/runorpg-editor-snapshot.json:ro
+      - ${RUNORPG_ATTRIBUTES_HOST_FILE:?set the RunoRPG attribute script path}:/data/runorpg-attributes.kts:ro
+      - ${ITEMERNESS_RESOURCE_PACK_HOST_FILE:?set the generated server resource pack path}:/data/server-resource-pack.zip:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,5 +73,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  agent-state:
   vanilla-cache:
   postgres-data:

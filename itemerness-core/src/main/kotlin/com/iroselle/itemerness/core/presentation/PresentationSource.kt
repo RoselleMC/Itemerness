@@ -319,6 +319,17 @@ data class FrameRowSource(
     val left: String,
     val fill: String,
     val right: String,
+    /**
+     * Ornament held at the row's centre, with [fill] splitting around it. Null keeps the row the
+     * plain three-piece `left + fill + right`.
+     */
+    val center: String? = null,
+    /**
+     * Appended after every piece. A Minecraft bitmap glyph always advances one pixel past its ink,
+     * so without a -1px kern each seam leaves a gap and the frame's highlight line reads as a dashed
+     * line. The kern belongs to the same font as the pieces, which keeps a row a single styled run.
+     */
+    val kern: String? = null,
 )
 
 data class SegmentedFrameSource(

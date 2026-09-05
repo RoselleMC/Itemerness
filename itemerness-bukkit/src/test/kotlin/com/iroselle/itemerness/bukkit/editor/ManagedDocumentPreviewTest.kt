@@ -45,7 +45,7 @@ class ManagedDocumentPreviewTest {
     }
 
     private val bridge = CompilerBridge(
-        BundledBuiltinFontMetrics(BuiltinFontMetricsLoader.bundled("26.1.2")),
+        BundledBuiltinFontMetrics(BuiltinFontMetricsLoader.bundled("1.21.11")),
         agentVersion = "test",
     )
 

@@ -9,7 +9,7 @@ import { unzipSync, zipSync } from "fflate";
  *
  * Mojang assets are not redistributed with this project, so the control plane fetches them on
  * demand from the official CDN using the URLs and digests pinned in
- * `tools/font-metrics/26.1.2.sources.json` — the same manifest the metrics artifact was generated
+ * `tools/font-metrics/<version>.sources.json` — the same manifest the metrics artifact was generated
  * from. Every download is SHA-1 verified against that manifest before anything is cached or
  * served, so a poisoned mirror cannot quietly change a glyph advance.
  *
@@ -32,6 +32,8 @@ const EXTRA_PREFIXES = [
     "assets/minecraft/models/item/",
     "assets/minecraft/models/block/",
     "assets/minecraft/items/",
+    "assets/minecraft/lang/en_us.json",
+    "assets/minecraft/lang/zh_cn.json",
 ];
 
 const sha1 = (bytes: Uint8Array) =>
@@ -56,7 +58,9 @@ function requireSha1(label: string, bytes: Uint8Array, expected: string): void {
 }
 
 export interface VanillaAssetOptions {
-    /** Where `26.1.2.sources.json` lives, relative to the repository root. */
+    /** Minecraft client version selected by this deployment. */
+    readonly clientVersion: string;
+    /** Where the matching source manifest lives, relative to the repository root. */
     readonly manifestPath: string;
     /** Directory for the derived bundle. Ephemeral container disks are fine; it is a cache. */
     readonly cacheDirectory: string;
@@ -70,7 +74,10 @@ export class VanillaAssetService {
     constructor(private readonly options: VanillaAssetOptions) {}
 
     private get bundlePath(): string {
-        return resolve(this.options.cacheDirectory, "vanilla-bundle.zip");
+        return resolve(
+            this.options.cacheDirectory,
+            `vanilla-${this.options.clientVersion}.zip`,
+        );
     }
 
     async manifest(): Promise<SourceManifest> {
@@ -78,6 +85,11 @@ export class VanillaAssetService {
         const manifest = JSON.parse(raw) as SourceManifest;
         if (manifest.schemaVersion !== 1)
             throw new VanillaAssetError("Unsupported font source manifest");
+        if (manifest.clientVersion !== this.options.clientVersion) {
+            throw new VanillaAssetError(
+                `Asset manifest is for ${manifest.clientVersion}, expected ${this.options.clientVersion}`,
+            );
+        }
         return manifest;
     }
 
@@ -169,11 +181,13 @@ export class VanillaAssetService {
 
 export function defaultVanillaOptions(
     repositoryRoot: string,
+    clientVersion: string,
 ): VanillaAssetOptions {
     return {
+        clientVersion,
         manifestPath: join(
             repositoryRoot,
-            "tools/font-metrics/26.1.2.sources.json",
+            `tools/font-metrics/${clientVersion}.sources.json`,
         ),
         cacheDirectory:
             process.env.ITEMERNESS_ASSET_CACHE ??

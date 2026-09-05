@@ -64,7 +64,9 @@ internal data class NmsProjectionLimits(
             componentNodes = 4_096,
             payloadNodes = 8_192,
             itemDepth = 16,
-            items = 256,
+            // Initial recipe-book packets legitimately contain hundreds or thousands of item
+            // slots. Keep the packet bounded without treating a normal vanilla registry as hostile.
+            items = 8_192,
             nestedComponents = 1_024,
             codecCalls = 512,
             bundleDepth = 8,

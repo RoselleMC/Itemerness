@@ -59,6 +59,40 @@ const capabilities = {
 };
 
 describe("AgentRegistry connection fencing", () => {
+    it("restores a persisted token digest without retaining its plaintext", () => {
+        const first = new AgentRegistry("test-pepper");
+        const issued = first.issueToken({
+            serverId: "srv_test",
+            name: "Test server",
+            environment: "production",
+        });
+        const restored = new AgentRegistry(
+            "test-pepper",
+            first.tokenSnapshot(),
+        );
+
+        expect(restored.authenticate(issued.plaintext)?.serverId).toBe(
+            "srv_test",
+        );
+        expect(JSON.stringify(restored.tokenSnapshot())).not.toContain(
+            issued.plaintext,
+        );
+    });
+
+    it("can discard a token whose durable save failed", () => {
+        const registry = new AgentRegistry("test-pepper");
+        const issued = registry.issueToken({
+            serverId: "srv_test",
+            name: "Test server",
+            environment: "production",
+        });
+
+        registry.discardToken(issued.token.lookupId);
+
+        expect(registry.authenticate(issued.plaintext)).toBeNull();
+        expect(registry.tokenSnapshot()).toEqual([]);
+    });
+
     it("accepts only the JVM preview-only capability document during hello", () => {
         const registry = new AgentRegistry("test-pepper");
         const socket = register(registry);

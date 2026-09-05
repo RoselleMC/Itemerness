@@ -340,6 +340,17 @@ const frameRowSchema = z.object({
     left: z.string().min(1).max(128),
     fill: z.string().min(1).max(128),
     right: z.string().min(1).max(128),
+    /**
+     * Ornament held at the row's centre, with `fill` splitting around it. Null keeps the row the
+     * plain three-piece `left + fill + right`.
+     */
+    center: z.string().min(1).max(128).nullable().default(null),
+    /**
+     * Appended after every piece. A Minecraft bitmap glyph always advances one pixel past its ink,
+     * so without a -1px kern each seam leaves a gap and the frame's highlight line reads as a dashed
+     * line. The kern belongs to the same font as the pieces, which keeps a row a single styled run.
+     */
+    kern: z.string().min(1).max(128).nullable().default(null),
 });
 
 export const themeNodeSchema = z.object({

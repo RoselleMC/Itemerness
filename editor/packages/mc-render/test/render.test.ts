@@ -29,12 +29,12 @@ import { parseColor, shadowColor } from "../src/colors.js";
 
 const ARTIFACT_PATH = fileURLToPath(
     new URL(
-        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm",
+        "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-1.21.11.ifm",
         import.meta.url,
     ),
 );
 const BUNDLE_PATH = fileURLToPath(
-    new URL("../../../vanilla-cache/vanilla-26.1.2.zip", import.meta.url),
+    new URL("../../../vanilla-cache/vanilla-1.21.11.zip", import.meta.url),
 );
 
 const artifact = readFontMetricsArtifact(
@@ -163,8 +163,8 @@ describe("measureLine", () => {
     });
 
     it("reaches an exact width anchor through the spacing provider", () => {
-        expect(metricsOnlyFonts.spacingCodePoint(134)).toBe(0xf0100 + 133);
-        expect(metricsOnlyFonts.spacingAdvance(0xf0100 + 133)).toBe(134);
+        expect(metricsOnlyFonts.spacingCodePoint(134)).toBe(0xe400 + 133);
+        expect(metricsOnlyFonts.spacingAdvance(0xe400 + 133)).toBe(134);
         expect(metricsOnlyFonts.spacingCodePoint(0)).toBeNull();
         expect(metricsOnlyFonts.spacingCodePoint(9999)).toBeNull();
     });
@@ -295,7 +295,7 @@ describe("wrapRuns", () => {
 });
 
 describe("tooltip geometry", () => {
-    it("uses the audited 26.1.2 line metrics", () => {
+    it("uses the audited 1.21.11 line metrics", () => {
         expect(componentTop(0)).toBe(0);
         // The client inserts two pixels between the name and the first lore line.
         expect(componentTop(1)).toBe(12);
@@ -304,7 +304,7 @@ describe("tooltip geometry", () => {
         expect(contentHeight(2)).toBe(20);
     });
 
-    it("takes tooltip width from the widest component and pads by three", () => {
+    it("adds the 1.21.11 content padding and sprite outset", () => {
         const lines: PreviewLine[] = [
             {
                 runs: [run("Ember Blade")],
@@ -325,9 +325,13 @@ describe("tooltip geometry", () => {
                 ),
             ),
         );
-        expect(geometry.totalWidthPixels).toBe(geometry.contentWidthPixels + 6);
+        expect(geometry.profile.paddingPixels).toBe(3);
+        expect(geometry.profile.spriteOutsetPixels).toBe(9);
+        expect(geometry.totalWidthPixels).toBe(
+            geometry.contentWidthPixels + 24,
+        );
         expect(geometry.totalHeightPixels).toBe(
-            geometry.contentHeightPixels + 6,
+            geometry.contentHeightPixels + 24,
         );
     });
 
@@ -637,5 +641,55 @@ describe.skipIf(!existsSync(BUNDLE_PATH))("with mounted vanilla assets", () => {
             measureText("余", mountedFonts, plainStyle).glyphs[0]!.glyph.raster
                 ?.kind,
         ).toBe("unihex");
+    });
+
+    it("keeps mounted Chinese tooltip glyphs within measured bounds", () => {
+        const texts = [
+            "港口旅行凭证",
+            "区域 港口",
+            "次数 3",
+            "前往记录区域时消耗。",
+        ];
+        const lines = texts.map((text) => {
+            const measured = measureText(text, mountedFonts, plainStyle);
+            return {
+                runs: [...measured.runs],
+                logicalWidthPixels: measured.logicalWidthPixels,
+                visualBounds: measured.visualBounds,
+            };
+        });
+        const geometry = layoutTooltip(lines, mountedFonts);
+
+        expect(lines.at(-1)!.logicalWidthPixels).toBe(90);
+        expect(geometry.totalWidthPixels).toBe(114);
+        expect(geometry.inkOutsideBackground).toBe(false);
+        for (const component of geometry.components) {
+            expect(component.line.visualBounds.left).toBeGreaterThanOrEqual(
+                -geometry.profile.paddingPixels,
+            );
+            expect(component.line.visualBounds.right).toBeLessThanOrEqual(
+                geometry.contentWidthPixels + geometry.profile.paddingPixels,
+            );
+            expect(component.line.missingRaster).toBe(false);
+        }
+    });
+
+    it("wraps mounted Chinese text without crossing the requested width", () => {
+        const lines = wrapRuns(
+            [run("记录本次远征发现的地标、路线和尚未完成的观察。")],
+            mountedFonts,
+            {
+                widthPixels: 60,
+                maximumLines: 12,
+                overflow: "ELLIPSIS",
+            },
+        );
+
+        expect(lines.length).toBeGreaterThan(2);
+        for (const line of lines) {
+            expect(line.logicalWidthPixels).toBeLessThanOrEqual(60);
+            expect(line.missingMetrics).toBe(false);
+            expect(line.missingRaster).toBe(false);
+        }
     });
 });

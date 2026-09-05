@@ -112,18 +112,426 @@ glyphs:
     advance-pixels: 16
     visual-bounds: {left: 0, right: 16, top: -16, bottom: 0}
 
+  # Epic Tooltip frame pieces, cut by tools/slice-epic-tooltip.py.
+  # Advances are ink+1 because that is what Minecraft gives a bitmap glyph; the kern at the
+  # end of this block cancels that pixel so the pieces tile without a seam.
+  frame.common.top-left:
+    font: itemerness:frame
+    codepoint: U+E110
+    bitmap: frame.common.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.common.top-fill:
+    font: itemerness:frame
+    codepoint: U+E111
+    bitmap: frame.common.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.common.top-center:
+    font: itemerness:frame
+    codepoint: U+E112
+    bitmap: frame.common.top-center
+    advance-pixels: 38
+    visual-bounds: {left: 0, right: 37, top: -19, bottom: 4}
+  frame.common.top-right:
+    font: itemerness:frame
+    codepoint: U+E113
+    bitmap: frame.common.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.common.body-left:
+    font: itemerness:frame
+    codepoint: U+E114
+    bitmap: frame.common.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.common.body-fill:
+    font: itemerness:frame
+    codepoint: U+E115
+    bitmap: frame.common.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.common.body-right:
+    font: itemerness:frame
+    codepoint: U+E116
+    bitmap: frame.common.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.common.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E117
+    bitmap: frame.common.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.common.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E118
+    bitmap: frame.common.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.common.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E119
+    bitmap: frame.common.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.common.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E11A
+    bitmap: frame.common.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.uncommon.top-left:
+    font: itemerness:frame
+    codepoint: U+E11B
+    bitmap: frame.uncommon.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.uncommon.top-fill:
+    font: itemerness:frame
+    codepoint: U+E11C
+    bitmap: frame.uncommon.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.uncommon.top-center:
+    font: itemerness:frame
+    codepoint: U+E11D
+    bitmap: frame.uncommon.top-center
+    advance-pixels: 36
+    visual-bounds: {left: 0, right: 35, top: -19, bottom: 4}
+  frame.uncommon.top-right:
+    font: itemerness:frame
+    codepoint: U+E11E
+    bitmap: frame.uncommon.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.uncommon.body-left:
+    font: itemerness:frame
+    codepoint: U+E11F
+    bitmap: frame.uncommon.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.uncommon.body-fill:
+    font: itemerness:frame
+    codepoint: U+E120
+    bitmap: frame.uncommon.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.uncommon.body-right:
+    font: itemerness:frame
+    codepoint: U+E121
+    bitmap: frame.uncommon.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.uncommon.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E122
+    bitmap: frame.uncommon.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.uncommon.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E123
+    bitmap: frame.uncommon.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.uncommon.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E124
+    bitmap: frame.uncommon.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.uncommon.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E125
+    bitmap: frame.uncommon.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.rare.top-left:
+    font: itemerness:frame
+    codepoint: U+E126
+    bitmap: frame.rare.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.rare.top-fill:
+    font: itemerness:frame
+    codepoint: U+E127
+    bitmap: frame.rare.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.rare.top-center:
+    font: itemerness:frame
+    codepoint: U+E128
+    bitmap: frame.rare.top-center
+    advance-pixels: 52
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.rare.top-right:
+    font: itemerness:frame
+    codepoint: U+E129
+    bitmap: frame.rare.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.rare.body-left:
+    font: itemerness:frame
+    codepoint: U+E12A
+    bitmap: frame.rare.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.rare.body-fill:
+    font: itemerness:frame
+    codepoint: U+E12B
+    bitmap: frame.rare.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.rare.body-right:
+    font: itemerness:frame
+    codepoint: U+E12C
+    bitmap: frame.rare.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.rare.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E12D
+    bitmap: frame.rare.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.rare.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E12E
+    bitmap: frame.rare.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.rare.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E12F
+    bitmap: frame.rare.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.rare.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E130
+    bitmap: frame.rare.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.unique.top-left:
+    font: itemerness:frame
+    codepoint: U+E131
+    bitmap: frame.unique.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.unique.top-fill:
+    font: itemerness:frame
+    codepoint: U+E132
+    bitmap: frame.unique.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.unique.top-center:
+    font: itemerness:frame
+    codepoint: U+E133
+    bitmap: frame.unique.top-center
+    advance-pixels: 52
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.unique.top-right:
+    font: itemerness:frame
+    codepoint: U+E134
+    bitmap: frame.unique.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.unique.body-left:
+    font: itemerness:frame
+    codepoint: U+E135
+    bitmap: frame.unique.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.unique.body-fill:
+    font: itemerness:frame
+    codepoint: U+E136
+    bitmap: frame.unique.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.unique.body-right:
+    font: itemerness:frame
+    codepoint: U+E137
+    bitmap: frame.unique.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.unique.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E138
+    bitmap: frame.unique.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.unique.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E139
+    bitmap: frame.unique.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.unique.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E13A
+    bitmap: frame.unique.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.unique.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E13B
+    bitmap: frame.unique.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.legendary.top-left:
+    font: itemerness:frame
+    codepoint: U+E13C
+    bitmap: frame.legendary.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.legendary.top-fill:
+    font: itemerness:frame
+    codepoint: U+E13D
+    bitmap: frame.legendary.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.legendary.top-center:
+    font: itemerness:frame
+    codepoint: U+E13E
+    bitmap: frame.legendary.top-center
+    advance-pixels: 64
+    visual-bounds: {left: 0, right: 63, top: -19, bottom: 4}
+  frame.legendary.top-right:
+    font: itemerness:frame
+    codepoint: U+E13F
+    bitmap: frame.legendary.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.legendary.body-left:
+    font: itemerness:frame
+    codepoint: U+E140
+    bitmap: frame.legendary.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.legendary.body-fill:
+    font: itemerness:frame
+    codepoint: U+E141
+    bitmap: frame.legendary.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.legendary.body-right:
+    font: itemerness:frame
+    codepoint: U+E142
+    bitmap: frame.legendary.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.legendary.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E143
+    bitmap: frame.legendary.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.legendary.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E144
+    bitmap: frame.legendary.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.legendary.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E145
+    bitmap: frame.legendary.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.legendary.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E146
+    bitmap: frame.legendary.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.corruption.top-left:
+    font: itemerness:frame
+    codepoint: U+E147
+    bitmap: frame.corruption.top-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.corruption.top-fill:
+    font: itemerness:frame
+    codepoint: U+E148
+    bitmap: frame.corruption.top-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -19, bottom: 4}
+  frame.corruption.top-center:
+    font: itemerness:frame
+    codepoint: U+E149
+    bitmap: frame.corruption.top-center
+    advance-pixels: 52
+    visual-bounds: {left: 0, right: 51, top: -19, bottom: 4}
+  frame.corruption.top-right:
+    font: itemerness:frame
+    codepoint: U+E14A
+    bitmap: frame.corruption.top-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -19, bottom: 4}
+  frame.corruption.body-left:
+    font: itemerness:frame
+    codepoint: U+E14B
+    bitmap: frame.corruption.body-left
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.corruption.body-fill:
+    font: itemerness:frame
+    codepoint: U+E14C
+    bitmap: frame.corruption.body-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 2}
+  frame.corruption.body-right:
+    font: itemerness:frame
+    codepoint: U+E14D
+    bitmap: frame.corruption.body-right
+    advance-pixels: 3
+    visual-bounds: {left: 0, right: 2, top: -8, bottom: 2}
+  frame.corruption.bottom-left:
+    font: itemerness:frame
+    codepoint: U+E14E
+    bitmap: frame.corruption.bottom-left
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+  frame.corruption.bottom-fill:
+    font: itemerness:frame
+    codepoint: U+E14F
+    bitmap: frame.corruption.bottom-fill
+    advance-pixels: 2
+    visual-bounds: {left: 0, right: 1, top: -8, bottom: 7}
+  frame.corruption.bottom-center:
+    font: itemerness:frame
+    codepoint: U+E150
+    bitmap: frame.corruption.bottom-center
+    advance-pixels: 16
+    visual-bounds: {left: 0, right: 15, top: -8, bottom: 7}
+  frame.corruption.bottom-right:
+    font: itemerness:frame
+    codepoint: U+E151
+    bitmap: frame.corruption.bottom-right
+    advance-pixels: 27
+    visual-bounds: {left: 0, right: 26, top: -8, bottom: 7}
+
+  # Pulls the cursor back over the pixel Minecraft adds past a bitmap glyph's ink. Lives in
+  # itemerness:frame rather than itemerness:spacing so a frame row stays a single run.
+  frame.kern.minus-one:
+    font: itemerness:frame
+    codepoint: U+E1FF
+    advance-pixels: -1
+    visual-bounds: {left: 0, right: 0, top: 0, bottom: 0}
+
 spacing:
   negative:
     font: itemerness:spacing
     codepoint-range:
-      first: U+F0000
-      last: U+F00FF
+      first: U+E300
+      last: U+E3FF
     minimum-advance-pixels: -256
     maximum-advance-pixels: -1
   positive:
     font: itemerness:spacing
     codepoint-range:
-      first: U+F0100
-      last: U+F01FF
+      first: U+E400
+      last: U+E4FF
     minimum-advance-pixels: 1
     maximum-advance-pixels: 256
