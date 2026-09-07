@@ -4,16 +4,20 @@ config-version: 3
 catalog:
   default-namespace: itemerness
 
-# Web editor pairing. Leave both empty to disable the editor agent; set both to
-# enable server-verified previews. Managed publication is not available yet.
-# Setting only one is a configuration error rather than a silent fallback. The
-# plugin dials out over TLS, so no inbound port is needed.
-# Changing either pairing value while the server is running requires a restart.
-# A ${ENV_NAME} value is read from the environment, which keeps the token out of
-# this file. Tokens are never logged, exported, or returned in diagnostics.
+# The desktop editor connects to this plugin's HTTP API. Disabled by default.
+# Empty token disables token authentication: anyone who can reach the API can edit drafts.
+# Restrict access to trusted networks. To require authentication, use a random token
+# of at least 32 characters, or ${ENV_NAME}.
+# Listen on all IPv4 interfaces; connect using this server's IP address and API port.
+# HTTP is unencrypted. Use HTTPS through a TLS proxy on untrusted networks.
+# All editor settings require a restart. Draft saves do not publish the catalog.
+# Browser development needs exact allowed origins; the native app does not use CORS.
 editor:
-  url: ""
+  enabled: false
+  bind-host: "0.0.0.0"
+  port: 18087
   token: ""
+  allowed-origins: []
 
 # Canonical state is always direct NBT under minecraft:custom_data.itemerness.
 # Canonical Lore is always empty. These invariants are intentionally not configurable.

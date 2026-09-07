@@ -108,6 +108,22 @@ describe.skipIf(!bundleAvailable)("vanilla asset cross-check", () => {
         expect(han.raster!.scale).toBe(0.5);
     });
 
+    it("shares the common Unifont provider between font families and reuses decoded tooltip sprites", () => {
+        const common = 0x4f59;
+        expect(library.get("minecraft:default").glyphs.get(common)).toBe(
+            library.get("minecraft:uniform").glyphs.get(common),
+        );
+        expect(
+            new FontLibrary(new PackStack(stack.packs))
+                .get("minecraft:uniform")
+                .glyphs.get(common),
+        ).toBe(library.get("minecraft:uniform").glyphs.get(common));
+        expect(loadSprite(stack, VANILLA_TOOLTIP_SPRITES.frame)).toBe(
+            loadSprite(stack, VANILLA_TOOLTIP_SPRITES.frame),
+        );
+        expect(loadSprite(stack, "missing:tooltip/frame")).toBeNull();
+    });
+
     it("reads the vanilla tooltip sprites with their nine-slice metadata", () => {
         const background = loadSprite(
             stack,

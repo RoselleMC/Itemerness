@@ -8,21 +8,31 @@
         "build": "vite build",
         "preview": "vite preview",
         "e2e": "playwright test",
-        "e2e:ui": "playwright test --ui"
+        "e2e:ui": "playwright test --ui",
+        "desktop:dev": "tauri dev",
+        "desktop:build": "node scripts/portable.mjs",
+        "test:portable": "node --test scripts/portable.test.mjs"
     },
     "dependencies": {
+        "@base-ui/react": "1.8.0",
         "@itemerness/mc-assets": "workspace:*",
         "@itemerness/mc-render": "workspace:*",
         "@itemerness/protocol": "workspace:*",
+        "@tauri-apps/api": "^2.8.0",
+        "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
+        "fflate": "^0.8.2",
         "i18next": "^24.2.3",
         "i18next-browser-languagedetector": "^8.0.4",
+        "lucide-react": "^0.468.0",
         "react": "^19.1.0",
+        "react-colorful": "5.6.1",
         "react-dom": "^19.1.0",
         "react-i18next": "^15.5.1",
         "zustand": "^5.0.4"
     },
     "devDependencies": {
         "@playwright/test": "^1.52.0",
+        "@tauri-apps/cli": "^2.8.0",
         "@types/react": "^19.1.2",
         "@types/react-dom": "^19.1.2",
         "@vitejs/plugin-react": "^4.4.1",

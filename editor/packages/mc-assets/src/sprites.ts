@@ -88,6 +88,34 @@ export function loadSprite(
     stack: PackStack,
     spriteLocation: string,
 ): Sprite | null {
+    let cache = spriteCaches.get(stack);
+    if (!cache) {
+        cache = { entries: new Map(), bytes: 0 };
+        spriteCaches.set(stack, cache);
+    }
+    if (cache.entries.has(spriteLocation))
+        return cache.entries.get(spriteLocation)!;
+    const sprite = readSprite(stack, spriteLocation);
+    const bytes = sprite?.image.data.byteLength ?? 0;
+    if (bytes <= MAX_CACHED_BYTES) {
+        cache.entries.set(spriteLocation, sprite);
+        cache.bytes += bytes;
+        while (cache.entries.size > 64 || cache.bytes > MAX_CACHED_BYTES) {
+            const key = cache.entries.keys().next().value!;
+            cache.bytes -= cache.entries.get(key)?.image.data.byteLength ?? 0;
+            cache.entries.delete(key);
+        }
+    }
+    return sprite;
+}
+
+const MAX_CACHED_BYTES = 16 * 1024 * 1024;
+const spriteCaches = new WeakMap<
+    PackStack,
+    { entries: Map<string, Sprite | null>; bytes: number }
+>();
+
+function readSprite(stack: PackStack, spriteLocation: string): Sprite | null {
     const location = parseLocation(spriteLocation);
     const texturePath = assetPath(
         {

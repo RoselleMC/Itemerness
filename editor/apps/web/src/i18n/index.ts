@@ -19,7 +19,7 @@ import zhFidelity from "./locales/zh-CN/fidelity.json";
  * - *content* strings — item names, lore, format suffixes — live in the project document's locale
  *   nodes, are edited in the locale matrix, and follow the previewed player's language.
  *
- * Diagnostics arrive from the control plane and the agent as a `messageKey` plus typed `params`
+ * Diagnostics arrive from the plugin API as a `messageKey` plus typed `params`
  * and are rendered through the `diagnostics` namespace here, so a Chinese editor never receives an
  * English sentence assembled on a server.
  */

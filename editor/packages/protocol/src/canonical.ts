@@ -3,7 +3,7 @@ import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex } from "@noble/hashes/utils";
 
 /**
- * Deterministic serialization, shared by the browser, the control plane, and the JVM agent.
+ * Deterministic serialization, shared by the desktop/browser client and the JVM plugin API.
  *
  * Two sides must be able to hash the same document and get the same string, otherwise the
  * snapshot fence that stops a late preview from overwriting a newer draft becomes a coin flip.

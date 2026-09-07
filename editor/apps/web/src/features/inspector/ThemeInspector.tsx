@@ -1,7 +1,13 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { NAMED_COLORS, parseColor } from "@itemerness/mc-render";
 import { useEditorStore } from "../../state/store.js";
 import { humanizePath } from "../common/messages.js";
+import { SelectField } from "../common/SelectField.js";
+import { ColorWell } from "../common/ColorWell.js";
+import { describeContext } from "../../state/interface.js";
+import { copyAction, relatedItems } from "../common/contextActions.js";
+import { Bold, Italic } from "lucide-react";
 
 /**
  * Theme editing, with the stage as the colour proof.
@@ -29,7 +35,11 @@ function toHex(color: string | null): string {
     return `#${parsed.toString(16).padStart(6, "0")}`;
 }
 
-export function ThemeInspector() {
+export function ThemeInspector({
+    previewSettings,
+}: {
+    previewSettings?: ReactNode;
+}) {
     const { t } = useTranslation();
     const store = useEditorStore();
     const doc = store.document;
@@ -71,7 +81,24 @@ export function ThemeInspector() {
     };
 
     return (
-        <aside className="inspector" aria-label={t("inspector.theme.heading")}>
+        <aside
+            className="inspector"
+            aria-label={t("inspector.theme.heading")}
+            onContextMenu={(event) =>
+                describeContext(event, {
+                    label: theme.id,
+                    items: [
+                        copyAction("copy-id", t("menus.copyId"), theme.id),
+                        relatedItems(
+                            doc.items.filter(
+                                (item) => item.presentation.theme === theme.id,
+                            ),
+                            t,
+                        ),
+                    ],
+                })
+            }
+        >
             <section>
                 <h3>{t("inspector.theme.heading")}</h3>
                 <p className="library-title">
@@ -95,15 +122,17 @@ export function ThemeInspector() {
                 <div className="color-rows">
                     {roles.map((role) => (
                         <label key={role} className="color-row">
-                            <input
-                                type="color"
+                            <ColorWell
+                                label={`${t("inspector.theme.colors")}: ${roleLabel(role)}`}
+                                owner={`${theme.uuid}:${role}`}
                                 value={toHex(theme.styles[role]?.color ?? null)}
-                                onChange={(event) =>
+                                onValueChange={(value) =>
                                     setStyle(role, {
-                                        color: event.target.value,
+                                        color: value,
                                     })
                                 }
-                                data-testid={`color-${role}`}
+                                onClear={() => setStyle(role, { color: null })}
+                                id={`color-${role}`}
                             />
                             <span>{roleLabel(role)}</span>
                             <span className="dim small">
@@ -121,8 +150,9 @@ export function ThemeInspector() {
                                         })
                                     }
                                     aria-label={t("inspector.theme.bold")}
+                                    data-tooltip={t("inspector.theme.bold")}
                                 >
-                                    B
+                                    <Bold size={14} />
                                 </button>
                                 <button
                                     type="button"
@@ -135,8 +165,9 @@ export function ThemeInspector() {
                                         })
                                     }
                                     aria-label={t("inspector.theme.italic")}
+                                    data-tooltip={t("inspector.theme.italic")}
                                 >
-                                    <em>I</em>
+                                    <Italic size={14} />
                                 </button>
                             </span>
                         </label>
@@ -149,51 +180,51 @@ export function ThemeInspector() {
                 {Object.entries(theme.fonts).map(([role, fontId]) => (
                     <label key={role} className="field-inline">
                         {humanizePath(role)}
-                        <select
+                        <SelectField
+                            label={`${t("inspector.theme.fonts")}: ${humanizePath(role)}`}
                             value={fontId}
-                            onChange={(event) =>
+                            onValueChange={(value) =>
                                 store.updateTheme(theme.uuid, (current) => ({
                                     ...current,
                                     fonts: {
                                         ...current.fonts,
-                                        [role]: event.target.value,
+                                        [role]: value,
                                     },
                                 }))
                             }
-                        >
-                            {doc.fonts.map((font) => (
-                                <option key={font.uuid} value={font.id}>
-                                    {font.id}
-                                </option>
-                            ))}
-                        </select>
+                            options={doc.fonts.map((font) => ({
+                                value: font.id,
+                                label: font.id,
+                            }))}
+                        />
                     </label>
                 ))}
             </section>
 
             <section>
                 <h3>{t("inspector.theme.fallback")}</h3>
-                <select
+                <SelectField
+                    label={t("inspector.theme.fallback")}
                     value={theme.fallback ?? ""}
-                    onChange={(event) =>
+                    onValueChange={(value) =>
                         store.updateTheme(theme.uuid, (current) => ({
                             ...current,
-                            fallback: event.target.value || null,
+                            fallback: value || null,
                         }))
                     }
                     data-testid="theme-fallback"
-                >
-                    <option value="">{t("inspector.none")}</option>
-                    {doc.themes
-                        .filter((entry) => entry.id !== theme.id)
-                        .map((entry) => (
-                            <option key={entry.uuid} value={entry.id}>
-                                {humanizePath(
+                    options={[
+                        { value: "", label: t("inspector.none") },
+                        ...doc.themes
+                            .filter((entry) => entry.id !== theme.id)
+                            .map((entry) => ({
+                                value: entry.id,
+                                label: humanizePath(
                                     entry.id.split(":").pop() ?? entry.id,
-                                )}
-                            </option>
-                        ))}
-                </select>
+                                ),
+                            })),
+                    ]}
+                />
                 <p className="muted small">
                     {t("inspector.theme.fallbackHint")}
                 </p>
@@ -224,31 +255,30 @@ export function ThemeInspector() {
                     <h3>{t("inspector.theme.frame")}</h3>
                     <label className="field-inline">
                         {t("inspector.theme.preset")}
-                        <select
+                        <SelectField
+                            label={t("inspector.theme.preset")}
                             value={theme.characterFrame.preset}
-                            onChange={(event) =>
+                            onValueChange={(value) =>
                                 store.updateTheme(theme.uuid, (current) => ({
                                     ...current,
                                     characterFrame: {
                                         ...current.characterFrame!,
-                                        preset: event.target.value as never,
+                                        preset: value as never,
                                     },
                                 }))
                             }
                             data-testid="frame-preset"
-                        >
-                            {[
+                            options={[
                                 "UNICODE_SINGLE",
                                 "UNICODE_DOUBLE",
                                 "ASCII_SAFE",
                                 "BRACKETED_SECTION",
                                 "SEPARATOR_ONLY",
-                            ].map((preset) => (
-                                <option key={preset} value={preset}>
-                                    {t(`inspector.framePresets.${preset}`)}
-                                </option>
-                            ))}
-                        </select>
+                            ].map((preset) => ({
+                                value: preset,
+                                label: t(`inspector.framePresets.${preset}`),
+                            }))}
+                        />
                     </label>
                     <WidthSliders
                         minimum={theme.characterFrame.minimumWidthPixels}
@@ -283,6 +313,7 @@ export function ThemeInspector() {
                     </dl>
                 </details>
             ) : null}
+            {previewSettings}
         </aside>
     );
 }

@@ -304,7 +304,7 @@ describe("tooltip geometry", () => {
         expect(contentHeight(2)).toBe(20);
     });
 
-    it("takes tooltip width from the widest component and pads by three", () => {
+    it("separates the three-pixel body padding from the nine-pixel sprite margin", () => {
         const lines: PreviewLine[] = [
             {
                 runs: [run("Ember Blade")],
@@ -325,9 +325,18 @@ describe("tooltip geometry", () => {
                 ),
             ),
         );
-        expect(geometry.totalWidthPixels).toBe(geometry.contentWidthPixels + 6);
+        expect(geometry.backgroundRect).toEqual({
+            x: 9,
+            y: 9,
+            width: geometry.contentWidthPixels + 6,
+            height: geometry.contentHeightPixels + 6,
+        });
+        expect(geometry.contentOriginPixels).toEqual({ x: 12, y: 12 });
+        expect(geometry.totalWidthPixels).toBe(
+            geometry.contentWidthPixels + 24,
+        );
         expect(geometry.totalHeightPixels).toBe(
-            geometry.contentHeightPixels + 6,
+            geometry.contentHeightPixels + 24,
         );
     });
 
@@ -367,6 +376,56 @@ describe("tooltip geometry", () => {
         // Measured bounds come from the runs, not the declared ones, so a single narrow glyph
         // stays inside. The check exists for canvas themes whose ink genuinely overhangs.
         expect(geometry.inkOutsideBackground).toBe(false);
+    });
+
+    it("keeps the fallback body and editor annotations at the same origin as mounted sprites", () => {
+        const { geometry, drawList } = renderTooltip(
+            [previewLine("A")],
+            metricsOnlyFonts,
+            { annotations: true },
+        );
+        const background = drawList.ops.find((op) => op.kind === "rect");
+        expect(background).toMatchObject({
+            kind: "rect",
+            ...geometry.backgroundRect,
+        });
+        expect(
+            drawList.ops.find(
+                (op) => op.kind === "annotation" && op.role === "safe-area",
+            ),
+        ).toMatchObject({ x: 12, y: 12 });
+        const glyph = drawList.ops.find(
+            (op) => op.kind === "glyph" && !op.shadow,
+        );
+        expect(glyph).toMatchObject({ x: 12, baselineY: 19 });
+    });
+
+    it("does not count the sprite margin as permission for negative-spacing ink overhang", () => {
+        const runs = [
+            run(String.fromCodePoint(metricsOnlyFonts.spacingCodePoint(-5)!), {
+                kind: "SPACING",
+                style: { ...plainStyle, font: "itemerness:spacing" },
+            }),
+            run("A"),
+        ];
+        const measured = measureLine(runs, metricsOnlyFonts);
+        const { geometry, drawList } = renderTooltip(
+            [
+                {
+                    runs,
+                    logicalWidthPixels: measured.logicalWidthPixels,
+                    visualBounds: measured.visualBounds,
+                },
+            ],
+            metricsOnlyFonts,
+        );
+        expect(geometry.contentWidthPixels).toBe(1);
+        expect(geometry.backgroundRect.width).toBe(7);
+        expect(geometry.inkOutsideBackground).toBe(true);
+        // Keep the genuine glyph position; do not clamp it into the frame to manufacture a pass.
+        expect(
+            drawList.ops.find((op) => op.kind === "glyph" && !op.shadow),
+        ).toMatchObject({ x: 7 });
     });
 
     it("produces annotation ops only when asked", () => {

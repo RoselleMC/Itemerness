@@ -1,10 +1,14 @@
 import { contentHash, type ProjectDocument } from "@itemerness/protocol";
-import { ControlPlaneHttpError, type SaveDocumentResult } from "./client.js";
+import { PluginHttpError, type SaveDocumentResult } from "./client.js";
 
 export type DocumentSyncStatus =
+    | { readonly kind: "disconnected" }
+    | { readonly kind: "empty" }
+    | { readonly kind: "local" }
     | { readonly kind: "loading" }
     | { readonly kind: "saved" }
     | { readonly kind: "pending" }
+    | { readonly kind: "unsaved" }
     | { readonly kind: "saving" }
     | {
           readonly kind: "conflict";
@@ -21,6 +25,7 @@ interface Snapshot {
 export interface SerialDocumentAutosaveOptions {
     readonly initialHash: string;
     readonly debounceMillis?: number;
+    readonly automatic?: boolean;
     readonly save: (
         document: ProjectDocument,
         expectedHash: string,
@@ -46,6 +51,12 @@ export class SerialDocumentAutosave {
     private blocked: "conflict" | "error" | null = null;
     private conflictHash: string | null = null;
     private disposed = false;
+    private automatic: boolean;
+    private requested: Snapshot | null = null;
+    private readonly waiters = new Set<{
+        hash: string;
+        resolve: (saved: boolean) => void;
+    }>();
 
     private readonly debounceMillis: number;
     private readonly save: SerialDocumentAutosaveOptions["save"];
@@ -54,6 +65,7 @@ export class SerialDocumentAutosave {
 
     constructor(options: SerialDocumentAutosaveOptions) {
         this.expectedHash = options.initialHash;
+        this.automatic = options.automatic ?? true;
         this.debounceMillis = options.debounceMillis ?? 500;
         this.save = options.save;
         this.onStatus = options.onStatus;
@@ -70,12 +82,79 @@ export class SerialDocumentAutosave {
         if (this.blocked === "error") this.blocked = null;
         if (!this.inFlight && snapshot.hash === this.expectedHash) {
             this.clearTimer();
-            this.onStatus({ kind: "saved" });
+            this.onStatus({
+                kind:
+                    this.requested && this.requested.hash !== this.expectedHash
+                        ? "pending"
+                        : "saved",
+            });
+            if (this.requested) this.arm(0);
             return;
         }
 
-        this.onStatus(this.inFlight ? { kind: "saving" } : { kind: "pending" });
-        if (!this.inFlight) this.arm(this.debounceMillis);
+        this.onStatus(
+            this.inFlight
+                ? { kind: "saving" }
+                : { kind: this.automatic ? "pending" : "unsaved" },
+        );
+        if (!this.inFlight && this.automatic) this.arm(this.debounceMillis);
+    }
+
+    setAutomatic(automatic: boolean): void {
+        if (this.disposed || this.automatic === automatic) return;
+        this.automatic = automatic;
+        this.clearTimer();
+        if (this.blocked) return;
+        if (this.inFlight) return;
+        if (this.requested) this.arm(0);
+        else if (this.latest && this.latest.hash !== this.expectedHash) {
+            this.onStatus({ kind: automatic ? "pending" : "unsaved" });
+            if (automatic) this.arm(this.debounceMillis);
+        }
+    }
+
+    isDirty(hash: string): boolean {
+        return (
+            hash !== this.expectedHash ||
+            this.inFlight !== null ||
+            this.requested !== null
+        );
+    }
+
+    /** Explicit saves capture this document, not edits made later while a PUT is in flight. */
+    saveNow(document: ProjectDocument): Promise<boolean> {
+        if (this.disposed || this.blocked === "conflict")
+            return Promise.resolve(false);
+        this.queue(document);
+        const snapshot = this.latest!;
+        if (
+            this.requested &&
+            this.requested.hash !== snapshot.hash &&
+            this.requested.hash !== this.inFlight?.hash
+        )
+            this.settle(this.requested.hash, false);
+        if (!this.inFlight && snapshot.hash === this.expectedHash) {
+            this.requested = null;
+            this.clearTimer();
+            this.onStatus({ kind: "saved" });
+            return Promise.resolve(true);
+        }
+        this.requested = snapshot;
+        this.blocked = null;
+        const result = new Promise<boolean>((resolve) =>
+            this.waiters.add({ hash: snapshot.hash, resolve }),
+        );
+        this.clearTimer();
+        if (!this.inFlight) void this.flush();
+        return result;
+    }
+
+    private settle(hash: string | null, saved: boolean): void {
+        for (const waiter of this.waiters)
+            if (hash === null || waiter.hash === hash) {
+                this.waiters.delete(waiter);
+                waiter.resolve(saved);
+            }
     }
 
     retry(): void {
@@ -86,6 +165,7 @@ export class SerialDocumentAutosave {
             return;
         }
         this.onStatus({ kind: "pending" });
+        this.requested = this.latest;
         this.arm(0);
     }
 
@@ -95,11 +175,13 @@ export class SerialDocumentAutosave {
         this.clearTimer();
         this.blocked = "conflict";
         this.conflictHash = actualHash;
+        this.requested = null;
+        this.settle(null, false);
         this.onStatus({ kind: "conflict", actualHash });
     }
 
     /**
-     * Classifies a WebSocket update without guessing which document should win.
+     * Classifies a polled update without guessing which document should win.
      * Known own-save events are ignored, a clean editor may reload, and a dirty editor conflicts.
      */
     observeRemoteUpdate(
@@ -117,6 +199,9 @@ export class SerialDocumentAutosave {
             this.expectedHash = actualHash;
             this.latest = { document: currentDocument, hash: currentHash };
             this.blocked = null;
+            this.requested = null;
+            this.clearTimer();
+            this.settle(actualHash, true);
             this.onStatus({ kind: "saved" });
             return "known";
         }
@@ -129,6 +214,8 @@ export class SerialDocumentAutosave {
     dispose(): void {
         this.disposed = true;
         this.clearTimer();
+        this.requested = null;
+        this.settle(null, false);
     }
 
     private arm(delay: number): void {
@@ -145,12 +232,29 @@ export class SerialDocumentAutosave {
     }
 
     private async flush(): Promise<void> {
-        if (this.disposed || this.inFlight || this.blocked || !this.latest) {
+        if (this.disposed || this.inFlight || this.blocked) {
             return;
         }
-        const snapshot = this.latest;
+        const snapshot =
+            this.requested ?? (this.automatic ? this.latest : null);
+        if (!snapshot) return;
+        this.requested = null;
         if (snapshot.hash === this.expectedHash) {
-            this.onStatus({ kind: "saved" });
+            this.settle(snapshot.hash, true);
+            this.onStatus({
+                kind:
+                    this.latest?.hash === this.expectedHash
+                        ? "saved"
+                        : this.automatic
+                          ? "pending"
+                          : "unsaved",
+            });
+            if (
+                this.automatic &&
+                this.latest &&
+                this.latest.hash !== this.expectedHash
+            )
+                this.arm(this.debounceMillis);
             return;
         }
 
@@ -185,19 +289,24 @@ export class SerialDocumentAutosave {
             }
             this.blocked = null;
             this.conflictHash = null;
+            this.settle(snapshot.hash, true);
             if (!this.latest || this.latest.hash === this.expectedHash) {
                 this.onStatus({ kind: "saved" });
             } else {
-                this.onStatus({ kind: "pending" });
-                this.arm(this.debounceMillis);
+                this.onStatus({
+                    kind:
+                        this.automatic || this.requested
+                            ? "pending"
+                            : "unsaved",
+                });
+                if (this.requested || this.automatic)
+                    this.arm(this.requested ? 0 : this.debounceMillis);
             }
+            if (this.requested) this.arm(0);
         } catch (error) {
             if (this.disposed) return;
             this.inFlight = null;
-            if (
-                error instanceof ControlPlaneHttpError &&
-                error.status === 409
-            ) {
+            if (error instanceof PluginHttpError && error.status === 409) {
                 const actualHash = conflictActualHash(error.body);
                 // Another editor may already have persisted byte-for-byte the same latest draft.
                 // In that case there is nothing left to resolve or overwrite.
@@ -205,6 +314,9 @@ export class SerialDocumentAutosave {
                     this.expectedHash = actualHash;
                     this.blocked = null;
                     this.conflictHash = null;
+                    this.requested = null;
+                    this.settle(actualHash, true);
+                    this.settle(null, false);
                     this.onStatus({ kind: "saved" });
                     return;
                 }
@@ -212,6 +324,8 @@ export class SerialDocumentAutosave {
                 return;
             }
             this.blocked = "error";
+            this.requested = null;
+            this.settle(null, false);
             this.onStatus({
                 kind: "error",
                 message: error instanceof Error ? error.message : String(error),

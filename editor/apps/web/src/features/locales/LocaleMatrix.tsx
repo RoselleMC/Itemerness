@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LocaleNode, ProjectDocument } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
+import { describeContext } from "../../state/interface.js";
+import { copyAction } from "../common/contextActions.js";
+import { Eraser } from "lucide-react";
 
 /**
  * The content locale matrix.
@@ -71,7 +74,6 @@ export function LocaleMatrix() {
     return (
         <section className="locale-matrix" aria-label={t("locales.heading")}>
             <header className="panel-header">
-                <h2>{t("locales.heading")}</h2>
                 <input
                     type="search"
                     placeholder={t("locales.search")}
@@ -118,7 +120,22 @@ export function LocaleMatrix() {
                 <tbody>
                     {visible.map((key) => (
                         <tr key={key}>
-                            <th scope="row">
+                            <th
+                                scope="row"
+                                tabIndex={0}
+                                onContextMenu={(event) =>
+                                    describeContext(event, {
+                                        label: key,
+                                        items: [
+                                            copyAction(
+                                                "copy-key",
+                                                t("menus.copyKey"),
+                                                key,
+                                            ),
+                                        ],
+                                    })
+                                }
+                            >
                                 <code>{key}</code>
                             </th>
                             {document.locales.map((locale) => {
@@ -130,6 +147,62 @@ export function LocaleMatrix() {
                                     <td
                                         key={locale.locale}
                                         className={`cell-${state}`}
+                                        onContextMenu={(event) =>
+                                            describeContext(event, {
+                                                label: key,
+                                                textExtras: true,
+                                                items: [
+                                                    {
+                                                        ...copyAction(
+                                                            "copy-key",
+                                                            t("menus.copyKey"),
+                                                            key,
+                                                        ),
+                                                        separator: true,
+                                                    },
+                                                    {
+                                                        id: "clear-translation",
+                                                        label: t(
+                                                            "menus.clearTranslation",
+                                                        ),
+                                                        icon: Eraser,
+                                                        disabled:
+                                                            locale.messages[
+                                                                key
+                                                            ] === undefined,
+                                                        run: () =>
+                                                            updateDocument(
+                                                                (draft) => ({
+                                                                    ...draft,
+                                                                    locales:
+                                                                        draft.locales.map(
+                                                                            (
+                                                                                entry,
+                                                                            ) => {
+                                                                                if (
+                                                                                    entry.locale !==
+                                                                                    locale.locale
+                                                                                )
+                                                                                    return entry;
+                                                                                const messages =
+                                                                                    {
+                                                                                        ...entry.messages,
+                                                                                    };
+                                                                                delete messages[
+                                                                                    key
+                                                                                ];
+                                                                                return {
+                                                                                    ...entry,
+                                                                                    messages,
+                                                                                };
+                                                                            },
+                                                                        ),
+                                                                }),
+                                                            ),
+                                                    },
+                                                ],
+                                            })
+                                        }
                                     >
                                         <input
                                             value={locale.messages[key] ?? ""}

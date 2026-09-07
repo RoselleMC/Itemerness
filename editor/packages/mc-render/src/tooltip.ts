@@ -23,9 +23,9 @@ import {
  *
  * The vertical metrics come from an audit of the 26.1.2 client: every text component is ten logical
  * pixels tall, an extra two pixels sit between the first and second component, a single-component
- * tooltip is two pixels shorter, and the background is inset three pixels on each side. These are
- * version facts, not a stable contract, so they live in one named profile that has to be re-audited
- * when the Minecraft baseline moves rather than being sprinkled through the painter.
+ * tooltip is two pixels shorter, and the text has three pixels of background padding. The sprite
+ * rectangle extends another nine pixels on each edge (TooltipRenderUtil.extractTooltipBackground).
+ * These version facts live in one named profile and must be re-audited when the baseline changes.
  */
 export interface TooltipProfile {
     readonly clientVersion: string;
@@ -33,6 +33,8 @@ export interface TooltipProfile {
     /** Extra gap inserted after the display name, before the first lore line. */
     readonly firstLineGapPixels: number;
     readonly paddingPixels: number;
+    /** Sprite-only outer margin, distinct from the padded logical tooltip body. */
+    readonly spriteMarginPixels: number;
     /** A one-component tooltip measures two pixels shorter than the naive line count. */
     readonly singleComponentHeightAdjustPixels: number;
     /** Distance from a line's top edge down to the text baseline. */
@@ -45,6 +47,7 @@ export const PROFILE_26_1_2: TooltipProfile = {
     lineHeightPixels: 10,
     firstLineGapPixels: 2,
     paddingPixels: 3,
+    spriteMarginPixels: 9,
     singleComponentHeightAdjustPixels: -2,
     textAscentPixels: 7,
     shadowOffsetPixels: 1,
@@ -78,14 +81,23 @@ export interface TooltipGeometry {
     readonly contentHeightPixels: number;
     readonly totalWidthPixels: number;
     readonly totalHeightPixels: number;
+    /** Text origin inside the complete sprite-sized draw list, including its outer margin. */
+    readonly contentOriginPixels: { readonly x: number; readonly y: number };
+    /** Logical body, excluding the sprite's decorative/shadow margin. */
+    readonly backgroundRect: {
+        readonly x: number;
+        readonly y: number;
+        readonly width: number;
+        readonly height: number;
+    };
     readonly components: readonly {
         readonly line: MeasuredLine;
         readonly top: number;
         readonly baselineY: number;
     }[];
     /**
-     * Union of ink that lands outside the background rectangle. A bitmap canvas theme that
-     * overflows here would be clipped or drawn over the frame in game.
+     * Ink outside the logical body. Negative spacing/bearings or bitmap ascent can genuinely
+     * overdraw the frame; do not grow the logical body or clamp the text to conceal this.
      */
     readonly inkOutsideBackground: boolean;
 }
@@ -120,6 +132,7 @@ export function layoutTooltip(
         0,
     );
     const height = contentHeight(measured.length, profile);
+    const origin = profile.paddingPixels + profile.spriteMarginPixels;
 
     const components = measured.map((line, index) => {
         const top = componentTop(index, profile);
@@ -143,8 +156,15 @@ export function layoutTooltip(
         profile,
         contentWidthPixels,
         contentHeightPixels: height,
-        totalWidthPixels: contentWidthPixels + profile.paddingPixels * 2,
-        totalHeightPixels: height + profile.paddingPixels * 2,
+        totalWidthPixels: contentWidthPixels + origin * 2,
+        totalHeightPixels: height + origin * 2,
+        contentOriginPixels: { x: origin, y: origin },
+        backgroundRect: {
+            x: profile.spriteMarginPixels,
+            y: profile.spriteMarginPixels,
+            width: contentWidthPixels + profile.paddingPixels * 2,
+            height: height + profile.paddingPixels * 2,
+        },
         components,
         inkOutsideBackground,
     };
@@ -158,8 +178,7 @@ export function renderTooltip(
 ): { geometry: TooltipGeometry; drawList: DrawList } {
     const geometry = layoutTooltip(lines, fonts, options);
     const { profile } = geometry;
-    const originX = profile.paddingPixels;
-    const originY = profile.paddingPixels;
+    const { x: originX, y: originY } = geometry.contentOriginPixels;
     const ops: DrawOp[] = [];
 
     const backgroundX = 0;
@@ -182,10 +201,7 @@ export function renderTooltip(
         // tooltip background sprite from whatever pack is loaded.
         ops.push({
             kind: "rect",
-            x: backgroundX,
-            y: backgroundY,
-            width: backgroundWidth,
-            height: backgroundHeight,
+            ...geometry.backgroundRect,
             color: LEGACY_TOOLTIP.background,
         });
     }
@@ -202,10 +218,10 @@ export function renderTooltip(
     } else if (!options.backgroundSprite) {
         ops.push({
             kind: "gradient",
-            x: backgroundX + 1,
-            y: backgroundY + 1,
-            width: backgroundWidth - 2,
-            height: backgroundHeight - 2,
+            x: geometry.backgroundRect.x + 1,
+            y: geometry.backgroundRect.y + 1,
+            width: geometry.backgroundRect.width - 2,
+            height: geometry.backgroundRect.height - 2,
             topColor: LEGACY_TOOLTIP.borderTop,
             bottomColor: LEGACY_TOOLTIP.borderBottom,
         });

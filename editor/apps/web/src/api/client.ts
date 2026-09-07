@@ -1,50 +1,26 @@
 import {
     contentHash,
     diagnosticSchema,
+    handshakeSchema,
+    negotiateProtocol,
     previewArtifactSchema,
     projectDocumentSchema,
     type Diagnostic,
+    type Handshake,
     type PreviewRequest,
     type ProjectDocument,
 } from "@itemerness/protocol";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
-/** Thin control-plane client. Every mutation carries the snapshot hash it was derived from. */
-
-export interface AgentStatus {
-    readonly connected: boolean;
-    readonly mode: "mock" | "agent" | "offline";
-    readonly serverId: string | null;
-    readonly state: string;
-}
-
-export class ControlPlaneHttpError extends Error {
+export class PluginHttpError extends Error {
     constructor(
         readonly status: number,
         readonly body: unknown,
         message: string,
     ) {
         super(message);
-        this.name = "ControlPlaneHttpError";
+        this.name = "PluginHttpError";
     }
-}
-
-async function json<T>(input: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(input, {
-        ...init,
-        headers: {
-            "content-type": "application/json",
-            ...(init?.headers ?? {}),
-        },
-    });
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-        throw new ControlPlaneHttpError(
-            response.status,
-            body,
-            `${input}: HTTP ${response.status}`,
-        );
-    }
-    return body as T;
 }
 
 export interface DocumentEnvelope {
@@ -59,76 +35,244 @@ export interface SaveDocumentResult {
     readonly diagnostics: Diagnostic[];
 }
 
-function parseSaveDocumentResult(body: unknown): SaveDocumentResult {
-    if (typeof body !== "object" || body === null)
-        throw new Error("control plane returned an invalid save response");
-    const record = body as Record<string, unknown>;
+export function normalizeApiUrl(value: string): string {
+    const url = new URL(value.trim());
     if (
-        typeof record.snapshotHash !== "string" ||
-        typeof record.revision !== "number" ||
-        !Number.isInteger(record.revision)
+        !["http:", "https:"].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        /%|\\/.test(value) ||
+        /\/\.{1,2}(?:\/|$)/.test(value)
     ) {
-        throw new Error("control plane returned incomplete save metadata");
+        throw new Error("INVALID_API_URL");
     }
+    return url.href.replace(/\/+$/, "");
+}
+
+async function responseJson(response: Response): Promise<unknown> {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("INVALID_API_RESPONSE");
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+        while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            size += chunk.value.length;
+            if (size > 2 * 1024 * 1024 + 1024)
+                throw new Error("RESPONSE_TOO_LARGE");
+            chunks.push(chunk.value);
+        }
+    } finally {
+        await reader.cancel();
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+    }
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
+
+function record(body: unknown): Record<string, unknown> {
+    if (!body || typeof body !== "object")
+        throw new Error("INVALID_API_RESPONSE");
+    return body as Record<string, unknown>;
+}
+
+function metadata(body: unknown) {
+    const value = record(body);
+    if (
+        typeof value.snapshotHash !== "string" ||
+        !/^sha256:[0-9a-f]{64}$/.test(value.snapshotHash) ||
+        typeof value.revision !== "number" ||
+        !Number.isSafeInteger(value.revision) ||
+        value.revision < 1
+    ) {
+        throw new Error("INVALID_API_RESPONSE");
+    }
+    return { snapshotHash: value.snapshotHash, revision: value.revision };
+}
+
+function requestDeadline(signals: readonly AbortSignal[]) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    for (const signal of signals) {
+        if (signal.aborted) abort();
+        signal.addEventListener("abort", abort, { once: true });
+    }
+    const timer = setTimeout(abort, 15_000);
     return {
-        snapshotHash: record.snapshotHash,
-        revision: record.revision,
-        diagnostics: diagnosticSchema.array().parse(record.diagnostics),
+        signal: controller.signal,
+        check() {
+            if (controller.signal.aborted)
+                throw new DOMException("Request cancelled", "AbortError");
+        },
+        dispose() {
+            clearTimeout(timer);
+            for (const signal of signals)
+                signal.removeEventListener("abort", abort);
+        },
     };
 }
 
-function parseDocumentEnvelope(body: unknown): DocumentEnvelope {
-    if (typeof body !== "object" || body === null)
-        throw new Error("control plane returned an invalid document envelope");
-    const record = body as Record<string, unknown>;
-    const document = projectDocumentSchema.parse(record.document);
-    if (
-        typeof record.snapshotHash !== "string" ||
-        typeof record.revision !== "number" ||
-        !Number.isInteger(record.revision)
-    ) {
-        throw new Error("control plane returned incomplete document metadata");
-    }
-    if (contentHash(document) !== record.snapshotHash) {
-        throw new Error(
-            "control plane document hash does not match its payload",
-        );
-    }
-    return {
-        document,
-        snapshotHash: record.snapshotHash,
-        revision: record.revision,
-    };
-}
+/** A client is bound to one endpoint and credential; switching creates a new instance. */
+export class PluginClient {
+    readonly baseUrl: string;
+    private readonly abort = new AbortController();
+    private protocol: string | null = null;
 
-export const controlPlane = {
-    async loadDocument(): Promise<DocumentEnvelope> {
-        return parseDocumentEnvelope(await json("/api/v1/document"));
-    },
+    constructor(
+        baseUrl: string,
+        private readonly token: string,
+    ) {
+        this.baseUrl = normalizeApiUrl(baseUrl);
+        if (token !== "" && !/^[A-Za-z0-9_~+/.=-]{32,256}$/.test(token))
+            throw new Error("INVALID_TOKEN");
+    }
+
+    close(): void {
+        this.abort.abort();
+    }
+
+    async handshake(): Promise<{ info: Handshake; protocol: string }> {
+        const info = handshakeSchema.parse(await this.json("/api/handshake"));
+        const protocol = negotiateProtocol(info);
+        this.protocol = protocol;
+        return { info, protocol };
+    }
+
+    async loadDocument(): Promise<DocumentEnvelope | null> {
+        let body: unknown;
+        try {
+            body = await this.json("/api/v2/document");
+        } catch (error) {
+            if (
+                error instanceof PluginHttpError &&
+                error.status === 404 &&
+                record(error.body).code === "DRAFT_NOT_FOUND"
+            )
+                return null;
+            throw error;
+        }
+        const document = projectDocumentSchema.parse(record(body).document);
+        const meta = metadata(body);
+        if (contentHash(document) !== meta.snapshotHash)
+            throw new Error("SNAPSHOT_MISMATCH");
+        return { document, ...meta };
+    }
+
     async saveDocument(
         document: ProjectDocument,
         expectedHash: string,
     ): Promise<SaveDocumentResult> {
-        return parseSaveDocumentResult(
-            await json("/api/v1/document", {
-                method: "PUT",
-                body: JSON.stringify({ document, expectedHash }),
-            }),
-        );
-    },
-    async preview(request: PreviewRequest, signal?: AbortSignal) {
-        const body = await json<{ artifact?: unknown; stale?: unknown }>(
-            "/api/v1/preview",
-            {
-                method: "POST",
-                body: JSON.stringify(request),
-                signal,
-            },
-        );
+        const body = await this.json("/api/v2/document", "PUT", {
+            document,
+            expectedHash,
+        });
         return {
-            artifact: previewArtifactSchema.parse(body.artifact),
-            stale: body.stale === true,
+            ...metadata(body),
+            diagnostics: diagnosticSchema
+                .array()
+                .parse(record(body).diagnostics),
         };
-    },
-    agentStatus: () => json<AgentStatus>("/api/v1/agent/status"),
-};
+    }
+
+    async preview(request: PreviewRequest, signal?: AbortSignal) {
+        const body = record(
+            await this.json("/api/v2/preview", "POST", request, signal),
+        );
+        const artifact = previewArtifactSchema.parse(body.artifact);
+        if (
+            artifact.origin !== "agent" ||
+            artifact.itemId !== request.itemId ||
+            contentHash(artifact.viewer) !== contentHash(request.viewer)
+        )
+            throw new Error("INVALID_PREVIEW_RESPONSE");
+        return {
+            artifact,
+            stale:
+                body.stale === true ||
+                artifact.digests.snapshot !== request.snapshotHash,
+        };
+    }
+
+    private async json(
+        path: string,
+        method = "GET",
+        body?: unknown,
+        signal?: AbortSignal,
+    ): Promise<unknown> {
+        if (path !== "/api/handshake" && !this.protocol)
+            throw new Error("HANDSHAKE_REQUIRED");
+        // Avoid AbortSignal.any/timeout: older supported WKWebView releases lack them.
+        const deadline = requestDeadline([
+            this.abort.signal,
+            ...(signal ? [signal] : []),
+        ]);
+        try {
+            deadline.check();
+            const encoded =
+                body === undefined ? undefined : JSON.stringify(body);
+            if (
+                encoded &&
+                new TextEncoder().encode(encoded).length > 2 * 1024 * 1024
+            )
+                throw new Error("REQUEST_TOO_LARGE");
+            let status: number;
+            let decoded: unknown;
+            if (isTauri()) {
+                const response = await invoke<{ status: number; body: string }>(
+                    "plugin_request",
+                    {
+                        baseUrl: this.baseUrl,
+                        token: this.token,
+                        path,
+                        method,
+                        body: encoded ?? null,
+                        protocol: this.protocol,
+                    },
+                );
+                status = response.status;
+                decoded = JSON.parse(response.body);
+            } else {
+                const response = await fetch(this.baseUrl + path, {
+                    method,
+                    body: encoded,
+                    signal: deadline.signal,
+                    redirect: "error",
+                    credentials: "omit",
+                    headers: {
+                        ...(this.token
+                            ? { Authorization: `Bearer ${this.token}` }
+                            : {}),
+                        ...(encoded
+                            ? { "Content-Type": "application/json" }
+                            : {}),
+                        ...(this.protocol
+                            ? { "X-Itemerness-Protocol": this.protocol }
+                            : {}),
+                    },
+                });
+                status = response.status;
+                decoded = await responseJson(response);
+            }
+            deadline.check();
+            if (status < 200 || status >= 300) {
+                const code =
+                    status === 401 && !this.token
+                        ? "TOKEN_REQUIRED"
+                        : typeof record(decoded).code === "string"
+                          ? String(record(decoded).code)
+                          : `HTTP_${status}`;
+                throw new PluginHttpError(status, decoded, code);
+            }
+            return decoded;
+        } finally {
+            deadline.dispose();
+        }
+    }
+}

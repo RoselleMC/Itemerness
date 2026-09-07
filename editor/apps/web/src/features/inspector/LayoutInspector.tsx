@@ -1,13 +1,21 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import { useEditorStore } from "../../state/store.js";
 import { humanizePath } from "../common/messages.js";
+import { SelectField } from "../common/SelectField.js";
+import { describeContext } from "../../state/interface.js";
+import { copyAction, relatedItems } from "../common/contextActions.js";
 
 /**
  * Layout editing in spatial terms: widths as sliders, alignment as a two-state toggle, spacing as
  * small steppers. The stage previews an item that actually uses the layout, so dragging the width
  * slider visibly re-wraps real content rather than a synthetic sample.
  */
-export function LayoutInspector() {
+export function LayoutInspector({
+    previewSettings,
+}: {
+    previewSettings?: ReactNode;
+}) {
     const { t } = useTranslation();
     const store = useEditorStore();
     const doc = store.document;
@@ -19,6 +27,7 @@ export function LayoutInspector() {
         return (
             <aside className="inspector">
                 <p className="muted">{t("stage.noItem")}</p>
+                {previewSettings}
             </aside>
         );
     }
@@ -32,6 +41,15 @@ export function LayoutInspector() {
             <aside
                 className="inspector"
                 aria-label={t("inspector.layout.heading")}
+                onContextMenu={(event) =>
+                    describeContext(event, {
+                        label: layout.id,
+                        items: [
+                            copyAction("copy-id", t("menus.copyId"), layout.id),
+                            relatedItems(usedBy, t),
+                        ],
+                    })
+                }
             >
                 <section>
                     <h3>{t("inspector.layout.heading")}</h3>
@@ -61,6 +79,7 @@ export function LayoutInspector() {
                         {t("inspector.layout.canvasHint")}
                     </p>
                 </section>
+                {previewSettings}
             </aside>
         );
     }
@@ -77,7 +96,19 @@ export function LayoutInspector() {
         : Object.keys(layout.wrapping)[0];
 
     return (
-        <aside className="inspector" aria-label={t("inspector.layout.heading")}>
+        <aside
+            className="inspector"
+            aria-label={t("inspector.layout.heading")}
+            onContextMenu={(event) =>
+                describeContext(event, {
+                    label: layout.id,
+                    items: [
+                        copyAction("copy-id", t("menus.copyId"), layout.id),
+                        relatedItems(usedBy, t),
+                    ],
+                })
+            }
+        >
             <section>
                 <h3>{t("inspector.layout.heading")}</h3>
                 <p className="library-title">
@@ -247,9 +278,10 @@ export function LayoutInspector() {
                         </label>
                         <label className="field-inline">
                             {t("inspector.layout.overflow")}
-                            <select
+                            <SelectField
+                                label={t("inspector.layout.overflow")}
                                 value={bodyWrapping.overflow}
-                                onChange={(event) =>
+                                onValueChange={(value) =>
                                     store.updateLayout(
                                         layout.uuid,
                                         (current) =>
@@ -260,32 +292,30 @@ export function LayoutInspector() {
                                                           ...current.wrapping,
                                                           [wrappingName]: {
                                                               ...bodyWrapping,
-                                                              overflow: event
-                                                                  .target
-                                                                  .value as never,
+                                                              overflow:
+                                                                  value as never,
                                                           },
                                                       },
                                                   }
                                                 : current,
                                     )
                                 }
-                            >
-                                {(
+                                options={(
                                     [
                                         "ELLIPSIS",
                                         "ALLOW_OVERFLOW",
                                         "ERROR",
                                     ] as const
-                                ).map((policy) => (
-                                    <option key={policy} value={policy}>
-                                        {t(`inspector.overflow.${policy}`)}
-                                    </option>
-                                ))}
-                            </select>
+                                ).map((policy) => ({
+                                    value: policy,
+                                    label: t(`inspector.overflow.${policy}`),
+                                }))}
+                            />
                         </label>
                     </>
                 ) : null}
             </section>
+            {previewSettings}
         </aside>
     );
 }

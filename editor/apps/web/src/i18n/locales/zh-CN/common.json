@@ -2,10 +2,121 @@
     "app": {
         "title": "Itemerness"
     },
+    "window": {
+        "workspaceTools": "工作区工具",
+        "preferences": "编辑器偏好",
+        "minimize": "最小化",
+        "maximize": "最大化",
+        "restore": "还原",
+        "close": "关闭窗口",
+        "failed": "窗口控制不可用"
+    },
     "common": {
         "close": "关闭"
     },
+    "connection": {
+        "heading": "插件连接",
+        "chooseServer": "连接到插件",
+        "incompatible": "版本不兼容",
+        "server": "服务器",
+        "platform": "服务端",
+        "pluginVersion": "插件版本",
+        "apiVersion": "API 协议",
+        "previewAvailable": "服务端编译可用",
+        "previewUnavailable": "当前 Minecraft 版本暂不支持服务端预览",
+        "draft": "草稿",
+        "address": "插件 API 地址",
+        "token": "访问令牌（可选）",
+        "authentication": "认证方式",
+        "noAuthentication": "无需令牌",
+        "bearerAuthentication": "访问令牌",
+        "unencrypted": "HTTP 连接未加密",
+        "connect": "连接",
+        "disconnect": "断开",
+        "cancel": "取消",
+        "offline": "未连接",
+        "connecting": "正在连接…",
+        "connected": "已连接",
+        "error": "连接失败",
+        "protocol": "API {{version}} / 插件 {{plugin}}",
+        "errors": {
+            "PROTOCOL_INCOMPATIBLE": "API 或文档版本不兼容，请更新编辑器或插件。",
+            "INVALID_API_URL": "请使用 HTTP 或 HTTPS 地址，不包含凭据、查询参数或片段。",
+            "INVALID_TOKEN": "请留空，或输入 32 到 256 个有效字符的访问令牌。",
+            "UNAUTHORIZED": "插件拒绝了此访问令牌。",
+            "TOKEN_REQUIRED": "此插件需要访问令牌。",
+            "ORIGIN_FORBIDDEN": "插件未允许此浏览器来源。",
+            "CONNECTION_FAILED": "无法连接，请检查地址、证书和插件 API 配置。"
+        }
+    },
+    "settings": {
+        "editing": "编辑",
+        "autoSave": "自动保存",
+        "save": "保存",
+        "unsavedHeading": "未保存的更改",
+        "savePrompt": "是否在离开前保存更改？",
+        "discard": "不保存",
+        "cancel": "取消",
+        "saveFailed": "未能保存更改。"
+    },
+    "menus": {
+        "deleteItem": "删除物品",
+        "delete": "删除",
+        "duplicateItem": "创建物品副本",
+        "copySuffix": "副本",
+        "editItem": "编辑物品",
+        "editContent": "编辑内容",
+        "globalSettings": "物品设置",
+        "copyId": "复制 ID",
+        "copyKey": "复制消息键",
+        "copy": "复制",
+        "copyValue": "复制值",
+        "cut": "剪切",
+        "paste": "粘贴",
+        "selectAll": "全选",
+        "deleteSelection": "删除选中文字",
+        "editText": "文本",
+        "leftOperand": "左侧值",
+        "rightOperand": "右侧值",
+        "comparison": "比较符",
+        "relatedItems": "引用此项的物品",
+        "clearOverride": "清除颜色覆盖",
+        "hexColor": "颜色值",
+        "chooseValue": "选择值",
+        "deselect": "取消选中",
+        "copyPreview": "复制预览文本",
+        "raisePriority": "提高优先级",
+        "lowerPriority": "降低优先级",
+        "clearTranslation": "移除翻译覆盖",
+        "copyMessage": "复制消息",
+        "copyCode": "复制代码",
+        "copyAddress": "复制 API 地址",
+        "actionFailed": "未能完成此操作。",
+        "applyTheme": "应用到此物品",
+        "editTheme": "编辑主题"
+    },
+    "appearance": {
+        "heading": "外观",
+        "light": "日间模式",
+        "dark": "夜间模式",
+        "system": "跟随系统"
+    },
+    "navigation": {
+        "backToEditor": "返回编辑器",
+        "resize": "调整导航栏宽度",
+        "expanded": "已展开",
+        "collapsed": "已收缩",
+        "heading": "导航",
+        "expand": "展开导航栏",
+        "collapse": "收缩导航栏"
+    },
     "sidebar": {
+        "searchByMode": {
+            "items": "搜索物品…",
+            "themes": "搜索主题…",
+            "layouts": "搜索排版…",
+            "data": "搜索数据键…"
+        },
         "search": "搜索物品…",
         "addItem": "新建物品",
         "newItemName": "新物品",
@@ -14,19 +125,24 @@
         "assets": "资源包",
         "packsMounted": "已挂载 {{count}} 个",
         "packsNone": "未挂载",
-        "translations": "翻译",
+        "translations": "内容翻译",
         "diagnostics": "诊断",
+        "settings": "设置",
         "serverConnected": "服务器：{{server}}",
         "serverOffline": "未连接服务器",
         "uiLanguage": "界面语言",
         "documentSync": {
+            "disconnected": "未连接",
+            "empty": "服务端没有文档",
+            "local": "已保存到本地",
             "loading": "正在载入项目…",
             "saved": "所有更改均已保存",
             "pending": "更改等待保存",
+            "unsaved": "更改尚未保存",
             "saving": "正在保存更改…",
-            "conflict": "远端更改发生冲突——重新载入",
+            "conflict": "草稿不同：载入服务器草稿",
             "error": "保存失败——重试",
-            "offline": "控制面不可用——重新连接"
+            "offline": "插件 API 不可用"
         },
         "mode": {
             "items": "物品",
@@ -35,7 +151,27 @@
             "data": "数据"
         }
     },
+    "workspace": {
+        "disconnected": "未连接",
+        "loading": "正在载入服务端配置…",
+        "noDocument": "此插件尚未提供配置文档",
+        "inspector": "检查器"
+    },
+    "history": { "undo": "撤销", "redo": "重做", "duplicate": "创建内容副本" },
+    "previewStatus": {
+        "verified": "服务器已验证",
+        "pending": "服务器验证中",
+        "error": "服务器验证失败",
+        "unverified": "尚未验证",
+        "unavailable": "服务器验证不可用"
+    },
     "stage": {
+        "resetZoom": "回到 100%",
+        "fitZoom": "适应所有",
+        "pan": "平移画布",
+        "outline": "内容大纲",
+        "insertBefore": "在上方插入内容",
+        "insertAfter": "在下方插入内容",
         "heading": "预览",
         "noItem": "在左侧选择一个物品开始编辑。",
         "previewLanguage": "预览语言",
@@ -100,6 +236,9 @@
             "canvas": "固定画布"
         },
         "content": {
+            "ancestors": "上级条件",
+            "style": "样式",
+            "wrapping": "换行",
             "heading": "内容",
             "addField": "属性行",
             "addText": "文本",
@@ -135,7 +274,7 @@
             "nameKey": "名称消息键",
             "mode": "实例模式",
             "deleteItem": "删除此物品",
-            "deleteConfirm": "删除“{{name}}”？此操作无法在此撤销。"
+            "deleteConfirm": "删除“{{name}}”？"
         },
         "none": "无",
         "theme": {
@@ -230,12 +369,13 @@
         }
     },
     "assets": {
+        "import": "导入资源包",
         "heading": "资源包",
         "description": "挂载资源包或原版客户端资产后，预览读取的就是游戏会读取的同一批字节。文件不会离开本浏览器。",
         "drop": "把 .zip 或 .jar 拖到这里，或选择文件",
         "choose": "选择文件",
         "fetchVanilla": "拉取原版 {{version}} 资产",
-        "fetchVanillaHint": "通过控制面下载已固定的字体、GUI 与物品资产，并逐个校验 SHA-1。",
+        "fetchVanillaHint": "直接从 Mojang 下载已固定的字体、GUI 与物品资产，并逐个校验 SHA-1。",
         "mounted": "已挂载的包",
         "priority": "优先级",
         "remove": "移除",
@@ -283,7 +423,7 @@
         },
         "origin": {
             "browser": "浏览器",
-            "control-plane": "控制面",
+            "control-plane": "旧版服务",
             "agent": "目标服务器"
         }
     }

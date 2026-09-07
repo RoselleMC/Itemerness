@@ -2,10 +2,121 @@
     "app": {
         "title": "Itemerness"
     },
+    "window": {
+        "workspaceTools": "Workspace tools",
+        "preferences": "Editor preferences",
+        "minimize": "Minimize",
+        "maximize": "Maximize",
+        "restore": "Restore",
+        "close": "Close window",
+        "failed": "Window control unavailable"
+    },
     "common": {
         "close": "Close"
     },
+    "connection": {
+        "heading": "Plugin connection",
+        "chooseServer": "Connect to a plugin",
+        "incompatible": "Incompatible",
+        "server": "Server",
+        "platform": "Platform",
+        "pluginVersion": "Plugin version",
+        "apiVersion": "API protocol",
+        "previewAvailable": "Server compilation available",
+        "previewUnavailable": "Server preview unavailable for this Minecraft version",
+        "draft": "Draft",
+        "address": "Plugin API address",
+        "token": "Access token (optional)",
+        "authentication": "Authentication",
+        "noAuthentication": "No token required",
+        "bearerAuthentication": "Access token",
+        "unencrypted": "HTTP connection is not encrypted",
+        "connect": "Connect",
+        "disconnect": "Disconnect",
+        "cancel": "Cancel",
+        "offline": "Offline",
+        "connecting": "Connecting...",
+        "connected": "Connected",
+        "error": "Connection failed",
+        "protocol": "API {{version}} / Plugin {{plugin}}",
+        "errors": {
+            "PROTOCOL_INCOMPATIBLE": "Incompatible API or document version. Update the editor or plugin.",
+            "INVALID_API_URL": "Use an HTTP or HTTPS address without credentials, query parameters, or fragments.",
+            "INVALID_TOKEN": "Leave the token empty, or enter 32 to 256 token characters.",
+            "UNAUTHORIZED": "The plugin rejected this access token.",
+            "TOKEN_REQUIRED": "This plugin requires an access token.",
+            "ORIGIN_FORBIDDEN": "This browser origin is not allowed by the plugin.",
+            "CONNECTION_FAILED": "Could not connect. Check the address, certificate, and plugin API settings."
+        }
+    },
+    "settings": {
+        "editing": "Editing",
+        "autoSave": "Auto save",
+        "save": "Save",
+        "unsavedHeading": "Unsaved changes",
+        "savePrompt": "Save changes before leaving?",
+        "discard": "Don't save",
+        "cancel": "Cancel",
+        "saveFailed": "Changes could not be saved."
+    },
+    "menus": {
+        "deleteItem": "Delete item",
+        "delete": "Delete",
+        "duplicateItem": "Duplicate item",
+        "copySuffix": "Copy",
+        "editItem": "Edit item",
+        "editContent": "Edit content",
+        "globalSettings": "Item settings",
+        "copyId": "Copy ID",
+        "copyKey": "Copy message key",
+        "copy": "Copy",
+        "copyValue": "Copy value",
+        "cut": "Cut",
+        "paste": "Paste",
+        "selectAll": "Select all",
+        "deleteSelection": "Delete selection",
+        "editText": "Text",
+        "leftOperand": "Left operand",
+        "rightOperand": "Right operand",
+        "comparison": "Comparison",
+        "relatedItems": "Referenced by items",
+        "clearOverride": "Clear color override",
+        "hexColor": "Hex color",
+        "chooseValue": "Choose value",
+        "deselect": "Deselect",
+        "copyPreview": "Copy preview text",
+        "raisePriority": "Raise priority",
+        "lowerPriority": "Lower priority",
+        "clearTranslation": "Remove translation override",
+        "copyMessage": "Copy message",
+        "copyCode": "Copy code",
+        "copyAddress": "Copy API address",
+        "actionFailed": "The action could not be completed.",
+        "applyTheme": "Apply to this item",
+        "editTheme": "Edit theme"
+    },
+    "appearance": {
+        "heading": "Appearance",
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+    },
+    "navigation": {
+        "backToEditor": "Back to editor",
+        "resize": "Resize navigation",
+        "expanded": "Expanded",
+        "collapsed": "Collapsed",
+        "heading": "Navigation",
+        "expand": "Expand navigation",
+        "collapse": "Collapse navigation"
+    },
     "sidebar": {
+        "searchByMode": {
+            "items": "Search items...",
+            "themes": "Search themes...",
+            "layouts": "Search layouts...",
+            "data": "Search data keys..."
+        },
         "search": "Search items…",
         "addItem": "New item",
         "newItemName": "New item",
@@ -14,19 +125,24 @@
         "assets": "Resource packs",
         "packsMounted": "{{count}} mounted",
         "packsNone": "None mounted",
-        "translations": "Translations",
+        "translations": "Content translations",
         "diagnostics": "Diagnostics",
+        "settings": "Settings",
         "serverConnected": "Server: {{server}}",
         "serverOffline": "No server connected",
         "uiLanguage": "Interface language",
         "documentSync": {
+            "disconnected": "Not connected",
+            "empty": "No server document",
+            "local": "Saved locally",
             "loading": "Loading project…",
             "saved": "All changes saved",
             "pending": "Changes pending",
+            "unsaved": "Unsaved changes",
             "saving": "Saving changes…",
-            "conflict": "Remote changes conflict — reload",
+            "conflict": "Drafts differ: load server draft",
             "error": "Save failed — retry",
-            "offline": "Control plane unavailable — reconnect"
+            "offline": "Plugin API unavailable"
         },
         "mode": {
             "items": "Items",
@@ -35,7 +151,31 @@
             "data": "Data"
         }
     },
+    "workspace": {
+        "disconnected": "Not connected",
+        "loading": "Loading server configuration...",
+        "noDocument": "No configuration document on this plugin",
+        "inspector": "Inspector"
+    },
+    "history": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "duplicate": "Duplicate content"
+    },
+    "previewStatus": {
+        "verified": "Server verified",
+        "pending": "Server validation in progress",
+        "error": "Server validation failed",
+        "unverified": "Not yet verified",
+        "unavailable": "Server validation unavailable"
+    },
     "stage": {
+        "resetZoom": "Reset to 100%",
+        "fitZoom": "Fit all",
+        "pan": "Pan canvas",
+        "outline": "Content outline",
+        "insertBefore": "Insert content above",
+        "insertAfter": "Insert content below",
         "heading": "Preview",
         "noItem": "Select an item on the left to start editing.",
         "previewLanguage": "Preview language",
@@ -100,6 +240,9 @@
             "canvas": "fixed canvas"
         },
         "content": {
+            "ancestors": "Parent conditions",
+            "style": "Style",
+            "wrapping": "Wrapping",
             "heading": "Content",
             "addField": "Stat row",
             "addText": "Text",
@@ -135,7 +278,7 @@
             "nameKey": "Name message key",
             "mode": "Instance mode",
             "deleteItem": "Delete this item",
-            "deleteConfirm": "Delete “{{name}}”? This cannot be undone here."
+            "deleteConfirm": "Delete “{{name}}”?"
         },
         "none": "None",
         "theme": {
@@ -230,12 +373,13 @@
         }
     },
     "assets": {
+        "import": "Import pack",
         "heading": "Resource packs",
         "description": "Mount a resource pack or the vanilla client assets so the preview reads the same bytes the game would. Files stay in this browser.",
         "drop": "Drop a .zip or .jar here, or choose a file",
         "choose": "Choose file",
         "fetchVanilla": "Fetch vanilla {{version}} assets",
-        "fetchVanillaHint": "Downloads the pinned font, GUI, and item assets through the control plane, verifying every SHA-1.",
+        "fetchVanillaHint": "Downloads pinned font, GUI, and item assets directly from Mojang, verifying every SHA-1.",
         "mounted": "Mounted packs",
         "priority": "Priority",
         "remove": "Remove",
@@ -283,7 +427,7 @@
         },
         "origin": {
             "browser": "Browser",
-            "control-plane": "Control plane",
+            "control-plane": "Legacy service",
             "agent": "Target server"
         }
     }

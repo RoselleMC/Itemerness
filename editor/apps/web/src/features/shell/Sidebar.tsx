@@ -1,14 +1,28 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SUPPORTED_UI_LANGUAGES } from "../../i18n/index.js";
+import { describeContext } from "../../state/interface.js";
+import {
+    itemActions,
+    newItemAction,
+    copyAction,
+    relatedItems,
+    blockUses,
+} from "../common/contextActions.js";
 import { useEditorStore, type EditorMode } from "../../state/store.js";
-import type { DocumentSyncStatus } from "../../api/documentAutosave.js";
 import {
     humanizePath,
     itemDisplayName,
     resolveMessage,
 } from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
+import {
+    CircleCheck,
+    CircleX,
+    CircleDashed,
+    LoaderCircle,
+    CircleSlash,
+} from "lucide-react";
+import type { PreviewItemState } from "../../api/previewCache.js";
 
 /**
  * The library rail.
@@ -17,81 +31,67 @@ import { ItemIcon } from "../common/ItemIcon.js";
  * recognises: the item's texture and localized name, a theme's colour swatch, a data key's label.
  * The namespaced ids still exist and are stable; they live in each inspector's advanced fold.
  */
-const MODES: readonly EditorMode[] = ["items", "themes", "layouts", "data"];
-
 export function Sidebar({
-    onOpenOverlay,
-    documentSync,
-    onResolveDocumentSync,
+    itemStates,
 }: {
-    onOpenOverlay: (overlay: "assets" | "translations" | "diagnostics") => void;
-    documentSync: DocumentSyncStatus;
-    onResolveDocumentSync: () => void;
+    itemStates: Readonly<Record<string, PreviewItemState>>;
 }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const store = useEditorStore();
     const { document } = store;
-    const [query, setQuery] = useState("");
-    const [agent, setAgent] = useState<{
-        connected: boolean;
-        serverId: string | null;
-    } | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        const poll = async () => {
-            try {
-                const response = await fetch("/api/v1/agent/status");
-                if (!response.ok) throw new Error();
-                const body = (await response.json()) as {
-                    connected: boolean;
-                    serverId: string | null;
-                };
-                if (!cancelled)
-                    setAgent({
-                        connected: body.connected,
-                        serverId: body.serverId,
-                    });
-            } catch {
-                if (!cancelled) setAgent(null);
-            }
-        };
-        void poll();
-        const timer = setInterval(poll, 15_000);
-        return () => {
-            cancelled = true;
-            clearInterval(timer);
-        };
-    }, []);
+    const [queries, setQueries] = useState<Record<EditorMode, string>>({
+        items: "",
+        themes: "",
+        layouts: "",
+        data: "",
+    });
+    const query = queries[store.mode];
+    const count =
+        store.mode === "items"
+            ? document.items.length
+            : store.mode === "themes"
+              ? document.themes.length
+              : store.mode === "layouts"
+                ? document.layouts.length
+                : document.dataSchemas.reduce(
+                      (total, schema) => total + schema.keys.length,
+                      0,
+                  );
 
     const matches = (text: string) =>
         query === "" || text.toLowerCase().includes(query.toLowerCase());
 
     return (
-        <aside className="sidebar">
+        <aside
+            className="sidebar"
+            aria-labelledby="library-heading"
+            onContextMenu={(event) => {
+                if (store.mode === "items")
+                    describeContext(event, {
+                        label: t("sidebar.mode.items"),
+                        items: [newItemAction(t)],
+                    });
+            }}
+        >
             <header className="sidebar-head">
-                <h1>{t("app.title")}</h1>
-                <nav className="mode-tabs" role="tablist">
-                    {MODES.map((mode) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            role="tab"
-                            aria-selected={store.mode === mode}
-                            className={store.mode === mode ? "selected" : ""}
-                            onClick={() => store.setMode(mode)}
-                            data-testid={`mode-${mode}`}
-                        >
-                            {t(`sidebar.mode.${mode}`)}
-                        </button>
-                    ))}
-                </nav>
+                <div className="library-heading">
+                    <h2 id="library-heading" data-testid="library-heading">
+                        {t(`sidebar.mode.${store.mode}`)}
+                    </h2>
+                    <span>{count}</span>
+                </div>
                 <input
                     type="search"
                     className="sidebar-search"
-                    placeholder={t("sidebar.search")}
+                    placeholder={t(`sidebar.searchByMode.${store.mode}`)}
+                    aria-label={t(`sidebar.searchByMode.${store.mode}`)}
                     value={query}
-                    onChange={(event) => setQuery(event.target.value)}
+                    onChange={(event) =>
+                        setQueries((previous) => ({
+                            ...previous,
+                            [store.mode]: event.target.value,
+                        }))
+                    }
                     data-testid="item-search"
                 />
             </header>
@@ -120,6 +120,17 @@ export function Sidebar({
                                         className={`item-row ${store.selectedItemId === row.id ? "selected" : ""} ${row.item.enabled ? "" : "disabled-item"}`}
                                         onClick={() => store.selectItem(row.id)}
                                         data-testid={`item-${row.item.id}`}
+                                        aria-label={row.name}
+                                        onContextMenu={(event) => {
+                                            store.selectItem(row.id);
+                                            describeContext(event, {
+                                                label: row.name,
+                                                items: itemActions(
+                                                    row.item.uuid,
+                                                    t,
+                                                ),
+                                            });
+                                        }}
                                     >
                                         <ItemIcon
                                             materialId={
@@ -138,6 +149,13 @@ export function Sidebar({
                                                 </span>
                                             ) : null}
                                         </span>
+                                        <ItemValidation
+                                            state={
+                                                itemStates[row.id] ??
+                                                "unverified"
+                                            }
+                                            id={row.item.id}
+                                        />
                                     </button>
                                 </li>
                             ))}
@@ -170,6 +188,29 @@ export function Sidebar({
                                             store.selectTheme(theme.id)
                                         }
                                         data-testid={`theme-${path}`}
+                                        onContextMenu={(event) => {
+                                            store.selectTheme(theme.id);
+                                            describeContext(event, {
+                                                label: humanizePath(path),
+                                                items: [
+                                                    copyAction(
+                                                        "copy-id",
+                                                        t("menus.copyId"),
+                                                        theme.id,
+                                                    ),
+                                                    relatedItems(
+                                                        document.items.filter(
+                                                            (item) =>
+                                                                item
+                                                                    .presentation
+                                                                    .theme ===
+                                                                theme.id,
+                                                        ),
+                                                        t,
+                                                    ),
+                                                ],
+                                            });
+                                        }}
                                     >
                                         <span
                                             className="swatch"
@@ -210,6 +251,29 @@ export function Sidebar({
                                             store.selectLayout(layout.id)
                                         }
                                         data-testid={`layout-${path}`}
+                                        onContextMenu={(event) => {
+                                            store.selectLayout(layout.id);
+                                            describeContext(event, {
+                                                label: humanizePath(path),
+                                                items: [
+                                                    copyAction(
+                                                        "copy-id",
+                                                        t("menus.copyId"),
+                                                        layout.id,
+                                                    ),
+                                                    relatedItems(
+                                                        document.items.filter(
+                                                            (item) =>
+                                                                item
+                                                                    .presentation
+                                                                    .layout ===
+                                                                layout.id,
+                                                        ),
+                                                        t,
+                                                    ),
+                                                ],
+                                            });
+                                        }}
                                     >
                                         <span className="item-row-text">
                                             <span className="item-row-name">
@@ -260,6 +324,33 @@ export function Sidebar({
                                         store.selectDataKey(row.key.id)
                                     }
                                     data-testid={`datakey-${row.path}`}
+                                    onContextMenu={(event) => {
+                                        store.selectDataKey(row.key.id);
+                                        describeContext(event, {
+                                            label: row.name,
+                                            items: [
+                                                copyAction(
+                                                    "copy-id",
+                                                    t("menus.copyId"),
+                                                    row.key.id,
+                                                ),
+                                                relatedItems(
+                                                    document.items.filter(
+                                                        (item) =>
+                                                            item.presentation.blocks.some(
+                                                                (block) =>
+                                                                    blockUses(
+                                                                        block,
+                                                                        row.key
+                                                                            .id,
+                                                                    ),
+                                                            ),
+                                                    ),
+                                                    t,
+                                                ),
+                                            ],
+                                        });
+                                    }}
                                 >
                                     <span className="item-row-text">
                                         <span className="item-row-name">
@@ -274,94 +365,42 @@ export function Sidebar({
                         ))}
                 </ul>
             ) : null}
-
-            <footer className="sidebar-foot">
-                <button
-                    type="button"
-                    onClick={() => onOpenOverlay("assets")}
-                    data-testid="open-assets"
-                >
-                    {t("sidebar.assets")}
-                    <span className="muted small">
-                        {store.packs.length > 0
-                            ? t("sidebar.packsMounted", {
-                                  count: store.packs.length,
-                              })
-                            : t("sidebar.packsNone")}
-                    </span>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onOpenOverlay("translations")}
-                    data-testid="open-translations"
-                >
-                    {t("sidebar.translations")}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onOpenOverlay("diagnostics")}
-                    data-testid="open-diagnostics"
-                >
-                    {t("sidebar.diagnostics")}
-                </button>
-
-                {documentSync.kind === "conflict" ||
-                documentSync.kind === "error" ||
-                documentSync.kind === "offline" ? (
-                    <button
-                        type="button"
-                        className="server-pill"
-                        onClick={onResolveDocumentSync}
-                        data-testid="document-sync-status"
-                        data-sync-kind={documentSync.kind}
-                    >
-                        <span className="dot dot-off" />
-                        {t(`sidebar.documentSync.${documentSync.kind}`)}
-                    </button>
-                ) : (
-                    <div
-                        className="server-pill"
-                        role="status"
-                        aria-live="polite"
-                        data-testid="document-sync-status"
-                        data-sync-kind={documentSync.kind}
-                    >
-                        <span
-                            className={`dot ${documentSync.kind === "saved" ? "dot-on" : "dot-off"}`}
-                        />
-                        {t(`sidebar.documentSync.${documentSync.kind}`)}
-                    </div>
-                )}
-
-                <div className="server-pill" data-testid="server-pill">
-                    <span
-                        className={`dot ${agent?.connected ? "dot-on" : "dot-off"}`}
-                    />
-                    {agent?.connected
-                        ? t("sidebar.serverConnected", {
-                              server: agent.serverId,
-                          })
-                        : t("sidebar.serverOffline")}
-                </div>
-
-                <label className="ui-language">
-                    {t("sidebar.uiLanguage")}
-                    <select
-                        value={i18n.resolvedLanguage}
-                        onChange={(event) =>
-                            void i18n.changeLanguage(event.target.value)
-                        }
-                        data-testid="ui-language"
-                    >
-                        {SUPPORTED_UI_LANGUAGES.map((language) => (
-                            <option key={language.code} value={language.code}>
-                                {language.label}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            </footer>
         </aside>
+    );
+}
+
+function ItemValidation({
+    state,
+    id,
+}: {
+    state: PreviewItemState;
+    id: string;
+}) {
+    const { t } = useTranslation();
+    const Icon = {
+        verified: CircleCheck,
+        pending: LoaderCircle,
+        error: CircleX,
+        unverified: CircleDashed,
+        unavailable: CircleSlash,
+    }[state];
+    return (
+        <span
+            className="item-validation"
+            data-testid={`item-status-${id}`}
+            data-state={state}
+            role="img"
+            aria-label={t(`previewStatus.${state}`)}
+            data-tooltip={t(`previewStatus.${state}`)}
+        >
+            <Icon
+                size={15}
+                aria-hidden="true"
+                className={
+                    state === "pending" ? "connection-spinner" : undefined
+                }
+            />
+        </span>
     );
 }
 

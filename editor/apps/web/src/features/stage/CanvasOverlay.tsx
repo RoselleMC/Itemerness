@@ -7,8 +7,8 @@ import {
 import { useTranslation } from "react-i18next";
 import {
     componentTop,
-    PROFILE_26_1_2,
     type TooltipGeometry,
+    type TooltipProfile,
 } from "@itemerness/mc-render";
 import type {
     ItemNode,
@@ -18,6 +18,13 @@ import type {
 } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { resolveMessage } from "../common/messages.js";
+import { ContentMenu } from "./ContentMenu.js";
+import { locateBlock } from "../../state/blocks.js";
+import { moveBlockTree } from "../../state/blocks.js";
+import { ArrowUp, ArrowDown } from "lucide-react";
+import { useCanvasReorder } from "./useCanvasReorder.js";
+import { describeContext } from "../../state/interface.js";
+import { contentActions } from "../common/contextActions.js";
 
 /**
  * The preview as an editing surface.
@@ -27,10 +34,8 @@ import { resolveMessage } from "../common/messages.js";
  * layouts additionally expose their anchors as draggable regions — position by dragging the thing
  * itself, not by typing coordinates.
  *
- * Line-to-block attribution comes from the local composer's provenance. When the displayed
- * geometry is a server artifact the mapping is aligned by index and clamped; around synthetic
- * spacer lines it can be off by one, which mislabels a click's target but never corrupts an edit —
- * every write still goes through the block uuid it resolved to.
+ * Provenance is matched to the displayed artifact before hit testing. Unattributed synthetic
+ * lines are not editable; a wrapped block shares one pair of insertion controls.
  */
 
 interface InlineEdit {
@@ -88,30 +93,39 @@ export function CanvasOverlay({
     const [hovered, setHovered] = useState<number | null>(null);
     const [inlineEdit, setInlineEdit] = useState<InlineEdit | null>(null);
     const inputRef = useRef<HTMLInputElement | null>(null);
+    const root = useRef<HTMLDivElement>(null);
+    const reorder = useCanvasReorder(root, item.uuid);
+    const inlineCancelled = useRef(false);
 
     useEffect(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
     }, [inlineEdit]);
+    useEffect(() => {
+        if (store.selectedBlockUuid === null) {
+            inlineCancelled.current = true;
+            setInlineEdit(null);
+        }
+    }, [store.selectedBlockUuid]);
 
     const scale = guiScale;
-    const padding = PROFILE_26_1_2.paddingPixels;
-    const lineHeight = PROFILE_26_1_2.lineHeightPixels;
+    const origin = geometry.contentOriginPixels;
+    const lineHeight = geometry.profile.lineHeightPixels;
 
     /** Geometry of tooltip component `componentIndex` (0 = name) in CSS pixels. */
     const lineBox = (componentIndex: number) => ({
-        top: (padding + componentTop(componentIndex)) * scale,
-        left: padding * scale,
-        width:
-            (geometry.contentWidthPixels ||
-                geometry.totalWidthPixels - padding * 2) * scale,
+        top:
+            (origin.y + componentTop(componentIndex, geometry.profile)) * scale,
+        left: origin.x * scale,
+        width: Math.max(1, geometry.contentWidthPixels) * scale,
         height: lineHeight * scale,
     });
 
     const originAt = (loreIndex: number): string | null =>
-        lineOrigins[Math.min(loreIndex, lineOrigins.length - 1)] ?? null;
+        lineOrigins[loreIndex] ?? null;
 
     const beginInlineEdit = (componentIndex: number, messageKey: string) => {
+        inlineCancelled.current = false;
         const resolved = resolveMessage(
             store.document,
             store.viewerLocale,
@@ -128,10 +142,18 @@ export function CanvasOverlay({
     };
 
     const commitInlineEdit = (value: string | null) => {
-        if (inlineEdit && value !== null)
+        if (inlineEdit && value !== null && !inlineCancelled.current)
             store.setMessage(store.viewerLocale, inlineEdit.messageKey, value);
         setInlineEdit(null);
     };
+    useEffect(() => {
+        const commit = () => {
+            if (inputRef.current) commitInlineEdit(inputRef.current.value);
+        };
+        window.addEventListener("itemerness:commit-inline", commit);
+        return () =>
+            window.removeEventListener("itemerness:commit-inline", commit);
+    }, [inlineEdit, store.viewerLocale]);
 
     const components: Array<{ componentIndex: number; origin: string | null }> =
         [
@@ -141,19 +163,58 @@ export function CanvasOverlay({
                 origin: originAt(index),
             })),
         ];
+    const isSelected = (uuid: string | null) =>
+        uuid !== null &&
+        (uuid === store.selectedBlockUuid ||
+            locateBlock(item.presentation.blocks, uuid)?.ancestors.some(
+                (ancestor) => ancestor.uuid === store.selectedBlockUuid,
+            ));
+    const selectedComponents = components.filter((component) =>
+        isSelected(component.origin),
+    );
+    const first = selectedComponents[0];
+    const last = selectedComponents.at(-1);
+    const firstBox = first ? lineBox(first.componentIndex) : null;
+    const lastBox = last ? lineBox(last.componentIndex) : null;
+    const selectedLocation = store.selectedBlockUuid
+        ? locateBlock(item.presentation.blocks, store.selectedBlockUuid)
+        : null;
+    const moveSelected = (delta: number) => {
+        if (!selectedLocation) return;
+        store.setEditGroup(null);
+        store.updateItem(item.uuid, (current) => ({
+            ...current,
+            presentation: {
+                ...current.presentation,
+                blocks: moveBlockTree(
+                    current.presentation.blocks,
+                    selectedLocation.block.uuid,
+                    delta,
+                ),
+            },
+        }));
+    };
 
     return (
-        <div className="canvas-overlay" onPointerLeave={() => setHovered(null)}>
+        <div
+            ref={root}
+            className="canvas-overlay"
+            data-dragging={!!reorder.dragging}
+            onClickCapture={reorder.clickCapture}
+            onPointerLeave={() => setHovered(null)}
+        >
+            {reorder.ghost}
             {components.map(({ componentIndex, origin }) => {
                 if (origin === null) return null;
                 const box = lineBox(componentIndex);
-                const selected = store.selectedBlockUuid === origin;
+                const selected = !!isSelected(origin);
                 const testid =
                     componentIndex === 0
                         ? "line-hit-name"
                         : `line-hit-${componentIndex - 1}`;
                 return (
-                    <div
+                    <button
+                        type="button"
                         key={componentIndex}
                         className={`line-hit ${hovered === componentIndex ? "hover" : ""} ${selected ? "selected" : ""}`}
                         style={{
@@ -162,9 +223,46 @@ export function CanvasOverlay({
                             width: box.width,
                             height: box.height,
                         }}
-                        title={t("stage.lineTitle")}
+                        data-tooltip={t("stage.lineTitle")}
                         data-testid={testid}
+                        data-origin={origin}
+                        onContextMenu={(event) => {
+                            store.selectBlock(origin);
+                            describeContext(event, {
+                                label: t(
+                                    origin === "__name"
+                                        ? "inspector.name.heading"
+                                        : "inspector.content.heading",
+                                ),
+                                items: contentActions(origin, t),
+                            });
+                        }}
+                        aria-label={
+                            componentIndex === 0
+                                ? t("inspector.name.heading")
+                                : display.lore[componentIndex - 1]?.runs
+                                      .map((run) => run.text)
+                                      .join("") ||
+                                  t("inspector.content.heading")
+                        }
+                        aria-pressed={selected}
                         onPointerEnter={() => setHovered(componentIndex)}
+                        onPointerDown={(event) =>
+                            reorder.begin(
+                                event,
+                                store.selectedBlockUuid &&
+                                    locateBlock(
+                                        item.presentation.blocks,
+                                        origin,
+                                    )?.ancestors.some(
+                                        (ancestor) =>
+                                            ancestor.uuid ===
+                                            store.selectedBlockUuid,
+                                    )
+                                    ? store.selectedBlockUuid
+                                    : origin,
+                            )
+                        }
                         onClick={() => store.selectBlock(origin)}
                         onDoubleClick={() => {
                             const messageKey =
@@ -183,12 +281,81 @@ export function CanvasOverlay({
                 );
             })}
 
+            {firstBox &&
+                lastBox &&
+                store.selectedBlockUuid &&
+                !reorder.dragging && (
+                    <>
+                        {store.selectedBlockUuid !== "__name" && (
+                            <div
+                                className="canvas-insert"
+                                style={{
+                                    left: Math.max(-46, firstBox.left - 54),
+                                    top: firstBox.top - 22,
+                                }}
+                            >
+                                <ContentMenu
+                                    key={`${store.selectedBlockUuid}-before`}
+                                    anchorUuid={store.selectedBlockUuid}
+                                    position="before"
+                                />
+                                <button
+                                    type="button"
+                                    className="icon-button"
+                                    data-testid="content-move-up"
+                                    disabled={
+                                        !selectedLocation ||
+                                        selectedLocation.index === 0
+                                    }
+                                    data-tooltip={t("inspector.content.moveUp")}
+                                    aria-label={t("inspector.content.moveUp")}
+                                    onClick={() => moveSelected(-1)}
+                                >
+                                    <ArrowUp size={15} />
+                                </button>
+                            </div>
+                        )}
+                        <div
+                            className="canvas-insert"
+                            style={{
+                                left: Math.max(-46, lastBox.left - 54),
+                                top: lastBox.top + lastBox.height,
+                            }}
+                        >
+                            <ContentMenu
+                                key={`${store.selectedBlockUuid}-after`}
+                                anchorUuid={store.selectedBlockUuid}
+                                position="after"
+                            />
+                            {selectedLocation && (
+                                <button
+                                    type="button"
+                                    className="icon-button"
+                                    data-testid="content-move-down"
+                                    disabled={
+                                        selectedLocation.index ===
+                                        selectedLocation.siblings.length - 1
+                                    }
+                                    data-tooltip={t(
+                                        "inspector.content.moveDown",
+                                    )}
+                                    aria-label={t("inspector.content.moveDown")}
+                                    onClick={() => moveSelected(1)}
+                                >
+                                    <ArrowDown size={15} />
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
+
             {layout?.kind === "canvas" &&
             display.renderer === "BITMAP_CANVAS" ? (
                 <CanvasAnchors
                     layout={layout}
                     scale={scale}
-                    padding={padding}
+                    origin={origin}
+                    profile={geometry.profile}
                 />
             ) : null}
 
@@ -206,11 +373,28 @@ export function CanvasOverlay({
                     aria-label={t("stage.inlineEditor")}
                     data-testid="inline-editor"
                     onKeyDown={(event) => {
+                        if (
+                            (event.metaKey || event.ctrlKey) &&
+                            event.key.toLowerCase() === "s"
+                        )
+                            commitInlineEdit(event.currentTarget.value);
                         if (event.key === "Enter")
                             commitInlineEdit(event.currentTarget.value);
-                        if (event.key === "Escape") commitInlineEdit(null);
+                        if (event.key === "Escape") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            inlineCancelled.current = true;
+                            commitInlineEdit(null);
+                            store.selectBlock(null);
+                        }
                     }}
-                    onBlur={(event) => commitInlineEdit(event.target.value)}
+                    onBlur={(event) => {
+                        if (!(
+                            event.relatedTarget instanceof Element &&
+                            event.relatedTarget.closest("[data-ui-popup]")
+                        ))
+                            commitInlineEdit(event.target.value);
+                    }}
                 />
             ) : null}
         </div>
@@ -227,14 +411,17 @@ export function CanvasOverlay({
 function CanvasAnchors({
     layout,
     scale,
-    padding,
+    origin,
+    profile,
 }: {
     layout: Extract<LayoutNode, { kind: "canvas" }>;
     scale: number;
-    padding: number;
+    origin: TooltipGeometry["contentOriginPixels"];
+    profile: TooltipProfile;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
+    const lineHeight = profile.lineHeightPixels;
     const dragState = useRef<{
         name: string;
         mode: "move" | "resize";
@@ -242,6 +429,8 @@ function CanvasAnchors({
         startY: number;
         origin: { x: number; y: number; width: number };
     } | null>(null);
+    const cancelDrag = useRef<(() => void) | null>(null);
+    useEffect(() => () => cancelDrag.current?.(), [layout.uuid]);
 
     const patchAnchor = (
         name: string,
@@ -264,10 +453,14 @@ function CanvasAnchors({
         name: string,
         mode: "move" | "resize",
     ) => {
+        if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
         const anchor = layout.anchors[name];
         if (!anchor) return;
+        cancelDrag.current?.();
+        const transaction = store.beginTransaction();
+        const pointer = event.pointerId;
         dragState.current = {
             name,
             mode,
@@ -277,7 +470,13 @@ function CanvasAnchors({
         };
         const onMove = (move: globalThis.PointerEvent) => {
             const drag = dragState.current;
-            if (!drag) return;
+            if (!drag || move.pointerId !== pointer) return;
+            if (
+                useEditorStore.getState().historyTransactionId !== transaction
+            ) {
+                finish(true);
+                return;
+            }
             const deltaX = (move.clientX - drag.startX) / scale;
             const deltaY = (move.clientY - drag.startY) / scale;
             if (drag.mode === "move") {
@@ -285,7 +484,8 @@ function CanvasAnchors({
                     x: Math.max(0, Math.round(drag.origin.x + deltaX)),
                     y: Math.max(
                         0,
-                        Math.round((drag.origin.y + deltaY) / 10) * 10,
+                        Math.round((drag.origin.y + deltaY) / lineHeight) *
+                            lineHeight,
                     ),
                 });
             } else {
@@ -294,32 +494,54 @@ function CanvasAnchors({
                 });
             }
         };
-        const onUp = () => {
+        const finish = (cancel: boolean) => {
             dragState.current = null;
+            cancelDrag.current = null;
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
+            window.removeEventListener("pointercancel", onCancel);
+            window.removeEventListener("blur", onCancel);
+            window.removeEventListener("keydown", onKey, true);
+            if (cancel) store.cancelTransaction(transaction);
+            else store.commitTransaction(transaction);
         };
+        const onUp = (event: PointerEvent) => {
+            if (event.pointerId === pointer) finish(false);
+        };
+        const onCancel = () => finish(true);
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                finish(true);
+            }
+        };
+        cancelDrag.current = onCancel;
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onCancel);
+        window.addEventListener("blur", onCancel);
+        window.addEventListener("keydown", onKey, true);
     };
 
     return (
         <>
             {Object.entries(layout.anchors).map(([name, anchor]) => {
                 // The name occupies component 0, so canvas line n renders as component n + 1.
-                const line = Math.floor(anchor.y / 10);
-                const top = (padding + componentTop(line + 1)) * scale;
+                const line = Math.floor(anchor.y / lineHeight);
+                const top =
+                    (origin.y + componentTop(line + 1, profile)) * scale;
                 return (
                     <div
                         key={name}
                         className="anchor-box"
                         style={{
                             top,
-                            left: (padding + anchor.x) * scale,
+                            left: (origin.x + anchor.x) * scale,
                             width: anchor.width * scale,
-                            height: Math.max(10, anchor.height) * scale,
+                            height: Math.max(lineHeight, anchor.height) * scale,
                         }}
-                        title={t("stage.anchorTitle")}
+                        data-tooltip={t("stage.anchorTitle")}
                         data-testid={`anchor-box-${name}`}
                         onPointerDown={(event) =>
                             beginDrag(event, name, "move")

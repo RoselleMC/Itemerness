@@ -5,7 +5,7 @@ import { uuidSchema } from "./common.js";
  * Diagnostics never carry rendered prose.
  *
  * A diagnostic that arrived as an English sentence could not be shown to a Chinese editor, and
- * the control plane has no business deciding the reader's language. Every producer emits a stable
+ * the plugin API does not decide the reader's language. Every producer emits a stable
  * `code`, a `messageKey`, and typed `params`; the browser renders the sentence through its own
  * i18n catalog. This is the single rule that makes the whole product translatable.
  */
@@ -15,7 +15,7 @@ export type DiagnosticSeverity = z.infer<typeof diagnosticSeveritySchema>;
 
 export const diagnosticOriginSchema = z.enum([
     "browser",
-    "control-plane",
+    "control-plane", // Reserved for imported v1 diagnostics; no such service runs in API v2.
     "agent",
 ]);
 export type DiagnosticOrigin = z.infer<typeof diagnosticOriginSchema>;

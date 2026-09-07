@@ -78,7 +78,7 @@ export type DrawOp =
     RectOp | GradientRectOp | SpriteOp | GlyphOp | AnnotationOp;
 
 export interface DrawList {
-    /** Full extent including tooltip padding, in GUI pixels. */
+    /** Full extent including tooltip padding and sprite margin, in GUI pixels. */
     readonly width: number;
     readonly height: number;
     readonly ops: readonly DrawOp[];

@@ -2,15 +2,16 @@ package com.iroselle.itemerness.bukkit.config
 
 import com.iroselle.itemerness.api.ItemKey
 import java.net.URI
-import java.net.URISyntaxException
 import java.nio.file.Path
 
 internal data class EditorEndpoint(
-    val url: String,
+    val bindHost: String,
+    val port: Int,
     /** Never logged, never written to an artifact, never returned by a diagnostic. */
     val token: String,
+    val allowedOrigins: List<String> = emptyList(),
 ) {
-    override fun toString(): String = "EditorEndpoint(url=$url, token=<redacted>)"
+    override fun toString(): String = "EditorEndpoint(bindHost=$bindHost, port=$port, token=<redacted>)"
 }
 
 internal data class ItemernessSettings(
@@ -92,21 +93,7 @@ internal data class ItemernessSettings(
                 throw StrictYamlException("Invalid default namespace '$namespace' in $source", exception)
             }
 
-            val editorNode = root.requiredObject("editor").rejectUnknown("url", "token")
-            val editorUrl = resolveSecret(editorNode.requiredString("url"), "editor.url", source)
-            val editorToken = resolveSecret(editorNode.requiredString("token"), "editor.token", source)
-            // Half a pairing is a configuration mistake, not a quiet fallback to local mode: an
-            // operator who filled in one field expected the editor to be connected.
-            if (editorUrl.isEmpty() != editorToken.isEmpty()) {
-                throw StrictYamlException(
-                    "editor.url and editor.token in $source must both be set or both be empty",
-                )
-            }
-            val editor = if (editorUrl.isEmpty()) {
-                null
-            } else {
-                parseEditorEndpoint(editorUrl, editorToken, source)
-            }
+            val editor = parseEditorEndpoint(root.requiredObject("editor"), source)
 
             val canonical = root.requiredObject("canonical-item").rejectUnknown("pending-name")
             val pending = canonical.requiredObject("pending-name").rejectUnknown("text", "color")
@@ -164,31 +151,39 @@ internal data class ItemernessSettings(
         }
 
         private fun parseEditorEndpoint(
-            value: String,
-            token: String,
+            node: YamlObject,
             source: String,
-        ): EditorEndpoint {
-            val normalized = value.trimEnd('/')
-            val uri = try {
-                URI(normalized)
-            } catch (exception: URISyntaxException) {
-                throw StrictYamlException("Invalid editor.url in $source", exception)
+        ): EditorEndpoint? {
+            // Existing local-only installations continue to boot, but an outbound pairing must
+            // never silently turn into an inbound listener with different security semantics.
+            if (node.contains("url")) {
+                node.rejectUnknown("url", "token")
+                if (node.requiredString("url").isBlank() && node.requiredString("token").isBlank()) return null
+                throw StrictYamlException("editor.url is retired in $source; migrate to editor.enabled, bind-host, port, token and allowed-origins")
             }
-            val host = uri.host?.removeSurrounding("[", "]")
-                ?: throw StrictYamlException("editor.url in $source must include a host")
-            val loopbackHttp = uri.scheme.equals("http", ignoreCase = true) &&
-                host.lowercase() in setOf("localhost", "127.0.0.1", "::1")
-            if (!uri.scheme.equals("https", ignoreCase = true) && !loopbackHttp) {
-                throw StrictYamlException(
-                    "editor.url in $source must use https except for an explicit loopback host",
-                )
+            node.rejectUnknown("enabled", "bind-host", "port", "token", "allowed-origins")
+            val enabled = node.requiredBoolean("enabled")
+            val host = node.requiredString("bind-host")
+            if (host.isBlank() || host.length > 253 || !Regex("[A-Za-z0-9.:-]+").matches(host)) {
+                throw StrictYamlException("Invalid editor.bind-host in $source")
             }
-            if (uri.userInfo != null || uri.query != null || uri.fragment != null) {
-                throw StrictYamlException(
-                    "editor.url in $source must not contain user info, a query, or a fragment",
-                )
+            val port = node.requiredInt("port")
+            if (port !in 1024..65535) throw StrictYamlException("editor.port in $source must be between 1024 and 65535")
+            val tokenValue = node.requiredString("token")
+            val token = if (enabled) resolveSecret(tokenValue, "editor.token", source) else ""
+            if (enabled && token.isNotEmpty() && !Regex("[A-Za-z0-9_~+/.=-]{32,256}").matches(token)) {
+                throw StrictYamlException("editor.token in $source must be empty or a random token of 32 to 256 ASCII token characters")
             }
-            return EditorEndpoint(normalized, token)
+            val origins = node.requiredList("allowed-origins").map { value ->
+                val origin = value as? String ?: throw StrictYamlException("editor.allowed-origins in $source must contain strings")
+                val uri = runCatching { URI(origin) }.getOrNull()
+                if (uri == null || uri.host == null || uri.scheme !in setOf("http", "https") ||
+                    !uri.rawPath.isNullOrEmpty() || uri.rawQuery != null || uri.rawFragment != null || uri.rawUserInfo != null
+                ) throw StrictYamlException("editor.allowed-origins in $source must contain exact HTTP origins without paths")
+                origin
+            }
+            if (origins.size > 16) throw StrictYamlException("Too many editor.allowed-origins in $source")
+            return if (enabled) EditorEndpoint(host, port, token, java.util.List.copyOf(origins)) else null
         }
 
         private fun String.countToken(token: String): Int {

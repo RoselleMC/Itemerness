@@ -8,7 +8,7 @@ import java.util.Collections
  *
  * The editor protocol needs three things a general-purpose JSON binding does not give for free:
  * rejection of unknown fields, so a typo in a document is an error rather than silently dropped
- * data; bounded parsing, because a project document arrives over a network from a control plane;
+ * data; bounded parsing, because a project document arrives over a network from an editor;
  * and RFC 8785 canonical output, because the browser and this module must hash the same document
  * to the same string or the snapshot fence that stops a stale preview becomes a coin flip.
  *
@@ -48,7 +48,7 @@ sealed interface JsonValue {
 
 class JsonException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
-/** Parser limits. A control plane is authenticated, not trusted with unbounded recursion. */
+/** Parser limits. An editor is authenticated, not trusted with unbounded recursion. */
 object JsonLimits {
     const val MAXIMUM_DEPTH: Int = 64
     const val MAXIMUM_STRING_LENGTH: Int = 1 shl 20

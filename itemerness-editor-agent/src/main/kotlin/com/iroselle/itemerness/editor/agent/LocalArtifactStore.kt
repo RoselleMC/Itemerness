@@ -10,8 +10,8 @@ import java.util.HexFormat
 /**
  * The last-known-good document, on local disk.
  *
- * A control plane that is unreachable must not take a server's catalog with it. The agent keeps
- * the artifact it last verified so the plugin can start, and keep running, with no network at all.
+ * Reserved for a future explicit publication flow. Neither the preview API nor the authoring
+ * draft store uses these pointers, and the runtime catalog does not load artifacts from here yet.
  *
  * Writes go to a temporary file, are flushed, and are then moved into place, so a crash mid-write
  * leaves either the previous artifact or the new one and never a truncated file. The digest is

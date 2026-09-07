@@ -19,7 +19,7 @@ export interface CanvasLike {
 }
 
 export interface RenderToCanvasOptions {
-    /** Integer GUI scale, as in the client's video settings. */
+    /** Continuous editor view magnification, independent of client GUI settings. */
     readonly guiScale?: number;
     /** Draw the debug annotation ops. */
     readonly showAnnotations?: boolean;
@@ -36,19 +36,16 @@ const ANNOTATION_COLORS: Record<string, string> = {
     "line-box": "rgb(120 160 255 / 0.55)",
 };
 
-/** Cache key for one tinted glyph bitmap. */
-function rasterKey(raster: GlyphRaster): string {
-    if (raster.kind === "unihex")
-        return `u:${raster.bitWidth}:${raster.rows.join(",")}:${raster.originX}`;
-    return `b:${raster.sourceX},${raster.sourceY},${raster.sourceWidth},${raster.sourceHeight}:${raster.image.width}x${raster.image.height}`;
-}
-
 class GlyphBitmapCache {
-    private readonly cache = new Map<string, ImageData>();
+    private readonly cache = new WeakMap<GlyphRaster, Map<number, ImageData>>();
 
     get(raster: GlyphRaster, color: number): ImageData {
-        const key = `${rasterKey(raster)}|${color.toString(16)}`;
-        const cached = this.cache.get(key);
+        let colors = this.cache.get(raster);
+        if (!colors) {
+            colors = new Map();
+            this.cache.set(raster, colors);
+        }
+        const cached = colors.get(color);
         if (cached) return cached;
         const width = raster.sourceWidth;
         const height = raster.sourceHeight;
@@ -67,7 +64,8 @@ class GlyphBitmapCache {
             }
         }
         const image = new ImageData(data, width, height);
-        this.cache.set(key, image);
+        colors.set(color, image);
+        while (colors.size > 16) colors.delete(colors.keys().next().value!);
         return image;
     }
 }
@@ -123,9 +121,18 @@ export function renderDrawList(
     drawList: DrawList,
     options: RenderToCanvasOptions = {},
 ): void {
-    const guiScale = Math.max(1, Math.round(options.guiScale ?? 2));
+    const requested = options.guiScale ?? 2;
+    const guiScale = Number.isFinite(requested)
+        ? Math.max(0.01, Math.min(32, requested))
+        : 1;
     const pixelRatio = options.devicePixelRatio ?? 1;
-    const scale = guiScale * pixelRatio;
+    // View zoom may be fractional. Bound backing pixels without changing the CSS viewport size.
+    const scale = Math.min(
+        guiScale * pixelRatio,
+        8192 / Math.max(1, drawList.width),
+        8192 / Math.max(1, drawList.height),
+        Math.sqrt(16_777_216 / Math.max(1, drawList.width * drawList.height)),
+    );
 
     canvas.width = Math.ceil(drawList.width * scale);
     canvas.height = Math.ceil(drawList.height * scale);

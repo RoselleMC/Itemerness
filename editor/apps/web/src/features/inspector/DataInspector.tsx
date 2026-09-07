@@ -1,7 +1,14 @@
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 import type { DataTypeNode, DataValue } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { humanizePath, resolveMessage } from "../common/messages.js";
+import { describeContext } from "../../state/interface.js";
+import {
+    copyAction,
+    relatedItems,
+    blockUses,
+} from "../common/contextActions.js";
 
 /**
  * Data key editing, scoped to what content editors actually decide: the human label every item
@@ -38,7 +45,11 @@ function scalarToText(value: DataValue | null): string | null {
     }
 }
 
-export function DataInspector() {
+export function DataInspector({
+    previewSettings,
+}: {
+    previewSettings?: ReactNode;
+}) {
     const { t } = useTranslation();
     const store = useEditorStore();
     const doc = store.document;
@@ -83,7 +94,26 @@ export function DataInspector() {
     };
 
     return (
-        <aside className="inspector" aria-label={t("inspector.data.heading")}>
+        <aside
+            className="inspector"
+            aria-label={t("inspector.data.heading")}
+            onContextMenu={(event) =>
+                describeContext(event, {
+                    label: dataKey.id,
+                    items: [
+                        copyAction("copy-id", t("menus.copyId"), dataKey.id),
+                        relatedItems(
+                            doc.items.filter((item) =>
+                                item.presentation.blocks.some((block) =>
+                                    blockUses(block, dataKey.id),
+                                ),
+                            ),
+                            t,
+                        ),
+                    ],
+                })
+            }
+        >
             <section>
                 <h3>{t("inspector.data.heading")}</h3>
                 <p className="library-title">
@@ -198,6 +228,7 @@ export function DataInspector() {
                     ) : null}
                 </dl>
             </details>
+            {previewSettings}
         </aside>
     );
 }

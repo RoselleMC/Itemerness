@@ -1,15 +1,7 @@
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    composeLocalPreview,
-    type PresentationFonts,
-} from "@itemerness/mc-render";
 import type { Diagnostic } from "@itemerness/protocol";
-import {
-    presentationFontsOf,
-    useEditorStore,
-    viewerOf,
-} from "../../state/store.js";
+import { describeContext } from "../../state/interface.js";
+import { copyAction } from "../common/contextActions.js";
 
 /**
  * Diagnostics.
@@ -18,28 +10,15 @@ import {
  * `messageKey`, and typed `params`; the text is assembled from this browser's own catalog, which
  * is what makes a Chinese editor see Chinese diagnostics from an English-speaking server.
  */
-export function DiagnosticsList() {
+export function DiagnosticsList({
+    diagnostics,
+}: {
+    diagnostics: readonly Diagnostic[];
+}) {
     const { t } = useTranslation();
-    const state = useEditorStore();
-
-    const fonts: PresentationFonts = useMemo(
-        () => presentationFontsOf(state),
-        [state.document, state.packs, state.artifact],
-    );
-    const diagnostics: readonly Diagnostic[] = useMemo(() => {
-        if (!state.selectedItemId) return state.diagnostics;
-        const preview = composeLocalPreview({
-            document: state.document,
-            itemId: state.selectedItemId,
-            viewer: viewerOf(state),
-            fonts,
-        });
-        return [...preview.diagnostics, ...state.diagnostics];
-    }, [state, fonts]);
 
     return (
         <section className="diagnostics" aria-label={t("diagnostics.heading")}>
-            <h2>{t("diagnostics.heading")}</h2>
             {diagnostics.length === 0 ? (
                 <p className="muted" data-testid="diagnostics-empty">
                     {t("diagnostics.empty")}
@@ -50,6 +29,24 @@ export function DiagnosticsList() {
                         <li
                             key={`${diagnostic.code}-${index}`}
                             className={`severity-${diagnostic.severity}`}
+                            tabIndex={0}
+                            onContextMenu={(event) =>
+                                describeContext(event, {
+                                    label: diagnostic.code,
+                                    items: [
+                                        copyAction(
+                                            "copy-diagnostic",
+                                            t("menus.copyMessage"),
+                                            `${diagnostic.code}: ${t(diagnostic.messageKey.replace(/^diagnostics\./u, ""), { ...diagnostic.params, ns: "diagnostics" })}`,
+                                        ),
+                                        copyAction(
+                                            "copy-code",
+                                            t("menus.copyCode"),
+                                            diagnostic.code,
+                                        ),
+                                    ],
+                                })
+                            }
                         >
                             <span className="tag">
                                 {t(

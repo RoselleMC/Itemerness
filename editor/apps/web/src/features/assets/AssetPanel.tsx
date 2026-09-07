@@ -1,11 +1,24 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    Download,
+    GripVertical,
+    ShieldCheck,
+    Trash2,
+    Upload,
+    ArrowUp,
+    ArrowDown,
+} from "lucide-react";
+import {
     crossCheckVanillaFonts,
     type CrossCheckReport,
 } from "@itemerness/mc-assets";
 import { fontLibraryOf, useEditorStore } from "../../state/store.js";
 import { useDragReorder } from "../common/dragReorder.js";
+import { fetchVanillaBundle } from "../../api/vanillaAssets.js";
+import { useConnectionStore } from "../../state/connection.js";
+import { describeContext } from "../../state/interface.js";
+import { copyAction } from "../common/contextActions.js";
 
 const VANILLA_VERSION = "26.1.2";
 
@@ -13,14 +26,17 @@ const VANILLA_VERSION = "26.1.2";
  * Mounting resource packs.
  *
  * Files are read with `FileReader` and never uploaded: a resource pack is often unreleased work,
- * and there is no reason for the control plane to hold a copy just so the browser can measure a
- * glyph. The CDN button is the alternative for editors who do not have a client jar to hand; it
- * asks the control plane to fetch the pinned Mojang files, verify every SHA-1, and hand back only
- * the subset the preview needs.
+ * and the plugin never receives these bytes. The CDN alternative downloads pinned Mojang assets
+ * directly to the editor and verifies their hashes before mounting them.
  */
 export function AssetPanel() {
     const { t } = useTranslation();
     const state = useEditorStore();
+    const client = useConnectionStore((state) => state.client);
+    const current = () =>
+        client !== null &&
+        useConnectionStore.getState().client === client &&
+        useEditorStore.getState().workspaceEpoch === state.workspaceEpoch;
     const inputRef = useRef<HTMLInputElement | null>(null);
     const [busy, setBusy] = useState(false);
     const [reports, setReports] = useState<readonly CrossCheckReport[] | null>(
@@ -35,20 +51,20 @@ export function AssetPanel() {
 
     async function mountFile(file: File, kind: "vanilla" | "resource-pack") {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        state.mountPack(bytes, file.name, kind);
+        if (current()) state.mountPack(bytes, file.name, kind);
     }
 
     async function fetchVanilla() {
         setBusy(true);
         try {
-            const response = await fetch(
-                `/api/v1/vanilla-assets/${VANILLA_VERSION}/bundle`,
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            state.mountPack(bytes, `vanilla-${VANILLA_VERSION}`, "vanilla");
+            const bytes = await fetchVanillaBundle();
+            if (current())
+                state.mountPack(bytes, `vanilla-${VANILLA_VERSION}`, "vanilla");
         } catch (error) {
-            useEditorStore.setState({ mountError: (error as Error).message });
+            if (current())
+                useEditorStore.setState({
+                    mountError: (error as Error).message,
+                });
         } finally {
             setBusy(false);
         }
@@ -70,10 +86,42 @@ export function AssetPanel() {
     }
 
     return (
-        <section className="assets" aria-label={t("assets.heading")}>
-            <h2>{t("assets.heading")}</h2>
-            <p className="muted">{t("assets.description")}</p>
-
+        <section
+            className="assets"
+            aria-label={t("assets.heading")}
+            onContextMenu={(event) =>
+                describeContext(event, {
+                    label: t("assets.heading"),
+                    items: [
+                        {
+                            id: "import-assets",
+                            label: t("assets.import"),
+                            icon: Upload,
+                            run: () => inputRef.current?.click(),
+                        },
+                        {
+                            id: "fetch-assets",
+                            label: t("assets.fetchVanilla", {
+                                version: VANILLA_VERSION,
+                            }),
+                            icon: Download,
+                            disabled: busy,
+                            run: fetchVanilla,
+                        },
+                        {
+                            id: "check-assets",
+                            label: t("assets.selfCheck.run"),
+                            icon: ShieldCheck,
+                            disabled:
+                                !state.packs.length ||
+                                !state.artifact ||
+                                checking,
+                            run: runSelfCheck,
+                        },
+                    ],
+                })
+            }
+        >
             <div
                 className="dropzone"
                 data-testid="asset-dropzone"
@@ -84,10 +132,20 @@ export function AssetPanel() {
                     if (file) void mountFile(file, "resource-pack");
                 }}
             >
-                <span>{t("assets.drop")}</span>
+                <button
+                    type="button"
+                    className="page-command"
+                    onClick={() => inputRef.current?.click()}
+                >
+                    <Upload size={16} aria-hidden="true" />
+                    {t("assets.import")}
+                </button>
+                <span className="small">.zip / .jar</span>
                 <input
                     ref={inputRef}
                     type="file"
+                    hidden
+                    aria-label={t("assets.import")}
                     accept=".zip,.jar"
                     data-testid="asset-file-input"
                     onChange={(event) => {
@@ -106,13 +164,14 @@ export function AssetPanel() {
 
             <button
                 type="button"
+                className="page-command"
                 onClick={() => void fetchVanilla()}
                 disabled={busy}
                 data-testid="fetch-vanilla"
             >
+                <Download size={16} aria-hidden="true" />
                 {t("assets.fetchVanilla", { version: VANILLA_VERSION })}
             </button>
-            <p className="muted small">{t("assets.fetchVanillaHint")}</p>
 
             {state.mountError ? (
                 <p className="error" data-testid="mount-error">
@@ -128,8 +187,57 @@ export function AssetPanel() {
             ) : (
                 <ol className="pack-list" data-testid="pack-list">
                     {state.packs.map((slot, index) => (
-                        <li key={slot.pack.id} {...drag.itemProps(index)}>
-                            <span {...drag.handleProps(index)}>⠿</span>
+                        <li
+                            key={slot.pack.id}
+                            {...drag.itemProps(index)}
+                            tabIndex={0}
+                            data-testid={`pack-${index}`}
+                            onContextMenu={(event) =>
+                                describeContext(event, {
+                                    label: slot.pack.name,
+                                    items: [
+                                        {
+                                            id: "pack-up",
+                                            label: t("menus.raisePriority"),
+                                            icon: ArrowUp,
+                                            disabled: index === 0,
+                                            run: () =>
+                                                state.movePack(
+                                                    slot.pack.id,
+                                                    -1,
+                                                ),
+                                        },
+                                        {
+                                            id: "pack-down",
+                                            label: t("menus.lowerPriority"),
+                                            icon: ArrowDown,
+                                            disabled:
+                                                index ===
+                                                state.packs.length - 1,
+                                            run: () =>
+                                                state.movePack(slot.pack.id, 1),
+                                        },
+                                        copyAction(
+                                            "copy-pack",
+                                            t("menus.copyId"),
+                                            slot.pack.id,
+                                        ),
+                                        {
+                                            id: "remove-pack",
+                                            label: t("assets.remove"),
+                                            icon: Trash2,
+                                            danger: true,
+                                            separator: true,
+                                            run: () =>
+                                                state.removePack(slot.pack.id),
+                                        },
+                                    ],
+                                })
+                            }
+                        >
+                            <span {...drag.handleProps(index)}>
+                                <GripVertical size={16} aria-hidden="true" />
+                            </span>
                             <span className="pack-name">{slot.pack.name}</span>
                             <span className="tag">
                                 {t(`assets.kind.${slot.pack.kind}`)}
@@ -140,11 +248,13 @@ export function AssetPanel() {
                             <span className="pack-actions">
                                 <button
                                     type="button"
+                                    aria-label={t("assets.remove")}
+                                    data-tooltip={t("assets.remove")}
                                     onClick={() =>
                                         state.removePack(slot.pack.id)
                                     }
                                 >
-                                    {t("assets.remove")}
+                                    <Trash2 size={15} aria-hidden="true" />
                                 </button>
                             </span>
                         </li>
@@ -153,15 +263,16 @@ export function AssetPanel() {
             )}
 
             <h3>{t("assets.selfCheck.heading")}</h3>
-            <p className="muted small">{t("assets.selfCheck.description")}</p>
             <button
                 type="button"
+                className="page-command"
                 onClick={runSelfCheck}
                 disabled={
                     state.packs.length === 0 || !state.artifact || checking
                 }
                 data-testid="run-self-check"
             >
+                <ShieldCheck size={16} aria-hidden="true" />
                 {checking
                     ? t("assets.selfCheck.running")
                     : t("assets.selfCheck.run")}

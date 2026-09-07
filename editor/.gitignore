@@ -5,6 +5,8 @@ coverage/
 .vite/
 .turbo/
 *.tsbuildinfo
+target/
+**/src-tauri/gen/
 
 # Playwright
 test-results/

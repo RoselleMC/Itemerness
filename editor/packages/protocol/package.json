@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "private": true,
     "type": "module",
-    "description": "Wire contracts shared by the Itemerness browser UI, control plane, and JVM editor agent.",
+    "description": "Wire contracts shared by the Itemerness desktop editor and plugin API.",
     "exports": {
         ".": "./src/index.ts",
         "./fixtures/baseline.js": "./fixtures/baseline.ts",

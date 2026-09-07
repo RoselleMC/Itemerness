@@ -2,10 +2,52 @@ import { describe, expect, it } from "vitest";
 import type { MountedPack } from "@itemerness/mc-assets";
 import type { ProjectDocument } from "@itemerness/protocol";
 import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
-import { type AssetSlot, viewerOf } from "../src/state/store.js";
+import {
+    type AssetSlot,
+    viewerOf,
+    useEditorStore,
+    packStackOf,
+    fontLibraryOf,
+} from "../src/state/store.js";
 
 const MATCHING_SHA1 = "1111111111111111111111111111111111111111";
 const PACK_ID = "10000000-0000-4000-8000-000000000001";
+
+it("reuses immutable pack derivations and skips no-op document edits", () => {
+    const a = [pack(MATCHING_SHA1)];
+    const b = [pack("2222222222222222222222222222222222222222"), ...a];
+    expect(packStackOf(a)).toBe(packStackOf(a));
+    const library = fontLibraryOf(a);
+    expect(fontLibraryOf(b)).not.toBe(library);
+    expect(fontLibraryOf(a)).toBe(library);
+    useEditorStore.getState().setDocument(baselineDocument);
+    const before = useEditorStore.getState();
+    before.updateDocument((document) => structuredClone(document));
+    expect(useEditorStore.getState()).toBe(before);
+});
+
+it("starts without preset configuration and clears server-owned selections and assets", () => {
+    useEditorStore.getState().resetDraft();
+    expect(useEditorStore.getState().document.items).toEqual([]);
+    expect(useEditorStore.getState().document.themes).toEqual([]);
+    expect(useEditorStore.getState().selectedItemId).toBeNull();
+    useEditorStore.getState().setDocument(baselineDocument);
+    useEditorStore.setState({
+        packs: [pack(MATCHING_SHA1)],
+        assetProfileOverride: "example:profile",
+        themeOverride: "example:theme",
+    });
+    useEditorStore.getState().resetDraft();
+    expect(useEditorStore.getState()).toMatchObject({
+        selectedItemId: null,
+        selectedThemeId: null,
+        packs: [],
+        themeOverride: null,
+        assetProfileOverride: null,
+        diagnostics: [],
+    });
+    expect(useEditorStore.getState().document.layouts).toEqual([]);
+});
 
 function pack(
     sha1: string,

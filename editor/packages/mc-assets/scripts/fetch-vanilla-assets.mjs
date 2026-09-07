@@ -5,8 +5,7 @@
  * Mojang assets are never committed. This script downloads only the files pinned in
  * `tools/font-metrics/26.1.2.sources.json` plus the GUI and item textures the preview needs,
  * verifies every SHA-1 the manifest declares, and writes one zip into a gitignored cache. The
- * control plane's CDN proxy performs the same steps server-side for users who prefer not to hunt
- * down a client jar.
+ * desktop editor performs the same verified download directly for interactive use.
  *
  * Usage: node scripts/fetch-vanilla-assets.mjs [--out <path>]
  */

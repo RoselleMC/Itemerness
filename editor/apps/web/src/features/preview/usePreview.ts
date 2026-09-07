@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { resolveItemIcon } from "@itemerness/mc-assets";
+import type { PreviewItemState } from "../../api/previewCache.js";
 import {
     buildFidelityClaims,
     composeLocalPreview,
@@ -22,19 +23,22 @@ import {
     useServerPreview,
     type ServerPreviewState,
 } from "./useServerPreview.js";
+import { alignLineOrigins } from "./lineOrigins.js";
 
 /**
  * One preview pipeline shared by the stage and the inspector.
  *
  * The rules have not moved with the redesign: the local composer gives instant feedback while
  * typing, a connected target's artifact replaces it wholesale (never merged, never re-wrapped),
- * and the origin badge tells the truth about which one is on screen.
+ * and per-item status and fidelity evidence distinguish verification from local drafting.
  */
 export interface PreviewBundle {
     readonly fonts: ReturnType<typeof presentationFontsOf>;
     readonly viewer: ReturnType<typeof viewerOf>;
     readonly local: LocalPreview | null;
     readonly server: ServerPreviewState;
+    readonly itemStates: Readonly<Record<string, PreviewItemState>>;
+    readonly lineOrigins: readonly (string | null)[];
     /** What the stage draws: the agent artifact when fresh, the local composition otherwise. */
     readonly display: PreviewDisplay | null;
     readonly origin: PreviewOrigin;
@@ -46,7 +50,10 @@ export interface PreviewBundle {
     readonly targetItemId: string | null;
 }
 
-export function usePreview(spritesAvailable: boolean): PreviewBundle {
+export function usePreview(
+    spritesAvailable: boolean,
+    enabled = true,
+): PreviewBundle {
     const state = useEditorStore();
 
     const fonts = useMemo(
@@ -122,14 +129,45 @@ export function usePreview(spritesAvailable: boolean): PreviewBundle {
         fonts,
     ]);
 
-    const server = useServerPreview(state.document, targetItemId, viewer);
+    const { current: server, items: itemStates } = useServerPreview(
+        state.document,
+        targetItemId,
+        viewer,
+        enabled && state.historyTransactionId === null,
+    );
+    const validationStates = useMemo(
+        () =>
+            state.historyTransactionId === null
+                ? itemStates
+                : Object.fromEntries(
+                      state.document.items.map((item) => {
+                          const id = `${state.document.namespace}:${item.id}`;
+                          return [
+                              id,
+                              id === targetItemId
+                                  ? ("pending" as const)
+                                  : ("unverified" as const),
+                          ];
+                      }),
+                  ),
+        [itemStates, state.historyTransactionId, state.document, targetItemId],
+    );
     const serverDisplay =
         server.status === "verified" || server.status === "mock"
             ? server.artifact.display
             : null;
     const display = serverDisplay ?? local?.display ?? null;
+    const lineOrigins = useMemo(
+        () =>
+            local && display
+                ? alignLineOrigins(local.display, local.lineOrigins, display)
+                : [],
+        [local, display],
+    );
     const origin: PreviewOrigin =
-        server.status === "verified"
+        server.status === "verified" &&
+        server.artifact.display !== null &&
+        !server.artifact.failure
             ? "agent"
             : server.status === "mock"
               ? "mock"
@@ -198,6 +236,8 @@ export function usePreview(spritesAvailable: boolean): PreviewBundle {
         viewer,
         local,
         server,
+        itemStates: validationStates,
+        lineOrigins,
         display,
         origin,
         claims,

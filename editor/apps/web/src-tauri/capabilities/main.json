@@ -1,0 +1,16 @@
+{
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "main",
+    "description": "Local editor window only; no remote origins or shell permissions.",
+    "windows": ["main"],
+    "permissions": [
+        "core:default",
+        "clipboard-manager:allow-read-text",
+        "clipboard-manager:allow-write-text",
+        "core:window:allow-start-dragging",
+        "core:window:allow-minimize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-set-theme"
+    ]
+}

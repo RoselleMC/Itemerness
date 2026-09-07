@@ -12,10 +12,15 @@ import type {
     ProjectDocument,
     ThemeNode,
 } from "@itemerness/protocol";
-import { parseColor } from "./colors.js";
 import type { PresentationFonts } from "./fonts.js";
 import { measureLine } from "./measure.js";
-import { wrapRuns } from "./wrap.js";
+import { LayoutOverflowError, ellipsizeLine } from "./wrap.js";
+import {
+    FlowComposer,
+    lineOf as toPreviewLine,
+    themeStyle,
+    type FlowBlock,
+} from "./flow.js";
 
 /**
  * The optimistic browser composer.
@@ -240,6 +245,7 @@ export function resolveTheme(
     document: ProjectDocument,
     requestedId: string,
     viewer: PreviewViewer,
+    excluded: ReadonlySet<string> = new Set(),
 ): {
     theme: ThemeNode | null;
     chain: string[];
@@ -263,6 +269,15 @@ export function resolveTheme(
                 detail: "theme is not declared",
             });
             return { theme: null, chain, reasons };
+        }
+        if (excluded.has(theme.id)) {
+            reasons.push({
+                theme: theme.id,
+                code: "LAYOUT_OVERFLOW",
+                detail: "local layout could not safely render this theme",
+            });
+            current = theme.fallback;
+            continue;
         }
         if (theme.requiresResourcePack && !viewer.resourcePackLoaded) {
             reasons.push({
@@ -319,22 +334,11 @@ function styleFor(
     role: string,
     fontRole = "text",
 ): PreviewRun["style"] {
-    const style = context.theme.styles[role];
-    return {
-        color: parseColor(style?.color ?? null),
-        font:
-            context.theme.fonts[fontRole] ??
-            context.theme.fonts.text ??
-            "minecraft:default",
-        bold: style?.bold ?? false,
-        italic: style?.italic ?? false,
-        underlined: style?.underlined ?? false,
-        strikethrough: style?.strikethrough ?? false,
-    };
+    return themeStyle(context.theme, role, fontRole);
 }
 
 function iconRun(context: ComposeContext, icon: string | null): PreviewRun[] {
-    if (!icon) return [];
+    if (!icon || !context.theme.requiresResourcePack) return [];
     const glyph = context.document.glyphs.find((entry) => entry.id === icon);
     if (!glyph) {
         context.diagnostics.push(
@@ -354,12 +358,6 @@ function iconRun(context: ComposeContext, icon: string | null): PreviewRun[] {
             kind: "ICON",
             unbreakable: true,
             style: { ...styleFor(context, "value", "icons"), font: glyph.font },
-        },
-        {
-            text: " ",
-            kind: "TEXT",
-            unbreakable: false,
-            style: styleFor(context, "value"),
         },
     ];
 }
@@ -427,10 +425,10 @@ function blockRuns(
                     runs: [
                         ...iconRun(context, block.icon),
                         {
-                            text: `${context.messages.lookup(block.labelMessage)} `,
+                            text: `${context.messages.lookup(block.labelMessage)}: `,
                             kind: "TEXT",
-                            unbreakable: false,
-                            style: styleFor(context, "label"),
+                            unbreakable: true,
+                            style: styleFor(context, block.style ?? "label"),
                         },
                         {
                             text: formatValue(
@@ -440,7 +438,7 @@ function blockRuns(
                                 context.messages,
                             ),
                             kind: "TEXT",
-                            unbreakable: true,
+                            unbreakable: false,
                             style: styleFor(context, block.style ?? "value"),
                         },
                     ],
@@ -518,15 +516,18 @@ function blockRuns(
                         runs: [
                             ...iconRun(context, block.template.icon),
                             {
-                                text: `${context.messages.lookup(block.template.labelMessage)} `,
+                                text: `${context.messages.lookup(block.template.labelMessage)}: `,
                                 kind: "TEXT" as const,
-                                unbreakable: false,
-                                style: styleFor(context, "label"),
+                                unbreakable: true,
+                                style: styleFor(
+                                    context,
+                                    block.style ?? "label",
+                                ),
                             },
                             {
                                 text,
                                 kind: "TEXT" as const,
-                                unbreakable: true,
+                                unbreakable: false,
                                 style: styleFor(
                                     context,
                                     block.style ?? "value",
@@ -541,9 +542,32 @@ function blockRuns(
                 origin: block.uuid,
                 runs: [
                     {
-                        text: `${entry.amount}x ${entry.item}`,
+                        text: "\u2022 ",
+                        kind: "TEXT" as const,
+                        unbreakable: true,
+                        style: styleFor(context, block.style ?? "label"),
+                    },
+                    {
+                        text: (() => {
+                            const nested = context.document.items.find(
+                                (item) =>
+                                    `${context.document.namespace}:${item.id}` ===
+                                    entry.item,
+                            );
+                            return nested
+                                ? context.messages.lookup(
+                                      nested.presentation.nameMessage,
+                                  )
+                                : entry.item;
+                        })(),
                         kind: "TEXT" as const,
                         unbreakable: false,
+                        style: styleFor(context, block.style ?? "value"),
+                    },
+                    {
+                        text: ` \u00d7${entry.amount}`,
+                        kind: "TEXT" as const,
+                        unbreakable: true,
                         style: styleFor(context, block.style ?? "value"),
                     },
                 ],
@@ -552,18 +576,6 @@ function blockRuns(
         default:
             return [];
     }
-}
-
-function toPreviewLine(
-    runs: readonly PreviewRun[],
-    fonts: PresentationFonts,
-): PreviewLine {
-    const measured = measureLine(runs, fonts, { lenient: true });
-    return {
-        runs: [...runs],
-        logicalWidthPixels: measured.logicalWidthPixels,
-        visualBounds: measured.visualBounds,
-    };
 }
 
 /**
@@ -580,6 +592,15 @@ function composeCanvas(
 ): Array<{ line: PreviewLine; origin: string | null }> {
     const canvas = context.theme.canvas;
     if (!canvas) return contentLines;
+    if (
+        context.layout.kind !== "canvas" ||
+        context.layout.widthPixels !== canvas.widthPixels ||
+        context.layout.heightPixels !== canvas.heightPixels ||
+        context.layout.reserveTooltipLines !== canvas.reserveTooltipLines
+    )
+        throw new LayoutOverflowError(
+            "Canvas layout and theme dimensions differ",
+        );
     const lineHeight = 10;
     const reserved = Math.max(canvas.reserveTooltipLines, contentLines.length);
     const lines: PreviewRun[][] = Array.from({ length: reserved }, () => []);
@@ -710,6 +731,13 @@ export interface ComposeOptions {
 }
 
 export function composeLocalPreview(options: ComposeOptions): LocalPreview {
+    return composeAttempt(options, new Set());
+}
+
+function composeAttempt(
+    options: ComposeOptions,
+    excluded: ReadonlySet<string>,
+): LocalPreview {
     const { document, viewer, fonts } = options;
     const diagnostics: Diagnostic[] = [];
     const item =
@@ -737,6 +765,7 @@ export function composeLocalPreview(options: ComposeOptions): LocalPreview {
         document,
         requestedTheme,
         viewer,
+        excluded,
     );
     if (!theme) {
         return {
@@ -808,8 +837,11 @@ export function composeLocalPreview(options: ComposeOptions): LocalPreview {
                   theme.content?.maximumWidthPixels ??
                       layout.maximumWidthPixels,
               )
-            : layout.widthPixels;
-    const wrapping = layout.wrapping.body ?? Object.values(layout.wrapping)[0];
+            : Math.min(
+                  layout.maximumWidthPixels,
+                  theme.content?.maximumWidthPixels ??
+                      layout.maximumWidthPixels,
+              );
 
     const nameRuns: PreviewRun[] = [
         {
@@ -820,41 +852,81 @@ export function composeLocalPreview(options: ComposeOptions): LocalPreview {
         },
     ];
 
-    const bodyLines: Array<{ line: PreviewLine; origin: string | null }> = [];
-    for (const block of item.presentation.blocks) {
-        for (const { runs, origin } of blockRuns(context, block)) {
-            if (runs.length === 0) continue;
-            const measured = measureLine(runs, fonts, { lenient: true });
-            if (measured.logicalWidthPixels <= maximumWidth || !wrapping) {
-                bodyLines.push({ line: toPreviewLine(runs, fonts), origin });
-                continue;
+    const sources = new Map<string, PresentationBlock>();
+    const collect = (blocks: readonly PresentationBlock[]) =>
+        blocks.forEach((block) => {
+            sources.set(block.uuid, block);
+            if (block.type === "conditional") {
+                collect(block.thenBlocks);
+                collect(block.otherwiseBlocks);
             }
-            const wrapped = wrapRuns(runs, fonts, {
-                widthPixels: maximumWidth,
-                maximumLines: wrapping.maximumLines,
-                overflow:
-                    wrapping.overflow === "ERROR"
-                        ? "ELLIPSIS"
-                        : wrapping.overflow,
-                preserveExplicitLines: wrapping.preserveExplicitLines,
-                continuationIndentPixels: wrapping.continuationIndentPixels,
-            });
-            for (const line of wrapped)
-                bodyLines.push({
-                    line: toPreviewLine(line.runs, fonts),
-                    origin,
-                });
+        });
+    collect(item.presentation.blocks);
+    const blocks: FlowBlock[] = item.presentation.blocks
+        .flatMap((block) => blockRuns(context, block))
+        .map(({ runs, origin }) => {
+            const source = sources.get(origin)!;
+            const field = source.type === "field" || source.type === "repeat";
+            return {
+                runs,
+                origin,
+                kind: field
+                    ? "field"
+                    : source.type === "description"
+                      ? "description"
+                      : "generic",
+                wrapping: "wrapping" in source ? source.wrapping : null,
+                fieldValueIndex: field ? runs.length - 1 : null,
+            };
+        });
+    let name = toPreviewLine(
+        ellipsizeLine(
+            nameRuns,
+            fonts,
+            Math.min(
+                maximumWidth,
+                theme.characterFrame?.maximumWidthPixels ?? 4096,
+                theme.segmentedFrame?.maximumWidthPixels ?? 4096,
+                theme.canvas?.widthPixels ?? 4096,
+            ),
+        ).runs,
+        fonts,
+    );
+    let composed: Array<{ line: PreviewLine; origin: string | null }>;
+    try {
+        const engine = new FlowComposer(document, theme, layout, fonts);
+        const frame =
+            theme.renderer === "VANILLA_CHARACTER_FRAME"
+                ? theme.characterFrame
+                : theme.renderer === "SEGMENTED_FRAME"
+                  ? theme.segmentedFrame
+                  : null;
+        const available = frame
+            ? frame.maximumWidthPixels -
+              frame.leftPaddingPixels -
+              frame.rightPaddingPixels -
+              8
+            : maximumWidth;
+        const flow = engine.flow(blocks, available);
+        if (theme.renderer === "VANILLA_CHARACTER_FRAME")
+            composed = engine.characterFrame(flow);
+        else if (theme.renderer === "SEGMENTED_FRAME")
+            composed = engine.segmentedFrame(flow);
+        else if (theme.renderer === "BITMAP_CANVAS")
+            composed = composeCanvas(context, flow.lines);
+        else {
+            const anchored = engine.anchorFlow(name, flow);
+            name = anchored.name;
+            composed = anchored.lines;
         }
+    } catch (error) {
+        if (!(error instanceof LayoutOverflowError)) throw error;
+        return composeAttempt(options, new Set([...excluded, theme.id]));
     }
-
-    const composed =
-        theme.renderer === "BITMAP_CANVAS"
-            ? composeCanvas(context, bodyLines)
-            : bodyLines;
 
     return {
         display: {
-            displayName: toPreviewLine(nameRuns, fonts),
+            displayName: name,
             lore: composed.map((entry) => entry.line),
             tooltipStyle: theme.tooltipStyle,
             renderer: theme.renderer,

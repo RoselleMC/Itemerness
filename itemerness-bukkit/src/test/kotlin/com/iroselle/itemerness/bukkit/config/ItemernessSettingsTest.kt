@@ -1,26 +1,27 @@
 package com.iroselle.itemerness.bukkit.config
 
 import com.iroselle.itemerness.api.ItemKey
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.io.InputStreamReader
 
 class ItemernessSettingsTest {
-    @Test
-    fun `loads the bundled settings and expands the diagnostic pending name`() {
+    private fun validDocument(): Map<String, Any?> {
         val resource = checkNotNull(javaClass.classLoader.getResourceAsStream("config.yml"))
-        val document = resource.use { input ->
-            InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                StrictYaml.load(reader, "config.yml")
-            }
-        }
+        return resource.use { InputStreamReader(it, Charsets.UTF_8).use { reader -> StrictYaml.load(reader, "config.yml") } }
+    }
 
-        val settings = ItemernessSettings.from(document, "config.yml")
+    private fun editor(vararg overrides: Pair<String, Any?>): Map<String, Any?> = mapOf(
+        "enabled" to true, "bind-host" to "127.0.0.1", "port" to 18087,
+        "token" to "a".repeat(48), "allowed-origins" to emptyList<String>(),
+    ) + overrides
 
+    private fun load(editor: Map<String, Any?>) = ItemernessSettings.from(validDocument() + ("editor" to editor), "config.yml")
+
+    @Test
+    fun `bundled settings keep the listener disabled`() {
+        val settings = ItemernessSettings.from(validDocument(), "config.yml")
+        assertNull(settings.editor)
         assertEquals("itemerness", settings.defaultNamespace)
         assertEquals("[example:blade]", settings.pendingName(ItemKey.parse("example:blade")))
         assertEquals("dark_gray", settings.pendingNameColor)
@@ -30,134 +31,56 @@ class ItemernessSettingsTest {
     }
 
     @Test
-    fun `an unconfigured editor endpoint keeps the catalog local`() {
-        val settings = ItemernessSettings.from(validDocument(), "config.yml")
-
-        assertNull(settings.editor)
+    fun `listener accepts explicit bind port token and exact browser origins`() {
+        val settings = load(editor("allowed-origins" to listOf("http://127.0.0.1:5173", "https://editor.example.com")))
+        assertEquals("127.0.0.1", settings.editor?.bindHost)
+        assertEquals(18087, settings.editor?.port)
+        assertEquals(2, settings.editor?.allowedOrigins?.size)
+        assertFalse(settings.toString().contains("a".repeat(48)))
+        assertTrue(settings.toString().contains("redacted"))
     }
 
     @Test
-    fun `a configured editor endpoint enables outbound pairing`() {
-        val document = validDocument().toMutableMap()
-        document["editor"] = mapOf("url" to "https://items.example.com/", "token" to "secret")
-
-        val settings = ItemernessSettings.from(document, "config.yml")
-
-        // The trailing slash is dropped so the derived API and WebSocket paths are unambiguous.
-        assertEquals("https://items.example.com", settings.editor?.url)
-    }
-
-    @Test
-    fun `the token never appears in a rendered settings value`() {
-        val document = validDocument().toMutableMap()
-        document["editor"] = mapOf("url" to "https://items.example.com", "token" to "super-secret-token")
-
-        val rendered = ItemernessSettings.from(document, "config.yml").toString()
-
-        // Settings end up in debug output and bug reports; a token that survives toString is a
-        // credential leak waiting for someone to paste a log.
-        assertFalse(rendered.contains("super-secret-token"), rendered)
-        assertTrue(rendered.contains("redacted"), rendered)
-    }
-
-    @Test
-    fun `half a pairing is a configuration error rather than a silent local fallback`() {
-        for (editor in listOf(
-            mapOf("url" to "https://items.example.com", "token" to ""),
-            mapOf("url" to "", "token" to "secret"),
-        )) {
-            val document = validDocument().toMutableMap()
-            document["editor"] = editor
-            assertThrows(StrictYamlException::class.java) {
-                ItemernessSettings.from(document, "config.yml")
-            }
+    fun `legacy disabled configurations remain valid but outbound pairing requires migration`() {
+        assertNull(load(mapOf("url" to "", "token" to "")).editor)
+        for (old in listOf(mapOf("url" to "https://example.com", "token" to "secret"), mapOf("url" to "", "token" to "secret"))) {
+            val error = assertThrows(StrictYamlException::class.java) { load(old) }
+            assertTrue(error.message!!.contains("migrate"))
         }
     }
 
     @Test
-    fun `a plaintext editor endpoint is rejected so a token is never sent in the clear`() {
-        val document = validDocument().toMutableMap()
-        document["editor"] = mapOf("url" to "http://items.example.com", "token" to "secret")
+    fun `invalid listener settings fail closed`() {
+        for (invalid in listOf(
+            editor("token" to "short"), editor("token" to "a".repeat(40) + "\n" + "b"),
+            editor("port" to 0), editor("port" to 65536), editor("bind-host" to "http://localhost"),
+            editor("allowed-origins" to listOf("*")), editor("allowed-origins" to listOf("https://example.com/path")),
+            editor("allowed-origins" to listOf("https://user@example.com")),
+            editor("token" to "\${ITEMERNESS_TOKEN_THAT_IS_NOT_SET}"),
+            editor("url" to "https://example.com"),
+        )) assertThrows(StrictYamlException::class.java) { load(invalid) }
+    }
 
+    @Test
+    fun `disabled listener does not require a credential environment variable`() {
+        assertNull(load(editor("enabled" to false, "token" to "\${ITEMERNESS_TOKEN_THAT_IS_NOT_SET}")).editor)
+    }
+
+    @Test
+    fun `an enabled listener accepts an empty token as an explicit unauthenticated API`() {
+        val settings = load(editor("token" to ""))
+        assertNotNull(settings.editor)
+        assertEquals("", settings.editor?.token)
+        assertEquals("127.0.0.1", settings.editor?.bindHost)
+    }
+
+    @Test
+    fun `unknown settings and missing pending-name marker are rejected`() {
         assertThrows(StrictYamlException::class.java) {
-            ItemernessSettings.from(document, "config.yml")
+            ItemernessSettings.from(validDocument() + ("diagnostics" to emptyMap<String, Any?>()), "config.yml")
         }
-    }
-
-    @Test
-    fun `plaintext editor endpoints accept only explicit loopback hosts`() {
-        for (url in listOf("http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:8080")) {
-            val document = validDocument().toMutableMap()
-            document["editor"] = mapOf("url" to url, "token" to "secret")
-
-            assertEquals(url, ItemernessSettings.from(document, "config.yml").editor?.url)
-        }
-    }
-
-    @Test
-    fun `deceptive or structurally ambiguous editor endpoints are rejected`() {
-        for (url in listOf(
-            "http://localhost.example.com",
-            "https://",
-            "https://items.example.com?target=other",
-            "https://items.example.com#fragment",
-            "https://user@items.example.com",
-        )) {
-            val document = validDocument().toMutableMap()
-            document["editor"] = mapOf("url" to url, "token" to "secret")
-
-            assertThrows(StrictYamlException::class.java) {
-                ItemernessSettings.from(document, "config.yml")
-            }
-        }
-    }
-
-    @Test
-    fun `an unset environment reference fails instead of pairing with an empty token`() {
-        val document = validDocument().toMutableMap()
-        document["editor"] = mapOf(
-            "url" to "https://items.example.com",
-            "token" to "\${ITEMERNESS_TOKEN_THAT_IS_NOT_SET}",
-        )
-
         assertThrows(StrictYamlException::class.java) {
-            ItemernessSettings.from(document, "config.yml")
+            ItemernessSettings.from(validDocument() + ("canonical-item" to mapOf("pending-name" to mapOf("text" to "pending", "color" to "dark_gray"))), "config.yml")
         }
     }
-
-    @Test
-    fun `rejects unknown settings`() {
-        val document = validDocument().toMutableMap()
-        document["diagnostics"] = emptyMap<String, Any?>()
-
-        assertThrows(StrictYamlException::class.java) {
-            ItemernessSettings.from(document, "config.yml")
-        }
-    }
-
-    @Test
-    fun `requires one item id marker in the pending name`() {
-        val document = validDocument().toMutableMap()
-        document["canonical-item"] = mapOf(
-            "pending-name" to mapOf("text" to "pending", "color" to "dark_gray"),
-        )
-
-        assertThrows(StrictYamlException::class.java) {
-            ItemernessSettings.from(document, "config.yml")
-        }
-    }
-
-    private fun validDocument(): Map<String, Any?> = mapOf(
-        "config-version" to 3,
-        "catalog" to mapOf("default-namespace" to "itemerness"),
-        "editor" to mapOf("url" to "", "token" to ""),
-        "canonical-item" to mapOf(
-            "pending-name" to mapOf("text" to "[{item-id}]", "color" to "dark_gray"),
-        ),
-        "locale" to mapOf("default" to "en_us"),
-        "presentation" to mapOf(
-            "default-layout" to "itemerness:plain",
-            "default-theme" to "itemerness:default",
-        ),
-    )
 }

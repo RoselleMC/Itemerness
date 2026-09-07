@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import {
     loadSprite,
     tooltipStyleSprites,
@@ -11,33 +11,36 @@ import {
     type TooltipGeometry,
 } from "@itemerness/mc-render";
 import { renderDrawList } from "@itemerness/mc-render/canvas";
-import type { PreviewDisplay } from "@itemerness/protocol";
+import type { PreviewDisplay, PreviewOrigin } from "@itemerness/protocol";
 import { packStackOf, useEditorStore } from "../../state/store.js";
 
 /**
  * Paints one tooltip.
  *
- * The canvas is sized in device pixels and every draw is nearest-neighbour at an integer GUI
- * scale, so what appears on screen is the pixel grid the client would rasterize, magnified. It is
- * still a browser canvas: the fidelity badges next to it say so.
+ * Layout stays in logical client pixels; continuous editor view zoom only repaints the draw list.
+ * Backing pixels are bounded independently of CSS zoom. This remains a browser approximation,
+ * with the evidence level reported in the global inspector.
  */
 export function TooltipCanvas({
     display,
     fonts,
+    origin = "local",
+    viewZoom,
     onGeometry,
 }: {
     display: PreviewDisplay;
     fonts: PresentationFonts;
+    origin?: PreviewOrigin;
+    viewZoom?: number;
     onGeometry?: (geometry: TooltipGeometry, spritesAvailable: boolean) => void;
 }) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const packs = useEditorStore((state) => state.packs);
-    const guiScale = useEditorStore((state) => state.guiScale);
+    const storedScale = useEditorStore((state) => state.guiScale);
+    const guiScale = viewZoom ?? storedScale;
     const annotations = useEditorStore((state) => state.annotations);
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
+    const sprites = useMemo(() => {
         const stack = packStackOf(packs);
 
         let background: Sprite | null = null;
@@ -46,21 +49,34 @@ export function TooltipCanvas({
             const names = display.tooltipStyle
                 ? tooltipStyleSprites(display.tooltipStyle)
                 : VANILLA_TOOLTIP_SPRITES;
-            background = loadSprite(stack, names.background);
-            frame = loadSprite(stack, names.frame);
+            try {
+                background = loadSprite(stack, names.background);
+                frame = loadSprite(stack, names.frame);
+            } catch {
+                /* Unreadable sprites use the explicitly approximate fallback. */
+            }
         }
-
-        const { geometry, drawList } = renderTooltip(
-            display.lore.length > 0
-                ? [display.displayName, ...display.lore]
-                : [display.displayName],
-            fonts,
-            {
-                backgroundSprite: background,
-                frameSprite: frame,
-                annotations,
-            },
-        );
+        return { background, frame };
+    }, [packs, display.tooltipStyle]);
+    const rendered = useMemo(
+        () =>
+            renderTooltip(
+                display.lore.length > 0
+                    ? [display.displayName, ...display.lore]
+                    : [display.displayName],
+                fonts,
+                {
+                    backgroundSprite: sprites.background,
+                    frameSprite: sprites.frame,
+                    annotations: true,
+                },
+            ),
+        [display, fonts, sprites],
+    );
+    useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const { geometry, drawList } = rendered;
         renderDrawList(canvas, drawList, {
             guiScale,
             showAnnotations: annotations,
@@ -68,14 +84,28 @@ export function TooltipCanvas({
         });
         canvas.style.width = `${drawList.width * guiScale}px`;
         canvas.style.height = `${drawList.height * guiScale}px`;
-        onGeometry?.(geometry, background !== null && frame !== null);
-    }, [display, fonts, packs, guiScale, annotations, onGeometry]);
+        onGeometry?.(
+            geometry,
+            sprites.background !== null && sprites.frame !== null,
+        );
+    }, [rendered, sprites, guiScale, annotations, onGeometry]);
 
     return (
         <canvas
             ref={canvasRef}
             className="tooltip-canvas"
             data-testid="tooltip-canvas"
+            data-preview-origin={origin}
+            data-logical-width={rendered.geometry.totalWidthPixels}
+            data-logical-height={rendered.geometry.totalHeightPixels}
+            data-renderer={display.renderer}
+            data-theme={display.selectedTheme}
+            data-frame-runs={display.lore.reduce(
+                (count, line) =>
+                    count +
+                    line.runs.filter((run) => run.kind === "FRAME").length,
+                0,
+            )}
         />
     );
 }

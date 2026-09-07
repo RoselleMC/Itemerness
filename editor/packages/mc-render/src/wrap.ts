@@ -172,6 +172,15 @@ export function wrapRuns(
     const continuationIndent = options.continuationIndentPixels ?? 0;
     const measure = (candidates: readonly PreviewRun[]) =>
         measureLine(candidates, fonts, { lenient: true });
+    const advances = new WeakMap<Atom, number>();
+    const advance = (atom: Atom) => {
+        let value = advances.get(atom);
+        if (value === undefined) {
+            value = measure([atom.run]).advanceSum;
+            advances.set(atom, value);
+        }
+        return value;
+    };
 
     let remaining = atomize(runs, options.preserveExplicitLines ?? true);
     if (remaining.length === 0) return [];
@@ -210,7 +219,7 @@ export function wrapRuns(
         }
 
         const paragraph = remaining.slice(0, paragraphEnd);
-        const split = fitLine(paragraph, activeWidth, overflow, measure);
+        const split = fitLine(paragraph, activeWidth, overflow, advance);
         const fittedAtoms = trimTrailingWhitespace(paragraph.slice(0, split));
         const fittedRuns = mergeAtoms(fittedAtoms);
         const fitted = measure(fittedRuns);
@@ -250,13 +259,16 @@ function fitLine(
     atoms: readonly Atom[],
     widthPixels: number,
     overflow: OverflowPolicy,
-    measure: (runs: readonly PreviewRun[]) => MeasuredLine,
+    advance: (atom: Atom) => number,
 ): number {
     let lastBreak = -1;
     let index = 0;
+    let cursor = 0;
+    let visibleWidth = 0;
     while (index < atoms.length) {
-        const candidate = trimTrailingWhitespace(atoms.slice(0, index + 1));
-        if (measure(mergeAtoms(candidate)).logicalWidthPixels <= widthPixels) {
+        cursor += advance(atoms[index]!);
+        if (!atoms[index]!.whitespace) visibleWidth = cursor;
+        if (Math.ceil(visibleWidth) <= widthPixels) {
             if (legalBreakAfter(atoms, index)) lastBreak = index + 1;
             index += 1;
             continue;
@@ -272,6 +284,27 @@ function fitLine(
         return lastBreak > 0 ? lastBreak : index;
     }
     return atoms.length;
+}
+
+export function ellipsizeLine(
+    runs: readonly PreviewRun[],
+    fonts: PresentationFonts,
+    width: number,
+): MeasuredLine {
+    const measure = (source: readonly PreviewRun[]) =>
+        measureLine(source, fonts, { lenient: true });
+    const current = measure(runs);
+    if (current.logicalWidthPixels <= width || runs.length === 0)
+        return current;
+    return ellipsize(
+        atomize(
+            runs.map((run) => ({ ...run, unbreakable: false })),
+            false,
+        ),
+        runs[0]!.style,
+        width,
+        measure,
+    );
 }
 
 function ellipsize(

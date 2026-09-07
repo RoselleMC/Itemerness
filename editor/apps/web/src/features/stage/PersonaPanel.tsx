@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { DataValue } from "@itemerness/protocol";
 import { useEditorStore, type PackSimulation } from "../../state/store.js";
 import { humanizePath } from "../common/messages.js";
+import { SelectField } from "../common/SelectField.js";
 
 /**
  * The previewed player, as a thing you can pose.
@@ -69,26 +70,23 @@ export function PersonaPanel({
 
                 <label className="field-inline">
                     {t("stage.personaProfile")}
-                    <select
+                    <SelectField
+                        label={t("stage.personaProfile")}
                         value={store.assetProfileOverride ?? ""}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                             store.setAssetProfileOverride(
-                                event.target.value === ""
-                                    ? null
-                                    : event.target.value,
+                                value === "" ? null : value,
                             )
                         }
                         data-testid="asset-profile-simulation"
-                    >
-                        <option value="">
-                            {t("stage.personaProfileAuto")}
-                        </option>
-                        {doc.assetProfiles.map((profile) => (
-                            <option key={profile.id} value={profile.id}>
-                                {profile.id}
-                            </option>
-                        ))}
-                    </select>
+                        options={[
+                            { value: "", label: t("stage.personaProfileAuto") },
+                            ...doc.assetProfiles.map((profile) => ({
+                                value: profile.id,
+                                label: profile.id,
+                            })),
+                        ]}
+                    />
                 </label>
                 <p className="muted small">{t("stage.personaProfileHint")}</p>
 

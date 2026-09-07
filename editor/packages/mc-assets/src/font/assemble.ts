@@ -85,17 +85,56 @@ function readDefinition(
     stack: PackStack,
     fontId: string,
 ): readonly FontProvider[] | null {
+    let cache = definitions.get(stack);
+    if (!cache) {
+        cache = new Map();
+        definitions.set(stack, cache);
+    }
+    if (cache.has(fontId)) return cache.get(fontId)!;
     const location = parseLocation(fontId);
     const path = assetPath({
         namespace: location.namespace,
         path: `font/${location.path}.json`,
     });
     const bytes = stack.read(path);
-    if (!bytes) return null;
-    return parseFontDefinition(
+    if (!bytes) {
+        cache.set(fontId, null);
+        return null;
+    }
+    const result = parseFontDefinition(
         JSON.parse(new TextDecoder().decode(bytes)),
         path,
     );
+    cache.set(fontId, result);
+    return result;
+}
+
+const definitions = new WeakMap<
+    PackStack,
+    Map<string, readonly FontProvider[] | null>
+>();
+const providerGlyphs = new WeakMap<
+    Uint8Array,
+    Map<string, ReadonlyMap<number, Glyph>>
+>();
+function cachedGlyphs(
+    bytes: Uint8Array,
+    provider: FontProvider,
+    build: () => ReadonlyMap<number, Glyph>,
+) {
+    let cache = providerGlyphs.get(bytes);
+    if (!cache) {
+        cache = new Map();
+        providerGlyphs.set(bytes, cache);
+    }
+    const key = JSON.stringify(provider);
+    let glyphs = cache.get(key);
+    if (!glyphs) {
+        glyphs = build();
+        cache.set(key, glyphs);
+        while (cache.size > 8) cache.delete(cache.keys().next().value!);
+    }
+    return glyphs;
 }
 
 function visitProvider(
@@ -145,10 +184,12 @@ function visitProvider(
             try {
                 putFirst(
                     state.glyphs,
-                    bitmapProviderGlyphs(
-                        provider,
-                        decodeImage(bytes, path),
-                        path,
+                    cachedGlyphs(bytes, provider, () =>
+                        bitmapProviderGlyphs(
+                            provider,
+                            decodeImage(bytes, path),
+                            path,
+                        ),
                     ),
                 );
             } catch (error) {
@@ -183,17 +224,25 @@ function visitProvider(
                 return;
             }
             try {
-                const sources = parseUnihexArchive(bytes, path);
-                const glyphs = new Map<number, Glyph>();
-                for (const [codePoint, source] of sources) {
-                    const crop = applySizeOverrides(
-                        codePoint,
-                        unihexCrop(source.rows, source.bitWidth),
-                        provider.sizeOverrides,
-                    );
-                    glyphs.set(codePoint, unihexGlyph(codePoint, source, crop));
-                }
-                putFirst(state.glyphs, glyphs);
+                putFirst(
+                    state.glyphs,
+                    cachedGlyphs(bytes, provider, () => {
+                        const sources = parseUnihexArchive(bytes, path);
+                        const glyphs = new Map<number, Glyph>();
+                        for (const [codePoint, source] of sources) {
+                            const crop = applySizeOverrides(
+                                codePoint,
+                                unihexCrop(source.rows, source.bitWidth),
+                                provider.sizeOverrides,
+                            );
+                            glyphs.set(
+                                codePoint,
+                                unihexGlyph(codePoint, source, crop),
+                            );
+                        }
+                        return glyphs;
+                    }),
+                );
             } catch (error) {
                 state.metricsIncomplete = true;
                 state.diagnostics.push(
@@ -346,6 +395,7 @@ export function assembleFont(
 /** Caches assembled fonts for one pack stack. */
 export class FontLibrary {
     private readonly cache = new Map<string, FontTable>();
+    private listedFonts: readonly string[] | null = null;
 
     constructor(
         readonly stack: PackStack,
@@ -363,6 +413,7 @@ export class FontLibrary {
 
     /** Fonts declared anywhere in the stack, for the asset browser. */
     availableFonts(): readonly string[] {
+        if (this.listedFonts) return this.listedFonts;
         const found = new Set<string>();
         for (const path of this.stack.listAll("assets/")) {
             const match = /^assets\/([a-z0-9_.-]+)\/font\/(.+)\.json$/.exec(
@@ -370,6 +421,7 @@ export class FontLibrary {
             );
             if (match) found.add(`${match[1]}:${match[2]}`);
         }
-        return [...found].sort();
+        this.listedFonts = [...found].sort();
+        return this.listedFonts;
     }
 }

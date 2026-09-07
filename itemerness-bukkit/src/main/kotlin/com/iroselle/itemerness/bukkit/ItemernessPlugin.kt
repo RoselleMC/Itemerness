@@ -8,8 +8,8 @@ import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
 import com.iroselle.itemerness.bukkit.catalog.PreparedRuntimeCatalogPublication
-import com.iroselle.itemerness.bukkit.editor.EditorAgentService
-import com.iroselle.itemerness.bukkit.editor.EditorAgentCoordinator
+import com.iroselle.itemerness.bukkit.editor.EditorApiService
+import com.iroselle.itemerness.bukkit.editor.EditorApiCoordinator
 import com.iroselle.itemerness.bukkit.editor.FoliaAgentScheduler
 import com.iroselle.itemerness.bukkit.editor.FoliaAsyncExecutor
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogManager
@@ -51,7 +51,7 @@ class ItemernessPlugin : JavaPlugin() {
     private var refreshCoordinator: VisibleSurfaceRefreshCoordinator? = null
     private var viewerFactRefreshListener: AutoCloseable? = null
     private var projectionAdapter: ProjectionAdapter? = null
-    private var editorAgent: EditorAgentCoordinator? = null
+    private var editorApi: EditorApiCoordinator? = null
 
     override fun onEnable() {
         check(catalog == null) { "Itemerness has already been enabled" }
@@ -155,12 +155,11 @@ class ItemernessPlugin : JavaPlugin() {
                 viewerFacts = viewerFacts,
                 viewerAvailable = { viewerId -> projectionState.viewer(viewerId) != null },
             )
-            val editorAgent = EditorAgentCoordinator { endpoint ->
+            val editorApi = EditorApiCoordinator { endpoint ->
                 val asyncExecutor = FoliaAsyncExecutor(scheduler)
-                EditorAgentService(
+                EditorApiService(
                     endpoint = endpoint,
-                    // Informational only: the control plane derives the authoritative identity from
-                    // the token binding, so a server cannot rename itself into another project.
+                    // Informational identity; the operator selects and authenticates the API URL.
                     serverId = "${server.name.lowercase()}-${server.port}",
                     agentVersion = pluginMeta.version,
                     minecraftVersion = server.minecraftVersion,
@@ -169,7 +168,7 @@ class ItemernessPlugin : JavaPlugin() {
                     logger = logger,
                     scheduler = FoliaAgentScheduler(scheduler),
                     worker = asyncExecutor,
-                    transportExecutor = asyncExecutor,
+                    draftPath = dataFolder.toPath().resolve("editor/draft.json"),
                 )
             }
 
@@ -186,7 +185,7 @@ class ItemernessPlugin : JavaPlugin() {
             this.refreshCoordinator = refreshCoordinator
             this.viewerFactRefreshListener = factRefreshListener
             this.projectionAdapter = projectionAdapter
-            this.editorAgent = editorAgent
+            this.editorApi = editorApi
 
             // The exact NMS release gate must be ready before any API or command can create a
             // canonical item. Viewer capture then refreshes already-online players after hooks exist.
@@ -194,7 +193,7 @@ class ItemernessPlugin : JavaPlugin() {
             bukkitApi.start()
             publisher.start()
             placeholders.start()
-            startEditorAgent(editorAgent, initial.active.settings)
+            startEditorApi(editorApi, initial.active.settings)
 
             server.servicesManager.register(BukkitItemernessApi::class.java, bukkitApi, this, ServicePriority.Normal)
             ItemernessCommands(
@@ -238,7 +237,7 @@ class ItemernessPlugin : JavaPlugin() {
                             throw publicationFailure
                         }
                         val editorPublication = try {
-                            editorAgent.prepare(published.settings.editor)
+                            editorApi.prepare(published.settings.editor)
                         } catch (failure: Throwable) {
                             var publicationFailure = failure
                             try {
@@ -318,14 +317,14 @@ class ItemernessPlugin : JavaPlugin() {
     }
 
     /**
-     * Dials the control plane when the operator has paired this server.
+     * Starts the inbound API when the operator has enabled it.
      *
      * Started last, once the runtime is up, so a preview request cannot arrive while the catalog is
-     * still being built. A failure here is logged and does not abort enable: an unreachable editor
+     * still being built. A failure here is logged and does not abort enable: an unavailable API
      * must never stop a server from running its local catalog.
      */
-    private fun startEditorAgent(
-        coordinator: EditorAgentCoordinator,
+    private fun startEditorApi(
+        coordinator: EditorApiCoordinator,
         settings: com.iroselle.itemerness.bukkit.config.ItemernessSettings,
     ) {
         val endpoint = settings.editor
@@ -336,7 +335,7 @@ class ItemernessPlugin : JavaPlugin() {
         try {
             coordinator.start(endpoint)
         } catch (failure: Throwable) {
-            logger.log(java.util.logging.Level.SEVERE, "Could not start the editor agent", failure)
+            logger.log(java.util.logging.Level.SEVERE, "Could not start the editor API", failure)
         }
     }
 
@@ -357,8 +356,8 @@ class ItemernessPlugin : JavaPlugin() {
 
         // Stopped first: once teardown begins nothing should accept a new compile against a
         // catalog that is about to be dismantled.
-        editorAgent.also { editorAgent = null }?.let { coordinator ->
-            cleanup("editor agent", coordinator::close)
+        editorApi.also { editorApi = null }?.let { coordinator ->
+            cleanup("editor API", coordinator::close)
         }
         bukkitApi.also { bukkitApi = null }?.let { api ->
             cleanup("Bukkit API", api::close)

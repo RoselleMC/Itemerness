@@ -16,13 +16,17 @@ The plugin implementation for stages 0-3 covers the currently supported Minecraf
 - plain, resource-pack-free character frame, native tooltip style, segmented frame, and experimental bitmap-canvas renderers;
 - exact direct-NMS projection for `1.21.11`, `26.1.1`, `26.1.2`, and `26.2` across the scanned packet, component, structured payload, NBT, and nested-item surfaces;
 - bounded HashedStack, creative-mode, custom-action, refresh, and connection lifecycle state;
-- an optional outbound editor agent that compiles exact document snapshots for server-verified previews.
+- an optional plugin API with configurable token authentication for persistent authoring drafts and server-verified previews.
 
 Bitmap output remains experimental. Automated tests and server smoke tests do not replace real-client verification of final pixels, GUI-scale behavior, or the complete manual inventory interaction matrix.
 
 The Craft Runner smoke matrix covers every currently available Paper, Folia, and Canvas combination in the supported range. Minecraft `1.21.11` runs on Java 21; `26.x` runs on Java 25. The matrix verifies the exact NMS adapter, an independent API consumer, catalog publication, commands, and PlaceholderAPI. Local verification covers the JVM modules and the editor's protocol, renderer, browser workflow, and production bundles.
 
-An initial self-hosted web editor is available under `editor/`. It loads and autosaves the authoring document, renders live local previews, mounts resource-pack assets in the browser, and can ask a paired server to compile the exact draft with the production Kotlin compiler. Its preview asset pipeline is currently pinned to `26.1.2`; paired previews for the other supported server versions remain editor work. It does not yet provide authentication, persistence, publication, rollback, or multi-server rollout; the default deployment is therefore loopback-only.
+A Tauri desktop editor for macOS and Windows is available under `editor/`. It connects directly to a plugin API address supplied by the user, negotiates protocol compatibility, autosaves authoring drafts, and requests production Kotlin previews. No separate editor backend is deployed. Its preview asset pipeline is pinned to `26.1.2`; other supported server versions expose draft capabilities without claiming exact previews. Publication, rollback, per-user permissions, and multi-server rollout are not implemented. Draft saves never activate the runtime catalog.
+
+The editor starts empty and disabled until the connected plugin returns an authoring document.
+It does not preload examples, restore cached drafts automatically, or seed an empty server. The
+current API does not automatically convert local YAML into an authoring document.
 
 ## Baseline
 
@@ -64,10 +68,10 @@ itemerness-bukkit -> all runtime modules
 - `itemerness-bukkit-spi` isolates canonical Bukkit `ItemStack` access from the distribution module.
 - `itemerness-nms-*` modules contain one exact-version ABI probe, packet projection, inbound restoration, and connection state implementation per supported Minecraft version.
 - `itemerness-editor-protocol` contains the managed-document codec and the JVM wire contract without Bukkit or NMS types.
-- `itemerness-editor-agent` contains the outbound WebSocket state machine and the production preview compiler bridge.
+- `itemerness-editor-agent` retains its existing module name but now contains the inbound HTTP API, atomic authoring draft store, and production preview compiler bridge. The outbound WebSocket client has been removed.
 - `itemerness-bukkit` contains catalog loading, Bukkit services, Brigadier, PlaceholderAPI, Folia-safe scheduling, the editor lifecycle bridge, resources, and the deployable JAR.
 
-The TypeScript workspace under `editor/` contains the browser application, control plane, shared schemas, Minecraft asset readers, renderer, and deployment files. See [editor/README.md](editor/README.md) for its fidelity model and current operational limits.
+The workspace under `editor/` contains the shared React application, Tauri desktop host, protocol schemas, Minecraft asset readers, and renderer. See [editor/README.md](editor/README.md) for setup, API negotiation, and operational limits.
 
 The NMS module is shaded into the Bukkit distribution. NMS, CraftBukkit, packet, channel, and mutable server types do not enter the public platform-neutral contracts.
 
@@ -91,7 +95,7 @@ The build verifies Kotlin/JVM tests, the shaded service boundaries, plugin metad
 
 ## Configuration
 
-`config.yml` contains global catalog, pending-name, locale, presentation, and optional editor pairing settings. Leave both `editor.url` and `editor.token` empty for a fully local installation. Set both to enable server-verified previews; pairing changes require a server restart. Content is separated by responsibility under:
+`config.yml` contains global catalog, pending-name, locale, presentation, and optional editor API settings. `editor.enabled` defaults to false. Enabling it opens the configured `editor.bind-host`/`editor.port` listener (default `0.0.0.0:18087`, all IPv4 interfaces). Connect the editor directly to `http://<server-ip>:18087`; HTTPS endpoints are also supported. An empty `editor.token` allows unauthenticated access; a nonempty token requires Bearer authentication. Anyone who can reach an unauthenticated listener can read and edit its drafts, so restrict network access. HTTP is unencrypted; use a TLS reverse proxy on untrusted networks. All API settings require a server restart, and existing explicit bind addresses are preserved on upgrade. The editor stores the address, not the token. Content is separated by responsibility under:
 
 ```text
 data-keys/  viewer-facts/  formats/  items/

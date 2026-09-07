@@ -101,17 +101,24 @@ describe("composeLocalPreview", () => {
             fonts,
         });
         const text = preview.display.lore
-            .map((line) => line.runs.map((run) => run.text).join(""))
+            .map((line) =>
+                line.runs
+                    .filter((run) => run.kind === "TEXT")
+                    .map((run) => run.text)
+                    .join(""),
+            )
             .join("\n");
         expect(preview.display.displayName.runs[0]!.text).toBe("Ember Blade");
-        expect(text).toContain("Attack Damage 38.5");
-        expect(text).toContain("Quality Rare");
+        expect(text).toContain("Attack Damage: 38.5");
+        expect(text).toContain("Quality: Rare");
         // example:level is 8 and the item requires 12, so the unmet branch is taken.
-        expect(text).toContain("Required Level 12");
+        expect(text).toContain("Required Level: 12");
         const requirement = preview.display.lore.find((line) =>
             line.runs.some((run) => run.text.includes("12")),
         )!;
-        expect(requirement.runs.at(-1)!.style.color).toBe(0xff6961);
+        expect(
+            requirement.runs.find((run) => run.text === "12")!.style.color,
+        ).toBe(0xff6961);
     });
 
     it("switches language without touching the document", () => {
@@ -138,7 +145,7 @@ describe("composeLocalPreview", () => {
             line.runs.some((run) => run.text.startsWith("Socket")),
         );
         expect(sockets).toHaveLength(2);
-        expect(sockets[1]!.runs.at(-1)!.text).toBe("Empty");
+        expect(sockets[1]!.runs.some((run) => run.text === "Empty")).toBe(true);
     });
 
     it("builds a canvas with signed spacing and a width anchor", () => {

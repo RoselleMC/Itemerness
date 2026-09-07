@@ -257,8 +257,10 @@ class BundledConfigurationTest {
         assertTrue(requiredString(presentation, "default-layout", "default layout") in layouts)
         assertTrue(requiredString(presentation, "default-theme", "default theme") in themes)
 
-        val editor = mapping(configuration["editor"], "editor pairing")
-        assertEquals("", requiredString(editor, "url", "editor URL"))
+        val editor = mapping(configuration["editor"], "editor API")
+        assertEquals(false, editor["enabled"])
+        assertEquals("0.0.0.0", requiredString(editor, "bind-host", "editor bind host"))
+        assertEquals(18087, editor["port"])
         assertEquals("", requiredString(editor, "token", "editor token"))
 
         val access = mapping(document("access.yml")["api"], "API access")

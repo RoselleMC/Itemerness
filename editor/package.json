@@ -3,20 +3,22 @@
     "version": "0.1.0",
     "private": true,
     "type": "module",
-    "description": "Itemerness web editor workspace: browser UI, control plane, and the Minecraft-faithful preview engine.",
+    "description": "Itemerness desktop editor: Tauri client, plugin API protocol, and Minecraft-faithful preview engine.",
     "engines": {
         "node": ">=22"
     },
     "packageManager": "pnpm@10.11.0",
     "scripts": {
-        "typecheck": "tsc -b --pretty",
-        "test": "vitest run",
+        "typecheck": "tsc -b --pretty && tsc -p apps/web/tsconfig.json --pretty",
+        "test": "vitest run && pnpm --filter @itemerness/web test:portable",
         "test:watch": "vitest",
         "lint": "eslint .",
         "format": "prettier --check .",
-        "dev": "pnpm --filter @itemerness/control-plane dev",
+        "dev": "pnpm --filter @itemerness/web dev",
         "dev:web": "pnpm --filter @itemerness/web dev",
-        "build": "pnpm --filter @itemerness/web build && pnpm --filter @itemerness/control-plane build",
+        "build": "pnpm --filter @itemerness/web build",
+        "desktop:dev": "pnpm --filter @itemerness/web desktop:dev",
+        "desktop:build": "pnpm --filter @itemerness/web desktop:build",
         "e2e": "pnpm --filter @itemerness/web e2e",
         "assets:vanilla": "node packages/mc-assets/scripts/fetch-vanilla-assets.mjs"
     },

@@ -1,0 +1,22 @@
+{
+    "app": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "Itemerness Editor",
+                "width": 1440,
+                "height": 960,
+                "minWidth": 900,
+                "minHeight": 640,
+                "dragDropEnabled": false,
+                "titleBarStyle": "Overlay",
+                "hiddenTitle": true,
+                "backgroundColor": "#101216"
+            }
+        ]
+    },
+    "bundle": {
+        "targets": ["app"],
+        "macOS": { "minimumSystemVersion": "12.0", "signingIdentity": "-" }
+    }
+}

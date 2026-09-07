@@ -77,7 +77,7 @@ class CompilerBridge(
     }
 
     sealed interface Outcome {
-        /** A compiled preview. `json` is the artifact the control plane relays to the browser. */
+        /** A compiled preview. `json` is the artifact the plugin API returns to the editor. */
         data class Rendered(val json: String, val compileMillis: Long) : Outcome
 
         /** A structured refusal. Diagnostics travel as codes and keys, never rendered prose. */

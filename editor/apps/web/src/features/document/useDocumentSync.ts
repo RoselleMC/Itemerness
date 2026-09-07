@@ -1,207 +1,245 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { contentHash } from "@itemerness/protocol";
-import { controlPlane, type DocumentEnvelope } from "../../api/client.js";
+import { type PluginClient } from "../../api/client.js";
 import {
     SerialDocumentAutosave,
     type DocumentSyncStatus,
 } from "../../api/documentAutosave.js";
 import { useEditorStore } from "../../state/store.js";
+import { useConnectionStore } from "../../state/connection.js";
+import { usePreferences } from "../../state/preferences.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 
 export interface DocumentSync {
+    /** Editing is allowed only after this connection has supplied a validated document. */
     readonly ready: boolean;
     readonly status: DocumentSyncStatus;
-    /** Reload on conflict, retry a failed save, or reconnect after an initial load failure. */
     readonly resolve: () => void;
+    readonly save: () => Promise<boolean>;
+    readonly isDirty: () => boolean;
 }
 
-type LoadMode = "initial" | "discard" | "clean-reload" | "reconnect";
+interface Session {
+    client: PluginClient | null;
+    ready: boolean;
+    status: DocumentSyncStatus;
+}
 
-/**
- * Keeps the browser document and the control plane's optimistic draft in one ordered timeline.
- */
 export function useDocumentSync(): DocumentSync {
+    const automatic = usePreferences((state) => state.autoSave);
     const document = useEditorStore((state) => state.document);
-    const setDocument = useEditorStore((state) => state.setDocument);
-    const setDiagnostics = useEditorStore((state) => state.setDiagnostics);
-    const [ready, setReady] = useState(false);
-    const [status, setStatus] = useState<DocumentSyncStatus>({
-        kind: "loading",
+    const persistenceDocument = useEditorStore(
+        (state) => state.persistenceDocument,
+    );
+    const transaction = useEditorStore((state) => state.historyTransactionId);
+    const client = useConnectionStore((state) => state.client);
+    const connecting = useConnectionStore(
+        (state) => state.status === "connecting",
+    );
+    const [session, setSession] = useState<Session>({
+        client: null,
+        ready: false,
+        status: { kind: "disconnected" },
     });
     const documentRef = useRef(document);
     const autosaveRef = useRef<SerialDocumentAutosave | null>(null);
-    const mountedRef = useRef(false);
-    const loadGenerationRef = useRef(0);
-    const automaticReloadRef = useRef<(hash: string) => void>(() => undefined);
-
+    const reloadRef = useRef<() => void>(() => undefined);
     documentRef.current = document;
+    const ready = client !== null && session.client === client && session.ready;
 
-    const newAutosave = useCallback(
-        (envelope: DocumentEnvelope): SerialDocumentAutosave =>
-            new SerialDocumentAutosave({
-                initialHash: envelope.snapshotHash,
-                save: controlPlane.saveDocument,
-                onStatus: (next) => {
-                    if (mountedRef.current) setStatus(next);
-                },
-                onSaved: (result) => {
-                    if (mountedRef.current) setDiagnostics(result.diagnostics);
-                },
-            }),
-        [setDiagnostics],
-    );
+    useEffect(() => {
+        let disposed = false;
+        let fetching = false;
+        let initialized = false;
+        let firstLoad = true;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        autosaveRef.current?.dispose();
+        autosaveRef.current = null;
+        reloadRef.current = () => undefined;
+        useEditorStore.getState().resetDraft();
+        if (!client) return;
 
-    const install = useCallback(
-        (envelope: DocumentEnvelope) => {
-            autosaveRef.current?.dispose();
-            autosaveRef.current = newAutosave(envelope);
-            documentRef.current = envelope.document;
-            setDocument(envelope.document);
-            setDiagnostics([]);
-            setStatus({ kind: "saved" });
-        },
-        [newAutosave, setDiagnostics, setDocument],
-    );
+        const current = () =>
+            !disposed && useConnectionStore.getState().client === client;
+        const update = (status: DocumentSyncStatus, ready: boolean) => {
+            if (current()) setSession({ client, status, ready });
+        };
+        update({ kind: "loading" }, false);
 
-    const fetchAndInstall = useCallback(
-        async (mode: LoadMode) => {
-            const generation = ++loadGenerationRef.current;
-            const localHashAtStart = contentHash(documentRef.current);
+        const load = async (discard = false) => {
+            if (fetching || !current()) return;
+            fetching = true;
+            const before = contentHash(documentRef.current);
             try {
-                const envelope = await controlPlane.loadDocument();
-                if (
-                    !mountedRef.current ||
-                    generation !== loadGenerationRef.current
-                ) {
+                if (!firstLoad) {
+                    const negotiated = await client.handshake();
+                    if (!current()) return;
+                    if (
+                        contentHash(negotiated.info) !==
+                        contentHash(useConnectionStore.getState().info)
+                    )
+                        useConnectionStore.setState(negotiated);
+                }
+                firstLoad = false;
+                const envelope = await client.loadDocument();
+                if (!current()) return;
+                if (!envelope) {
+                    update({ kind: "empty" }, false);
+                    autosaveRef.current?.dispose();
+                    autosaveRef.current = null;
+                    if (initialized) useEditorStore.getState().resetDraft();
+                    initialized = false;
                     return;
                 }
-                const localChanged =
-                    contentHash(documentRef.current) !== localHashAtStart;
-                if (mode === "clean-reload" && localChanged) {
+                if (
+                    initialized &&
+                    discard &&
+                    before !== contentHash(documentRef.current)
+                ) {
                     autosaveRef.current?.markConflict(envelope.snapshotHash);
                     return;
                 }
-                if (
-                    mode === "reconnect" &&
-                    contentHash(documentRef.current) !== envelope.snapshotHash
-                ) {
-                    if (!autosaveRef.current)
-                        autosaveRef.current = newAutosave(envelope);
-                    autosaveRef.current.markConflict(envelope.snapshotHash);
-                    return;
+                if (!initialized || discard) {
+                    autosaveRef.current?.dispose();
+                    documentRef.current = envelope.document;
+                    useEditorStore.getState().setDocument(envelope.document);
+                    useEditorStore.getState().setDiagnostics([]);
+                    autosaveRef.current = new SerialDocumentAutosave({
+                        initialHash: envelope.snapshotHash,
+                        automatic: usePreferences.getState().autoSave,
+                        save: (draft, expected) =>
+                            client.saveDocument(draft, expected),
+                        onStatus: (status) => update(status, true),
+                        onSaved: (result) => {
+                            if (
+                                current() &&
+                                result.snapshotHash ===
+                                    useEditorStore.getState().snapshotHash
+                            )
+                                useEditorStore
+                                    .getState()
+                                    .setDiagnostics(result.diagnostics);
+                        },
+                    });
+                    initialized = true;
+                    update({ kind: "saved" }, true);
+                } else {
+                    const disposition =
+                        autosaveRef.current?.observeRemoteUpdate(
+                            envelope.snapshotHash,
+                            documentRef.current,
+                        );
+                    if (disposition === "reload") {
+                        documentRef.current = envelope.document;
+                        useEditorStore
+                            .getState()
+                            .setDocument(envelope.document);
+                        autosaveRef.current?.observeRemoteUpdate(
+                            envelope.snapshotHash,
+                            envelope.document,
+                        );
+                    }
                 }
-                install(envelope);
             } catch (error) {
-                if (
-                    !mountedRef.current ||
-                    generation !== loadGenerationRef.current
-                ) {
-                    return;
+                if (current()) {
+                    useConnectionStore.getState().disconnect();
+                    useConnectionStore.setState({
+                        status: "error",
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : "CONNECTION_FAILED",
+                    });
                 }
-                setStatus({
-                    kind: "offline",
-                    message:
-                        error instanceof Error ? error.message : String(error),
-                });
             } finally {
-                if (
-                    mode === "initial" &&
-                    mountedRef.current &&
-                    generation === loadGenerationRef.current
-                ) {
-                    setReady(true);
-                }
+                fetching = false;
+                if (current()) timer = setTimeout(() => void load(), 3_000);
             }
-        },
-        [install, newAutosave],
-    );
-
-    useEffect(() => {
-        mountedRef.current = true;
-        void fetchAndInstall("initial");
+        };
+        void load();
+        reloadRef.current = () => {
+            if (timer) clearTimeout(timer);
+            void load(true);
+        };
         return () => {
-            mountedRef.current = false;
-            loadGenerationRef.current += 1;
+            disposed = true;
+            if (timer) clearTimeout(timer);
             autosaveRef.current?.dispose();
             autosaveRef.current = null;
         };
-    }, [fetchAndInstall]);
+    }, [client]);
 
     useEffect(() => {
-        if (!ready) return;
-        autosaveRef.current?.queue(document);
-    }, [document, ready]);
+        autosaveRef.current?.setAutomatic(automatic);
+    }, [automatic]);
 
-    const automaticReload = useCallback(
-        (announcedHash: string) => {
-            const autosave = autosaveRef.current;
-            if (!autosave) return;
-            const disposition = autosave.observeRemoteUpdate(
-                announcedHash,
-                documentRef.current,
+    useEffect(() => {
+        if (
+            !ready ||
+            !client ||
+            useConnectionStore.getState().client !== client
+        )
+            return;
+        autosaveRef.current?.queue(persistenceDocument);
+        // Best-effort recovery evidence is scoped to its source, never automatically displayed or
+        // uploaded. The legacy unscoped local draft is deliberately left untouched and unread.
+        try {
+            localStorage.setItem(
+                `itemerness.recovery.v2:${encodeURIComponent(client.baseUrl)}`,
+                JSON.stringify({
+                    serverId: useConnectionStore.getState().info?.serverId,
+                    document: persistenceDocument,
+                }),
             );
-            if (disposition === "reload") void fetchAndInstall("clean-reload");
-        },
-        [fetchAndInstall],
-    );
-    automaticReloadRef.current = automaticReload;
-
-    useEffect(() => {
-        let closed = false;
-        let socket: WebSocket | null = null;
-        let reconnect: ReturnType<typeof setTimeout> | null = null;
-        let delay = 1_000;
-
-        const connect = () => {
-            if (closed) return;
-            const url = new URL("/api/v1/events", window.location.href);
-            url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-            socket = new WebSocket(url);
-            socket.addEventListener("open", () => {
-                delay = 1_000;
-            });
-            socket.addEventListener("message", (event) => {
-                try {
-                    const message = JSON.parse(String(event.data)) as {
-                        type?: unknown;
-                        snapshotHash?: unknown;
-                    };
-                    if (
-                        (message.type === "hello" ||
-                            message.type === "draft.updated") &&
-                        typeof message.snapshotHash === "string"
-                    ) {
-                        automaticReloadRef.current(message.snapshotHash);
-                    }
-                } catch {
-                    // Unknown event payloads are forward-compatible and have no document meaning.
-                }
-            });
-            socket.addEventListener("close", () => {
-                if (closed) return;
-                reconnect = setTimeout(connect, delay);
-                delay = Math.min(delay * 2, 10_000);
-            });
-        };
-
-        connect();
-        return () => {
-            closed = true;
-            if (reconnect !== null) clearTimeout(reconnect);
-            socket?.close(1000, "editor unmounted");
-        };
-    }, []);
-
-    const resolve = useCallback(() => {
-        if (status.kind === "conflict") {
-            setStatus({ kind: "loading" });
-            void fetchAndInstall("discard");
-        } else if (status.kind === "error") {
-            autosaveRef.current?.retry();
-        } else if (status.kind === "offline") {
-            setStatus({ kind: "loading" });
-            void fetchAndInstall("reconnect");
+        } catch {
+            /* Server autosave, not this optional copy, determines save status. */
         }
-    }, [fetchAndInstall, status.kind]);
+    }, [persistenceDocument, ready, client]);
 
-    return { ready, status, resolve };
+    const status: DocumentSyncStatus = !client
+        ? { kind: connecting ? "loading" : "disconnected" }
+        : session.client === client
+          ? session.status
+          : { kind: "loading" };
+    const save = useCallback(async () => {
+        commitInlineEditor();
+        const state = useEditorStore.getState();
+        if (
+            !ready ||
+            !client ||
+            useConnectionStore.getState().client !== client ||
+            state.historyTransactionId !== null
+        )
+            return false;
+        const document = state.persistenceDocument;
+        const result = await autosaveRef.current?.saveNow(document);
+        return (
+            !!result &&
+            useConnectionStore.getState().client === client &&
+            useEditorStore.getState().snapshotHash === contentHash(document)
+        );
+    }, [ready, client]);
+    const resolve = useCallback(() => {
+        if (status.kind === "error") void save();
+        else reloadRef.current();
+    }, [status.kind, save]);
+    const isDirty = useCallback(
+        () =>
+            ready &&
+            client === useConnectionStore.getState().client &&
+            !!autosaveRef.current?.isDirty(
+                useEditorStore.getState().snapshotHash,
+            ),
+        [ready, client],
+    );
+    return {
+        ready,
+        status:
+            transaction !== null && status.kind === "saved"
+                ? { kind: "pending" }
+                : status,
+        resolve,
+        save,
+        isDirty,
+    };
 }

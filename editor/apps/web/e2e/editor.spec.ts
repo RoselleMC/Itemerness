@@ -1,12 +1,18 @@
-import { existsSync } from "node:fs";
+import { setZoom } from "./fixtures/plugin.js";
+import { chooseValue, setColor } from "./fixtures/plugin.js";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import {
-    expect,
-    test,
-    type APIRequestContext,
-    type Page,
-} from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
+import {
+    mockPlugin,
+    enterWorkspace,
+    connectPlugin,
+    HANDSHAKE,
+    TEST_TOKEN,
+    API_URL,
+    selectContent,
+} from "./fixtures/plugin.js";
 import {
     contentHash,
     type PreviewRequest,
@@ -68,38 +74,28 @@ async function mountVanilla(page: Page): Promise<void> {
     await expect(page.getByTestId("pack-list")).toContainText(
         "vanilla-26.1.2.zip",
     );
-    await page.getByTestId("close-overlay").click();
-}
-
-async function resetDocument(request: APIRequestContext): Promise<void> {
-    const currentResponse = await request.get("/api/v1/document");
-    expect(currentResponse.ok()).toBe(true);
-    const current = (await currentResponse.json()) as { snapshotHash: string };
-    const resetResponse = await request.put("/api/v1/document", {
-        data: {
-            document: baselineDocument,
-            expectedHash: current.snapshotHash,
-        },
-    });
-    expect(resetResponse.ok()).toBe(true);
+    await page.getByTestId("mode-items").click();
 }
 
 async function simulateManagedPack(page: Page): Promise<void> {
     await page.getByTestId("open-persona").click();
     await page.getByTestId("pack-sim-loaded").click();
-    await page
-        .getByTestId("asset-profile-simulation")
-        .selectOption("itemerness:example-pack-v1");
+    await chooseValue(
+        page,
+        page.getByTestId("asset-profile-simulation"),
+        "itemerness:example-pack-v1",
+    );
     await page.getByTestId("managed-vanilla-lines-simulation").check();
     await page.getByTestId("open-persona").click();
 }
 
-test.beforeEach(async ({ page, request }) => {
-    await resetDocument(request);
+test.beforeEach(async ({ page }) => {
+    await mockPlugin(page);
     await page.addInitScript(() =>
         window.localStorage.setItem("itemerness.ui-language", '"en-US"'),
     );
     await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
     await expect(page.getByTestId("item-tree")).toBeVisible();
 });
 
@@ -152,7 +148,7 @@ test.describe("narrow workspace", () => {
     });
 });
 
-test("lists the bundled items by localized name and previews the first one", async ({
+test("lists plugin-supplied items by localized name and previews the first one", async ({
     page,
 }) => {
     const tree = page.getByTestId("item-tree");
@@ -166,7 +162,7 @@ test("lists the bundled items by localized name and previews the first one", asy
     expect(size.height).toBeGreaterThan(0);
 });
 
-test("loads, autosaves, and previews the control plane document", async ({
+test("loads, autosaves, and previews the selected plugin document", async ({
     page,
 }) => {
     const remoteDocument = structuredClone(baselineDocument);
@@ -175,8 +171,9 @@ test("loads, autosaves, and previews the control plane document", async ({
         (entry) => entry.locale === remoteDocument.defaultLocale,
     )!;
     locale.messages[firstItem.presentation.nameMessage] =
-        "Loaded from the control plane";
+        "Loaded from the plugin";
     let persistedHash = contentHash(remoteDocument);
+    let servedDocument = remoteDocument;
     let revision = 40;
     const saves: {
         document: ProjectDocument;
@@ -184,11 +181,14 @@ test("loads, autosaves, and previews the control plane document", async ({
     }[] = [];
     const previews: PreviewRequest[] = [];
 
-    await page.route("**/api/v1/document", async (route) => {
+    await page.route("**/api/handshake", (route) =>
+        route.fulfill({ json: HANDSHAKE }),
+    );
+    await page.route("**/api/v2/document", async (route) => {
         if (route.request().method() === "GET") {
             await route.fulfill({
                 json: {
-                    document: remoteDocument,
+                    document: servedDocument,
                     snapshotHash: persistedHash,
                     revision,
                 },
@@ -200,20 +200,28 @@ test("loads, autosaves, and previews the control plane document", async ({
             expectedHash: string;
         };
         saves.push(body);
+        expect(route.request().headers()["authorization"]).toBe(
+            `Bearer ${TEST_TOKEN}`,
+        );
+        expect(route.request().headers()["x-itemerness-protocol"]).toBe("2.0");
         persistedHash = contentHash(body.document);
+        servedDocument = body.document;
         revision += 1;
         await route.fulfill({
             json: { snapshotHash: persistedHash, revision, diagnostics: [] },
         });
     });
-    await page.route("**/api/v1/preview", async (route) => {
+    await page.route("**/api/v2/preview", async (route) => {
         previews.push(route.request().postDataJSON() as PreviewRequest);
-        await route.continue();
+        await route.fulfill({
+            status: 503,
+            json: { code: "PREVIEW_UNAVAILABLE" },
+        });
     });
 
-    await page.reload();
+    await connectPlugin(page, API_URL, TEST_TOKEN);
     await expect(page.getByTestId("preview-name")).toHaveText(
-        "Loaded from the control plane",
+        "Loaded from the plugin",
     );
     await page.getByTestId("name-input").fill("Current unsaved keystroke");
 
@@ -262,11 +270,12 @@ test("renaming an item in the inspector updates the preview and the list", async
 
 test("adding a text row extends the tooltip", async ({ page }) => {
     await page.getByTestId("item-travel-token").click();
-    const rows = page.getByTestId("block-list").first().locator("> li");
-    const before = await rows.count();
+    await setZoom(page, 1);
     const sizeBefore = await canvasSize(page);
+    await page.getByTestId("line-hit-name").click();
+    await page.getByTestId("insert-after").click();
     await page.getByTestId("add-text-row").click();
-    await expect(rows).toHaveCount(before + 1);
+    await expect(page.locator("[data-block]")).toHaveCount(1);
     // The new line is real content: the tooltip grows.
     await expect
         .poll(async () => (await canvasSize(page)).height)
@@ -276,6 +285,7 @@ test("adding a text row extends the tooltip", async ({ page }) => {
 test("editing a stat label inline redraws the tooltip", async ({ page }) => {
     await page.getByTestId("item-travel-token").click();
     const before = await canvasSignature(page);
+    await page.getByTestId("line-hit-1").click();
     const label = page
         .getByTestId("block-list")
         .first()
@@ -288,8 +298,9 @@ test("editing a stat label inline redraws the tooltip", async ({ page }) => {
 test("labels an unverified preview honestly and never claims exact structure", async ({
     page,
 }) => {
-    await expect(page.getByTestId("preview-origin")).toHaveText(
-        "Draft preview",
+    await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+        "data-preview-origin",
+        "local",
     );
     await page.getByTestId("fidelity-toggle").click();
     await expect(page.getByTestId("fidelity-content")).toContainText(
@@ -333,7 +344,8 @@ test("switching the interface language leaves the previewed content alone", asyn
 }) => {
     await page.getByTestId("item-ember-blade").click();
     const before = await canvasSignature(page);
-    await page.getByTestId("ui-language").selectOption("zh-CN");
+    await page.getByTestId("ui-language").click();
+    await page.getByTestId("ui-language-zh-CN").click();
     await expect(page.getByTestId("add-item")).toContainText("新建物品");
     // Interface language and previewed content language are separate axes; changing one must not
     // move the other.
@@ -361,10 +373,10 @@ test("choosing a theme card edits the item, and fallbacks are explained", async 
     );
 });
 
-test("zoom chips change the rendered pixel grid", async ({ page }) => {
-    await page.getByTestId("gui-scale-2").click();
+test("percentage zoom changes the rendered pixel grid", async ({ page }) => {
+    await setZoom(page, 2);
     const small = await canvasSize(page);
-    await page.getByTestId("gui-scale-5").click();
+    await setZoom(page, 6);
     await expect
         .poll(async () => (await canvasSize(page)).width)
         .toBeGreaterThan(small.width);
@@ -394,7 +406,7 @@ test("the translation matrix still edits the same document", async ({
     await page
         .getByTestId("message-en_us-item.travel-token.name")
         .fill("Harbor Travel Token Extended Edition");
-    await page.getByTestId("close-overlay").click();
+    await page.getByTestId("mode-items").click();
     await expect(page.getByTestId("preview-name")).toHaveText(
         "Harbor Travel Token Extended Edition",
     );
@@ -419,21 +431,10 @@ test("diagnostics render from message keys, not server prose", async ({
 }) => {
     const document = structuredClone(baselineDocument);
     document.items[0]!.presentation.nameMessage = "item.missing-name";
-    await page.route("**/api/v1/document", async (route) => {
-        if (route.request().method() !== "GET") {
-            await route.continue();
-            return;
-        }
-        await route.fulfill({
-            json: {
-                document,
-                snapshotHash: contentHash(document),
-                revision: 2,
-            },
-        });
-    });
+    await mockPlugin(page, document);
     await page.reload();
-    await page.getByTestId("open-diagnostics").click();
+    await enterWorkspace(page);
+    await page.getByTestId("open-diagnostics-chip").click();
     await expect(
         page.getByRole("heading", { name: "Diagnostics" }),
     ).toBeVisible();
@@ -443,27 +444,24 @@ test("diagnostics render from message keys, not server prose", async ({
     await expect(page.getByTestId("diagnostics-list")).not.toContainText(
         "diagnostics.locale.missing_message",
     );
-    await page.getByTestId("close-overlay").click();
-    await page.getByTestId("ui-language").selectOption("zh-CN");
-    await page.getByTestId("open-diagnostics").click();
+    await page.getByTestId("back-to-editor").click();
+    await page.getByTestId("ui-language").click();
+    await page.getByTestId("ui-language-zh-CN").click();
+    await page.getByTestId("open-diagnostics-chip").click();
     await expect(page.getByRole("heading", { name: "诊断" })).toBeVisible();
     await expect(page.getByTestId("diagnostics-list")).toContainText(
         "“item.missing-name”在任何语言中都没有翻译。",
     );
 });
 
-test("fetches vanilla assets through the control plane when the deployment allows it", async ({
+test("fetches pinned vanilla assets directly when explicitly enabled", async ({
     page,
-    request,
 }) => {
-    // The path for an editor who has no client jar to hand. The control plane downloads the files
-    // pinned in tools/font-metrics/26.1.2.sources.json from the official Mojang CDN and verifies
-    // every SHA-1 before serving them, so a poisoned mirror cannot change a glyph advance.
-    const probe = await request.get("/api/v1/vanilla-assets/26.1.2/manifest");
     test.skip(
-        !probe.ok(),
-        "this deployment does not expose the vanilla asset proxy",
+        process.env.E2E_ASSET_NETWORK !== "1",
+        "live Mojang downloads are opt-in",
     );
+    test.setTimeout(180_000);
 
     await page.getByTestId("open-assets").click();
     await expect(page.getByTestId("assets-empty")).toBeVisible();
@@ -481,22 +479,25 @@ test("fetches vanilla assets through the control plane when the deployment allow
 
 test("shows a server-verified preview when a target server is connected", async ({
     page,
-    request,
-}) => {
-    const status = await request.get("/api/v1/agent/status");
-    const connected = status.ok()
-        ? ((await status.json()) as { connected: boolean }).connected
-        : false;
+}, testInfo) => {
     test.skip(
-        !connected,
-        "no Minecraft server is paired with this control plane",
+        !process.env.E2E_PLUGIN_URL,
+        "requires an authorized craftr runtime API",
     );
+    await page.unrouteAll();
+    await connectPlugin(
+        page,
+        process.env.E2E_PLUGIN_URL!,
+        process.env.E2E_PLUGIN_TOKEN ?? "",
+    );
+    await expect(page.getByTestId("connection-status")).toHaveText("Connected");
 
     await page.getByTestId("item-ember-blade").click();
     // The badge flips only when a real target compiled this exact draft snapshot. A mock result or
     // a stale snapshot must keep it at draft, which is the whole point of the distinction.
-    await expect(page.getByTestId("preview-origin")).toHaveText(
-        "Server verified",
+    await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+        "data-preview-origin",
+        "agent",
         { timeout: 30_000 },
     );
     await page.getByTestId("fidelity-toggle").click();
@@ -508,19 +509,117 @@ test("shows a server-verified preview when a target server is connected", async 
         "Client only",
     );
     await expect(page.getByTestId("preview-name")).toHaveText("Ember Blade");
+    await page.getByTestId("fidelity-toggle").click();
+    if (hasVanillaBundle) {
+        const before = await canvasSignature(page);
+        await mountVanilla(page);
+        await expect.poll(() => canvasSignature(page)).not.toBe(before);
+    }
+    const warmPixels = new Map<string, string>();
+    for (const item of ["travel-token", "ember-blade", "survey-codex"]) {
+        await page.getByTestId(`item-${item}`).click();
+        await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+            "data-preview-origin",
+            "agent",
+        );
+        warmPixels.set(
+            item,
+            await page
+                .getByTestId("tooltip-canvas")
+                .evaluate((canvas) =>
+                    (canvas as HTMLCanvasElement).toDataURL(),
+                ),
+        );
+    }
+    const switchTimings = [];
+    for (const item of [
+        "travel-token",
+        "ember-blade",
+        "survey-codex",
+        "ember-blade",
+    ]) {
+        const measured = await page.evaluate((item) => {
+            const start = performance.now();
+            const button = document.querySelector<HTMLButtonElement>(
+                `[data-testid="item-${item}"]`,
+            )!;
+            const expectedName =
+                button.querySelector(".item-row-name")!.textContent;
+            button.click();
+            return new Promise<{
+                elapsed: number;
+                name: string | null;
+                expectedName: string | null;
+                origin: string | null;
+                bitmap: string;
+            }>((resolve) =>
+                requestAnimationFrame(() =>
+                    resolve({
+                        elapsed: performance.now() - start,
+                        expectedName,
+                        name: document.querySelector(
+                            '[data-testid="preview-name"]',
+                        )!.textContent,
+                        origin: document
+                            .querySelector('[data-testid="tooltip-canvas"]')!
+                            .getAttribute("data-preview-origin"),
+                        bitmap: document
+                            .querySelector<HTMLCanvasElement>(
+                                '[data-testid="tooltip-canvas"]',
+                            )!
+                            .toDataURL(),
+                    }),
+                ),
+            );
+        }, item);
+        expect(measured.name).toBe(measured.expectedName);
+        expect(measured.origin).toBe("agent");
+        expect(measured.elapsed).toBeLessThan(200);
+        expect(measured.bitmap).toBe(warmPixels.get(item));
+        const { bitmap: _bitmap, ...timing } = measured;
+        switchTimings.push({ item, ...timing });
+    }
+    mkdirSync(testInfo.outputPath(), { recursive: true });
+    writeFileSync(
+        testInfo.outputPath("live-preview-switches.json"),
+        JSON.stringify(switchTimings, null, 2),
+    );
+    await testInfo.attach("live-preview-switches", {
+        body: JSON.stringify(switchTimings),
+        contentType: "application/json",
+    });
+    for (const viewport of [
+        { width: 1440, height: 960 },
+        { width: 390, height: 844 },
+    ]) {
+        await page.setViewportSize(viewport);
+        if (viewport.width < 900) await setZoom(page, 1);
+        await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+            "data-preview-origin",
+            "agent",
+        );
+        expect((await canvasSize(page)).width).toBeGreaterThan(0);
+        expect(
+            await page.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+        ).toBe(true);
+        await page.screenshot({
+            path: testInfo.outputPath(`direct-plugin-${viewport.width}.png`),
+            fullPage: true,
+        });
+    }
 });
 
-test("dragging a row handle reorders the tooltip content", async ({ page }) => {
+test("focused content commands reorder the tooltip content", async ({
+    page,
+}) => {
     await page.getByTestId("item-travel-token").click();
-    const rows = page.getByTestId("block-list").first().locator("> li");
-    const firstKind = await rows.nth(0).locator(".block-kind").textContent();
+    await page.getByTestId("line-hit-1").click();
     const before = await canvasSignature(page);
-    // Drag the first row's handle onto the last row: the mouse gesture, not arrow buttons, is the
-    // primary reorder path.
-    await rows.nth(0).locator(".drag-handle").dragTo(rows.nth(2));
-    await expect(rows.nth(2).locator(".block-kind")).toHaveText(
-        firstKind ?? "",
-    );
+    await expect(page.getByTestId("content-move-up")).toBeDisabled();
+    await page.getByTestId("content-move-down").click();
+    await expect(page.getByTestId("content-move-up")).toBeEnabled();
     await expect.poll(async () => canvasSignature(page)).not.toBe(before);
 });
 
@@ -532,7 +631,7 @@ test("theme colors edit with a color well and repaint instantly", async ({
     const before = await canvasSignature(page);
     // The library previews the currently selected item in the chosen theme, so recolouring the
     // name role must repaint the stage at once.
-    await page.getByTestId("color-item-name").fill("#ff3366");
+    await setColor(page, "color-item-name", "#ff3366");
     await expect.poll(async () => canvasSignature(page)).not.toBe(before);
 });
 
@@ -549,6 +648,8 @@ test("posing the previewed player flips a conditional row", async ({
 });
 
 test("layout sliders re-wrap real content", async ({ page }) => {
+    await page.getByTestId("item-ember-blade").click();
+    await page.getByTestId("theme-card-default").click();
     await page.getByTestId("mode-layouts").click();
     await page.getByTestId("layout-equipment").click();
     // The stage previews an item that uses this layout.
@@ -571,17 +672,21 @@ test("renaming a data key relabels every row that uses it", async ({
     await page.getByTestId("mode-items").click();
     await page.getByTestId("item-travel-token").click();
     // The travel token's second stat row uses example:charges; its inline label now reads the new text.
-    const rows = page.getByTestId("block-list").first().locator("> li");
-    await expect(rows.nth(1).locator("input").first()).toHaveValue("Uses left");
+    await selectContent(
+        page,
+        baselineDocument.items[0]!.presentation.blocks[1]!.uuid,
+    );
+    await expect(
+        page.getByTestId("block-list").locator("input").first(),
+    ).toHaveValue("Uses left");
 });
 
 test("clicking a tooltip line selects its block in the inspector", async ({
     page,
 }) => {
     await page.getByTestId("item-travel-token").click();
-    // The first lore line is the Region stat row; clicking the pixels selects the block that
-    // produced them.
-    await page.getByTestId("line-hit-0").click();
+    // The synthetic top border has no editing target; the first content line follows it.
+    await page.getByTestId("line-hit-1").click();
     const selected = page.locator('[data-block][data-selected="true"]');
     await expect(selected).toHaveCount(1);
     await expect(selected.locator("input").first()).toHaveValue("Region");
@@ -659,14 +764,14 @@ test.describe("with vanilla assets mounted", () => {
         await expect(results.locator("tr.fail")).toHaveCount(0);
         await expect(results).toContainText("minecraft:default");
         await expect(results).toContainText("minecraft:uniform");
-        await page.getByTestId("close-overlay").click();
+        await page.getByTestId("mode-items").click();
 
         await page.getByTestId("fidelity-toggle").click();
         await expect(page.getByTestId("fidelity-glyph-raster")).toContainText(
-            "Client only",
+            "Approximate raster",
         );
         await expect(page.getByTestId("fidelity-glyph-raster")).toContainText(
-            "Some glyphs have metrics but no pixels.",
+            "Drawn from the mounted glyph textures.",
         );
         await expect(page.getByTestId("fidelity-metrics")).toContainText(
             "Metric faithful",
@@ -682,28 +787,42 @@ test.describe("with vanilla assets mounted", () => {
         await expect(page.getByTestId("selected-theme")).toContainText(
             "itemerness:aurora-canvas",
         );
-        // 176 canvas pixels plus three pixels of tooltip padding on each side. Without the width
-        // anchor the negative spacing would collapse this to nearly nothing.
-        await expect(page.getByTestId("tooltip-size")).toContainText("182 x");
+        // 176 content pixels + 3 padding + 9 sprite margin on each edge. The invisible width
+        // anchor still controls content width, independently of the sprite's decorative margin.
+        await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+            "data-logical-width",
+            "200",
+        );
     });
 
     test("renderer golden screenshot", async ({ page }) => {
         // The golden proves the browser renderer stayed stable, so the compile endpoint is blocked
         // for this test: otherwise the pixels would depend on whether a server happens to be
         // paired with the deployment under test.
-        await page.route("**/api/v1/preview", (route) => route.abort());
+        await page.route("**/api/v2/preview", (route) => route.abort());
         await mountVanilla(page);
         await simulateManagedPack(page);
         await page.getByTestId("item-ember-blade").click();
-        await page.getByTestId("gui-scale-4").click();
+        await setZoom(page, 4);
         await expect(page.getByTestId("tooltip-canvas")).toBeVisible();
-        await expect(page.getByTestId("preview-origin")).toHaveText(
-            "Draft preview",
+        await expect(page.getByTestId("tooltip-canvas")).toHaveAttribute(
+            "data-preview-origin",
+            "local",
         );
         // This golden proves this renderer stayed stable. It is not evidence about the Minecraft
         // client: only a real client screenshot can speak to that, and this project takes those on
         // the craftr runtime matrix rather than pretending a browser canvas substitutes for one.
-        await expect(page.getByTestId("tooltip-canvas")).toHaveScreenshot(
+        // Compare the actual canvas pixels, not a clipped element screenshot that can include
+        // adjacent panes when the tooltip is wider than the workspace.
+        const png = await page
+            .getByTestId("tooltip-canvas")
+            .evaluate(
+                (canvas) =>
+                    (canvas as HTMLCanvasElement)
+                        .toDataURL("image/png")
+                        .split(",")[1]!,
+            );
+        expect(Buffer.from(png, "base64")).toMatchSnapshot(
             "ember-blade-mounted.png",
             {
                 maxDiffPixelRatio: 0.01,

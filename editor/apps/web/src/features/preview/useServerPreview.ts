@@ -1,24 +1,22 @@
-import { useEffect, useRef, useState } from "react";
-import type {
-    PreviewArtifact,
-    PreviewViewer,
-    ProjectDocument,
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from "react";
+import {
+    contentHash,
+    type PreviewArtifact,
+    type PreviewViewer,
+    type ProjectDocument,
 } from "@itemerness/protocol";
-import { contentHash } from "@itemerness/protocol";
-import { controlPlane } from "../../api/client.js";
-
-/**
- * Asks a target server to compile the current draft.
- *
- * Two rules make this safe to show next to the optimistic preview:
- *
- * 1. Every request carries the snapshot hash it was derived from, and a response whose hash no
- *    longer matches the draft is discarded. Without that fence a slow compile would repaint the
- *    preview with an older draft the moment it arrived, which looks exactly like a rendering bug.
- * 2. Only a result the control plane marks `agent` is treated as server verified. A `mock` result
- *    is the control plane replaying the browser's own composer, and calling that verified would
- *    make the badge a decoration.
- */
+import { useConnectionStore } from "../../state/connection.js";
+import {
+    PreviewCache,
+    previewKey,
+    type PreviewItemState,
+} from "../../api/previewCache.js";
 
 export type ServerPreviewState =
     | { status: "idle" }
@@ -28,69 +26,215 @@ export type ServerPreviewState =
     | { status: "unavailable"; reason: string };
 
 const DEBOUNCE_MS = 250;
+const PREWARM_ITEMS = 16;
+const noSubscription = () => () => {};
+const zeroVersion = () => 0;
 
 export function useServerPreview(
     document: ProjectDocument,
     itemId: string | null,
     viewer: PreviewViewer,
-): ServerPreviewState {
-    const [state, setState] = useState<ServerPreviewState>({ status: "idle" });
-    const latest = useRef(0);
+    enabled = true,
+): {
+    current: ServerPreviewState;
+    items: Readonly<Record<string, PreviewItemState>>;
+} {
+    const client = useConnectionStore((state) => state.client);
+    const info = useConnectionStore((state) => state.info);
+    const snapshotHash = useMemo(() => contentHash(document), [document]);
+    const viewerKey = useMemo(() => contentHash(viewer), [viewer]);
+    const item = document.items.find(
+        (entry) => `${document.namespace}:${entry.id}` === itemId,
+    );
+    const selectionKey = JSON.stringify([
+        item?.presentation.theme,
+        item?.presentation.layout,
+    ]);
+    const peerKey = JSON.stringify([
+        info?.serverId,
+        info?.compilerDigest,
+        info?.pluginVersion,
+        info?.minecraftVersion,
+    ]);
+    const supported = !!info?.capabilities.includes("preview.compile");
+    const cache = useMemo(
+        () =>
+            client
+                ? new PreviewCache(async (request, signal) => {
+                      const result = await client.preview(request, signal);
+                      const compiler = result.artifact.digests.compiler;
+                      return compiler !== null &&
+                          compiler !== info?.compilerDigest
+                          ? { ...result, stale: true }
+                          : result;
+                  })
+                : null,
+        [client, peerKey],
+    );
+    const key = JSON.stringify([snapshotHash, itemId, viewerKey]);
+    const revision = useSyncExternalStore(
+        cache?.subscribe ?? noSubscription,
+        cache?.version ?? zeroVersion,
+    );
+    const items = useMemo(
+        () =>
+            Object.fromEntries(
+                document.items.map((item) => {
+                    const id = `${document.namespace}:${item.id}`;
+                    return [
+                        id,
+                        !enabled || !cache || !supported
+                            ? "unavailable"
+                            : cache.status(
+                                  JSON.stringify([snapshotHash, id, viewerKey]),
+                              ),
+                    ];
+                }),
+            ) as Readonly<Record<string, PreviewItemState>>,
+        [
+            cache,
+            revision,
+            document,
+            snapshotHash,
+            viewerKey,
+            supported,
+            enabled,
+        ],
+    );
+    const serverId = info?.serverId ?? null;
+    const [state, setState] = useState<{
+        cache: PreviewCache | null;
+        key: string;
+        value: ServerPreviewState;
+    }>({ cache: null, key: "", value: { status: "idle" } });
+    const previous = useRef<{
+        cache: PreviewCache;
+        itemId: string;
+        snapshotHash: string;
+        viewerKey: string;
+        selectionKey: string;
+    } | null>(null);
 
-    const snapshotHash = contentHash(document);
-    const viewerKey = JSON.stringify(viewer);
+    useEffect(() => () => cache?.clear(), [cache]);
 
     useEffect(() => {
-        if (!itemId) {
-            setState({ status: "idle" });
-            return;
-        }
-        const request = ++latest.current;
-        const controller = new AbortController();
-        setState({ status: "pending" });
-
-        const timer = setTimeout(async () => {
-            try {
-                const body = await controlPlane.preview(
+        if (!enabled || !itemId || !cache || !supported) return;
+        const last = previous.current;
+        const editing =
+            last?.cache === cache &&
+            last.itemId === itemId &&
+            last.viewerKey === viewerKey &&
+            last.selectionKey === selectionKey &&
+            last.snapshotHash !== snapshotHash;
+        previous.current = {
+            cache,
+            itemId,
+            snapshotHash,
+            viewerKey,
+            selectionKey,
+        };
+        let current = true;
+        const publish = (value: ServerPreviewState) => {
+            if (current) setState({ cache, key, value });
+        };
+        const load = () => {
+            publish({ status: "pending" });
+            void cache
+                .load(
                     {
                         document,
                         itemId,
                         viewer,
                         snapshotHash,
-                        targetServerId: null,
+                        targetServerId: serverId,
                     },
-                    controller.signal,
-                );
-                if (controller.signal.aborted) return;
-                // A superseded request must not repaint the preview, even if it finishes last.
-                if (request !== latest.current) return;
-                if (
-                    body.stale ||
-                    body.artifact.digests.snapshot !== snapshotHash
-                ) {
-                    setState({ status: "unavailable", reason: "stale" });
-                    return;
-                }
-                setState(
-                    body.artifact.origin === "agent"
-                        ? { status: "verified", artifact: body.artifact }
-                        : { status: "mock", artifact: body.artifact },
-                );
-            } catch (error) {
-                if (request !== latest.current) return;
-                if ((error as Error).name === "AbortError") return;
-                setState({
-                    status: "unavailable",
-                    reason: (error as Error).message,
+                    true,
+                )
+                .then((body) => {
+                    if (
+                        body.stale ||
+                        body.artifact.digests.snapshot !== snapshotHash
+                    ) {
+                        publish({ status: "unavailable", reason: "stale" });
+                    } else
+                        publish(
+                            body.artifact.origin === "agent"
+                                ? {
+                                      status: "verified",
+                                      artifact: body.artifact,
+                                  }
+                                : { status: "mock", artifact: body.artifact },
+                        );
+                })
+                .catch((error: Error) => {
+                    if (error.name !== "AbortError")
+                        publish({
+                            status: "unavailable",
+                            reason: error.message,
+                        });
                 });
+        };
+        // Debounce typing, never navigation. A selected item also promotes any queued warm-up.
+        const timer = editing ? setTimeout(load, DEBOUNCE_MS) : null;
+        if (!editing) load();
+        return () => {
+            current = false;
+            if (timer !== null) clearTimeout(timer);
+        };
+    }, [
+        cache,
+        info,
+        key,
+        itemId,
+        snapshotHash,
+        viewerKey,
+        selectionKey,
+        supported,
+        enabled,
+        serverId,
+        document,
+    ]);
+
+    useEffect(() => {
+        if (!enabled || !cache || !supported) return;
+        const timer = setTimeout(() => {
+            for (const item of document.items.slice(0, PREWARM_ITEMS)) {
+                const request = {
+                    document,
+                    itemId: `${document.namespace}:${item.id}`,
+                    viewer,
+                    snapshotHash,
+                    targetServerId: serverId,
+                };
+                if (!cache.peek(previewKey(request)))
+                    void cache.load(request).catch(() => {});
             }
         }, DEBOUNCE_MS);
-
         return () => {
             clearTimeout(timer);
-            controller.abort();
+            cache.cancelPending();
         };
-    }, [document, itemId, snapshotHash, viewerKey]);
+    }, [
+        cache,
+        snapshotHash,
+        viewerKey,
+        supported,
+        enabled,
+        serverId,
+        document,
+    ]);
 
-    return state;
+    if (!enabled || !itemId || !cache || !supported)
+        return { current: { status: "idle" }, items };
+    // Never show the prior item's artifact for one render while an effect catches up.
+    const cached = cache.peek(key);
+    if (cached)
+        return { current: { status: "verified", artifact: cached }, items };
+    return {
+        current:
+            state.cache === cache && state.key === key
+                ? state.value
+                : { status: "pending" },
+        items,
+    };
 }
