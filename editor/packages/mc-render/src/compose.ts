@@ -1,7 +1,8 @@
+import { itemKey, itemLayout, itemTheme } from "@itemerness/protocol";
 import type {
     DataValue,
+    DataTypeNode,
     Diagnostic,
-    FormatNode,
     ItemNode,
     LayoutNode,
     PresentationBlock,
@@ -13,14 +14,16 @@ import type {
     ThemeNode,
 } from "@itemerness/protocol";
 import type { PresentationFonts } from "./fonts.js";
-import { measureLine } from "./measure.js";
 import { LayoutOverflowError, ellipsizeLine } from "./wrap.js";
+import { LocalValueFormatter } from "./formatting.js";
+import { LocalFormatError } from "./decimalFormat.js";
 import {
-    FlowComposer,
-    lineOf as toPreviewLine,
-    themeStyle,
-    type FlowBlock,
-} from "./flow.js";
+    CanvasComposer,
+    type CanvasBlock,
+    type CanvasElementOrigin,
+} from "./canvasLayout.js";
+import { FlowComposer, lineOf as toPreviewLine, themeStyle } from "./flow.js";
+import { SegmentedFrameComposer, usesDecoratedFrame } from "./segmentedFrame.js";
 
 /**
  * The optimistic browser composer.
@@ -46,6 +49,8 @@ export interface LocalPreview {
      * editing surface: a click on a rendered line resolves to the block behind it.
      */
     readonly lineOrigins: readonly (string | null)[];
+    /** Exact canvas content ownership; a baseline can contain several logical blocks. */
+    readonly canvasElements?: readonly CanvasElementOrigin[];
 }
 
 function diagnostic(
@@ -76,9 +81,22 @@ class MessageCatalog {
         private readonly diagnostics: Diagnostic[],
     ) {}
 
-    lookup(key: string): string {
+    get effectiveLocale(): string {
+        return this.document.locales.some(
+            (entry) => entry.locale === this.locale,
+        )
+            ? this.locale
+            : this.document.defaultLocale;
+    }
+
+    resolve(key: string): string | null {
         const seen = new Set<string>();
-        let current: string | null = this.locale;
+        // Match the compiler: unknown locales start at the default's full chain.
+        let current: string | null = this.document.locales.some(
+            (entry) => entry.locale === this.locale,
+        )
+            ? this.locale
+            : this.document.defaultLocale;
         while (current && !seen.has(current)) {
             seen.add(current);
             const node = this.document.locales.find(
@@ -107,6 +125,12 @@ class MessageCatalog {
             );
             return fallbackMessage;
         }
+        return null;
+    }
+
+    lookup(key: string): string {
+        const message = this.resolve(key);
+        if (message !== null) return message;
         this.diagnostics.push(
             diagnostic(
                 "LOCALE.MISSING_MESSAGE",
@@ -119,92 +143,10 @@ class MessageCatalog {
     }
 }
 
-function decimalPlaces(pattern: string): number {
-    const dot = pattern.indexOf(".");
-    return dot < 0 ? 0 : pattern.length - dot - 1;
-}
-
 function valueToNumber(value: DataValue): number | null {
     if (value.kind === "integer" || value.kind === "decimal")
         return Number(value.value);
     return null;
-}
-
-function formatValue(
-    value: DataValue,
-    format: FormatNode | undefined,
-    formats: readonly FormatNode[],
-    messages: MessageCatalog,
-): string {
-    if (value.kind === "null") return "";
-    if (!format) {
-        switch (value.kind) {
-            case "string":
-                return value.value;
-            case "boolean":
-                return String(value.value);
-            case "integer":
-            case "decimal":
-                return value.value;
-            case "list":
-                return value.values
-                    .map((entry) =>
-                        formatValue(entry, undefined, formats, messages),
-                    )
-                    .join(", ");
-            default:
-                return "";
-        }
-    }
-    switch (format.kind) {
-        case "integer": {
-            const numeric = valueToNumber(value);
-            return numeric === null ? "" : String(Math.round(numeric));
-        }
-        case "decimal": {
-            const numeric = valueToNumber(value);
-            if (numeric === null) return "";
-            const text = (numeric * format.multiply).toFixed(
-                decimalPlaces(format.pattern),
-            );
-            return format.suffixMessage
-                ? `${text}${messages.lookup(format.suffixMessage)}`
-                : text;
-        }
-        case "boolean":
-            return messages.lookup(
-                value.kind === "boolean" && value.value
-                    ? format.trueMessage
-                    : format.falseMessage,
-            );
-        case "namespacedKey": {
-            if (value.kind !== "string") return "";
-            const [namespace, path] = value.value.includes(":")
-                ? value.value.split(":", 2)
-                : ["minecraft", value.value];
-            if (format.mode === "PATH") return path ?? value.value;
-            const key = (format.messagePattern ?? "value.{namespace}.{path}")
-                .replace("{namespace}", namespace ?? "")
-                .replace("{path}", path ?? "");
-            const message = messages.lookup(key);
-            if (message !== key) return message;
-            return format.missingValue === "FULL_KEY"
-                ? value.value
-                : (path ?? value.value);
-        }
-        case "list": {
-            if (value.kind !== "list") return "";
-            const element = formats.find(
-                (entry) => entry.id === format.elementFormat,
-            );
-            const separator = messages.lookup(format.separatorMessage);
-            return value.values
-                .map((entry) => formatValue(entry, element, formats, messages))
-                .join(separator);
-        }
-        default:
-            return "";
-    }
 }
 
 function compare(
@@ -251,7 +193,25 @@ export function resolveTheme(
     chain: string[];
     reasons: PreviewDisplay["fallbackReasons"];
 } {
-    const byId = new Map(document.themes.map((theme) => [theme.id, theme]));
+    // The YAML loader reads only the selected renderer's frame geometry.
+    const byId = new Map(
+        document.themes.map((theme) => [
+            theme.id,
+            {
+                ...theme,
+                characterFrame:
+                    theme.renderer === "VANILLA_CHARACTER_FRAME"
+                        ? theme.characterFrame
+                        : null,
+                segmentedFrame:
+                    theme.renderer === "SEGMENTED_FRAME"
+                        ? theme.segmentedFrame
+                        : null,
+                canvas:
+                    theme.renderer === "BITMAP_CANVAS" ? theme.canvas : null,
+            },
+        ]),
+    );
     const chain: string[] = [];
     const reasons: PreviewDisplay["fallbackReasons"] = [];
     const capabilities = new Set(viewer.capabilities);
@@ -323,6 +283,8 @@ interface ComposeContext {
     readonly theme: ThemeNode;
     readonly layout: LayoutNode;
     readonly messages: MessageCatalog;
+    readonly formatter: LocalValueFormatter;
+    readonly dataTypes: ReadonlyMap<string, DataTypeNode>;
     readonly data: Map<string, DataValue>;
     readonly facts: Map<string, DataValue>;
     readonly diagnostics: Diagnostic[];
@@ -337,7 +299,11 @@ function styleFor(
     return themeStyle(context.theme, role, fontRole);
 }
 
-function iconRun(context: ComposeContext, icon: string | null): PreviewRun[] {
+function iconRun(
+    context: ComposeContext,
+    icon: string | null,
+    role = "value",
+): PreviewRun[] {
     if (!icon || !context.theme.requiresResourcePack) return [];
     const glyph = context.document.glyphs.find((entry) => entry.id === icon);
     if (!glyph) {
@@ -347,7 +313,7 @@ function iconRun(context: ComposeContext, icon: string | null): PreviewRun[] {
                 "diagnostics.assets.icon_undeclared",
                 { icon },
                 "ERROR",
-                context.item.id,
+                itemKey(context.document, context.item),
             ),
         );
         return [];
@@ -357,7 +323,12 @@ function iconRun(context: ComposeContext, icon: string | null): PreviewRun[] {
             text: String.fromCodePoint(glyph.codePoint),
             kind: "ICON",
             unbreakable: true,
-            style: { ...styleFor(context, "value", "icons"), font: glyph.font },
+            style: {
+                ...styleFor(context, role, "icons"),
+                font: glyph.font,
+                bold: false,
+                italic: false,
+            },
         },
     ];
 }
@@ -377,7 +348,7 @@ function blockRuns(
                         "diagnostics.data.missing",
                         { key: block.data },
                         "ERROR",
-                        context.item.id,
+                        itemKey(context.document, context.item),
                     ),
                 );
                 return [];
@@ -387,11 +358,10 @@ function blockRuns(
                     origin: block.uuid,
                     runs: [
                         {
-                            text: formatValue(
+                            text: context.formatter.format(
                                 value,
-                                undefined,
-                                context.document.formats,
-                                context.messages,
+                                null,
+                                context.dataTypes.get(block.data),
                             ),
                             kind: "TEXT",
                             unbreakable: block.unbreakable,
@@ -411,19 +381,16 @@ function blockRuns(
                         "diagnostics.data.missing",
                         { key: block.data },
                         "ERROR",
-                        context.item.id,
+                        itemKey(context.document, context.item),
                     ),
                 );
                 return [];
             }
-            const format = context.document.formats.find(
-                (entry) => entry.id === block.format,
-            );
             return [
                 {
                     origin: block.uuid,
                     runs: [
-                        ...iconRun(context, block.icon),
+                        ...iconRun(context, block.icon, block.style ?? "value"),
                         {
                             text: `${context.messages.lookup(block.labelMessage)}: `,
                             kind: "TEXT",
@@ -431,11 +398,10 @@ function blockRuns(
                             style: styleFor(context, block.style ?? "label"),
                         },
                         {
-                            text: formatValue(
+                            text: context.formatter.format(
                                 value,
-                                format,
-                                context.document.formats,
-                                context.messages,
+                                block.format,
+                                context.dataTypes.get(block.data),
                             ),
                             kind: "TEXT",
                             unbreakable: false,
@@ -490,31 +456,45 @@ function blockRuns(
                 if (block.missingPolicy === "OMIT") return [];
                 return [];
             }
-            const format = context.document.formats.find(
-                (entry) => entry.id === block.template.format,
-            );
             return value.values
                 .slice(0, block.maximumElements)
                 .map((element) => {
-                    const entry =
-                        element.kind === "compound"
-                            ? element.entries[block.template.valuePath]
+                    let entry: DataValue | undefined = element;
+                    const listType = context.dataTypes.get(block.data);
+                    let entryType =
+                        listType?.kind === "list"
+                            ? listType.element
                             : undefined;
+                    for (const segment of block.template.valuePath.split(".")) {
+                        entry =
+                            entry?.kind === "compound"
+                                ? entry.entries[segment]
+                                : undefined;
+                        entryType =
+                            entryType?.kind === "compound"
+                                ? entryType.fields?.find(
+                                      (field) => field.name === segment,
+                                  )?.type
+                                : undefined;
+                    }
                     const text =
                         entry && entry.kind !== "null"
-                            ? formatValue(
+                            ? context.formatter.format(
                                   entry,
-                                  format,
-                                  context.document.formats,
-                                  context.messages,
+                                  block.template.format,
+                                  entryType,
                               )
-                            : context.messages.lookup(
+                            : context.formatter.requiredMessage(
                                   block.template.missingMessage,
                               );
                     return {
                         origin: block.uuid,
                         runs: [
-                            ...iconRun(context, block.template.icon),
+                            ...iconRun(
+                                context,
+                                block.template.icon,
+                                block.style ?? "value",
+                            ),
                             {
                                 text: `${context.messages.lookup(block.template.labelMessage)}: `,
                                 kind: "TEXT" as const,
@@ -551,7 +531,7 @@ function blockRuns(
                         text: (() => {
                             const nested = context.document.items.find(
                                 (item) =>
-                                    `${context.document.namespace}:${item.id}` ===
+                                    itemKey(context.document, item) ===
                                     entry.item,
                             );
                             return nested
@@ -578,151 +558,6 @@ function blockRuns(
     }
 }
 
-/**
- * Lays out a canvas theme's layers with signed spacing runs.
- *
- * This reproduces the shape of what the compiler emits — reserved height lines, a spacing run to
- * reach each layer's x, the layer glyph itself, a spacing run back, and a trailing width anchor —
- * so the annotation overlay has something real to point at. Exact layer ordering and the compiler's
- * bound checks remain the agent's job.
- */
-function composeCanvas(
-    context: ComposeContext,
-    contentLines: Array<{ line: PreviewLine; origin: string | null }>,
-): Array<{ line: PreviewLine; origin: string | null }> {
-    const canvas = context.theme.canvas;
-    if (!canvas) return contentLines;
-    if (
-        context.layout.kind !== "canvas" ||
-        context.layout.widthPixels !== canvas.widthPixels ||
-        context.layout.heightPixels !== canvas.heightPixels ||
-        context.layout.reserveTooltipLines !== canvas.reserveTooltipLines
-    )
-        throw new LayoutOverflowError(
-            "Canvas layout and theme dimensions differ",
-        );
-    const lineHeight = 10;
-    const reserved = Math.max(canvas.reserveTooltipLines, contentLines.length);
-    const lines: PreviewRun[][] = Array.from({ length: reserved }, () => []);
-    const origins: (string | null)[] = Array.from(
-        { length: reserved },
-        () => null,
-    );
-    const spacingFont = context.theme.fonts.spacing ?? "itemerness:spacing";
-    const spacingStyle: PreviewRun["style"] = {
-        color: null,
-        font: spacingFont,
-        bold: false,
-        italic: false,
-        underlined: false,
-        strikethrough: false,
-    };
-
-    const spacing = (
-        pixels: number,
-        kind: PreviewRun["kind"],
-    ): PreviewRun[] => {
-        if (pixels === 0) return [];
-        const codePoint = context.fonts.spacingCodePoint(pixels);
-        if (codePoint === null) {
-            context.diagnostics.push(
-                diagnostic(
-                    "CANVAS.SPACING_UNREACHABLE",
-                    "diagnostics.canvas.spacing_unreachable",
-                    { pixels },
-                    "ERROR",
-                    context.item.id,
-                ),
-            );
-            return [];
-        }
-        return [
-            {
-                text: String.fromCodePoint(codePoint),
-                kind,
-                unbreakable: true,
-                style: spacingStyle,
-            },
-        ];
-    };
-
-    for (const layer of [...canvas.layers].sort(
-        (left, right) => left.drawOrder - right.drawOrder,
-    )) {
-        const glyph = context.document.glyphs.find(
-            (entry) => entry.id === layer.asset,
-        );
-        if (!glyph) {
-            context.diagnostics.push(
-                diagnostic(
-                    "CANVAS.LAYER_UNDECLARED",
-                    "diagnostics.canvas.layer_undeclared",
-                    { asset: layer.asset },
-                    "ERROR",
-                    context.item.id,
-                ),
-            );
-            continue;
-        }
-        const lineIndex = Math.min(
-            reserved - 1,
-            Math.max(0, layer.baselineLine),
-        );
-        const x =
-            layer.anchor === "TOP_RIGHT"
-                ? canvas.widthPixels + layer.xPixels
-                : layer.xPixels;
-        const target = lines[lineIndex]!;
-        target.push(...spacing(x, "SPACING"));
-        target.push({
-            text: String.fromCodePoint(glyph.codePoint),
-            kind: "BITMAP",
-            unbreakable: true,
-            style: { ...spacingStyle, font: glyph.font },
-        });
-        target.push(
-            ...spacing(-(x + Math.round(glyph.advancePixels)), "SPACING"),
-        );
-    }
-
-    const anchors =
-        context.layout.kind === "canvas" ? context.layout.anchors : {};
-    contentLines.forEach((content, index) => {
-        const anchorName =
-            Object.keys(anchors)[
-                Math.min(index, Object.keys(anchors).length - 1)
-            ];
-        const anchor = anchorName ? anchors[anchorName] : undefined;
-        const lineIndex = anchor
-            ? Math.min(reserved - 1, Math.floor(anchor.y / lineHeight))
-            : index;
-        const x = anchor?.x ?? 0;
-        const target = lines[lineIndex]!;
-        target.push(...spacing(x, "SPACING"));
-        target.push(...content.line.runs);
-        target.push(
-            ...spacing(-(x + content.line.logicalWidthPixels), "SPACING"),
-        );
-        origins[lineIndex] = content.origin;
-    });
-
-    // A canvas draws entirely through negative spacing, so without an explicit anchor the client
-    // would measure the tooltip as zero pixels wide. The anchor is what gives the frame its width.
-    const first = lines[0]!;
-    const measured = measureLine(first, context.fonts, { lenient: true });
-    first.push(
-        ...spacing(
-            canvas.finalTooltipWidthPixels - measured.logicalWidthPixels,
-            "WIDTH_ANCHOR",
-        ),
-    );
-
-    return lines.map((runs, index) => ({
-        line: toPreviewLine(runs, context.fonts),
-        origin: origins[index] ?? null,
-    }));
-}
-
 export interface ComposeOptions {
     readonly document: ProjectDocument;
     readonly itemId: string;
@@ -731,7 +566,29 @@ export interface ComposeOptions {
 }
 
 export function composeLocalPreview(options: ComposeOptions): LocalPreview {
-    return composeAttempt(options, new Set());
+    try {
+        return composeAttempt(options, new Set());
+    } catch (error) {
+        if (!(error instanceof LocalFormatError)) throw error;
+        return {
+            display: emptyDisplay(options.itemId),
+            themeChain: [],
+            lineOrigins: [],
+            diagnostics: [
+                diagnostic(
+                    error.unsupported
+                        ? "FORMAT.UNSUPPORTED_LOCAL"
+                        : "FORMAT.INVALID_VALUE",
+                    error.unsupported
+                        ? "diagnostics.format.unsupported_local"
+                        : "diagnostics.format.invalid_value",
+                    { detail: error.message },
+                    "ERROR",
+                    options.itemId,
+                ),
+            ],
+        };
+    }
 }
 
 function composeAttempt(
@@ -742,7 +599,7 @@ function composeAttempt(
     const diagnostics: Diagnostic[] = [];
     const item =
         document.items.find(
-            (entry) => `${document.namespace}:${entry.id}` === options.itemId,
+            (entry) => itemKey(document, entry) === options.itemId,
         ) ?? document.items.find((entry) => entry.id === options.itemId);
     if (!item) {
         return {
@@ -760,7 +617,8 @@ function composeAttempt(
         };
     }
 
-    const requestedTheme = viewer.requestedTheme ?? item.presentation.theme;
+    const requestedTheme =
+        viewer.requestedTheme ?? itemTheme(document, item) ?? "";
     const { theme, chain, reasons } = resolveTheme(
         document,
         requestedTheme,
@@ -777,7 +635,7 @@ function composeAttempt(
                     "diagnostics.theme.no_safe_theme",
                     { requested: requestedTheme },
                     "ERROR",
-                    item.id,
+                    itemKey(document, item),
                 ),
             ],
             themeChain: chain,
@@ -785,7 +643,7 @@ function composeAttempt(
         };
     }
     const layout = document.layouts.find(
-        (entry) => entry.id === item.presentation.layout,
+        (entry) => entry.id === itemLayout(document, item),
     );
     if (!layout) {
         return {
@@ -794,9 +652,9 @@ function composeAttempt(
                 diagnostic(
                     "LAYOUT.UNKNOWN",
                     "diagnostics.layout.unknown",
-                    { layout: item.presentation.layout },
+                    { layout: itemLayout(document, item) ?? "" },
                     "ERROR",
-                    item.id,
+                    itemKey(document, item),
                 ),
             ],
             themeChain: chain,
@@ -805,7 +663,20 @@ function composeAttempt(
     }
 
     const messages = new MessageCatalog(document, viewer.locale, diagnostics);
+    const formatter = new LocalValueFormatter(document.formats, messages);
+    const dataTypes = new Map<string, DataTypeNode>();
     const data = new Map<string, DataValue>();
+    for (const reference of item.definition.instance.schemas) {
+        const schema = document.dataSchemas.find(
+            (entry) =>
+                entry.id === reference.id &&
+                entry.version === reference.version,
+        );
+        for (const key of schema?.keys ?? []) {
+            dataTypes.set(key.id, key.type);
+            if (key.defaultValue !== null) data.set(key.id, key.defaultValue);
+        }
+    }
     for (const assignment of item.definition.instance.defaults)
         data.set(assignment.key, assignment.value);
     for (const assignment of item.definition.definitionData)
@@ -824,30 +695,28 @@ function composeAttempt(
         theme,
         layout,
         messages,
+        formatter,
+        dataTypes,
         data,
         facts,
         diagnostics,
         fonts,
     };
 
-    const maximumWidth =
-        layout.kind === "flow"
-            ? Math.min(
-                  layout.maximumWidthPixels,
-                  theme.content?.maximumWidthPixels ??
-                      layout.maximumWidthPixels,
-              )
-            : Math.min(
-                  layout.maximumWidthPixels,
-                  theme.content?.maximumWidthPixels ??
-                      layout.maximumWidthPixels,
-              );
+    const maximumWidth = Math.min(
+        layout.maximumWidthPixels,
+        theme.content?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.characterFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.segmentedFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.canvas?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        document.budgets.maximumWidthPixels,
+    );
 
     const nameRuns: PreviewRun[] = [
         {
             text: messages.lookup(item.presentation.nameMessage),
             kind: "TEXT",
-            unbreakable: false,
+            unbreakable: true,
             style: styleFor(context, "item-name"),
         },
     ];
@@ -862,7 +731,7 @@ function composeAttempt(
             }
         });
     collect(item.presentation.blocks);
-    const blocks: FlowBlock[] = item.presentation.blocks
+    const blocks: CanvasBlock[] = item.presentation.blocks
         .flatMap((block) => blockRuns(context, block))
         .map(({ runs, origin }) => {
             const source = sources.get(origin)!;
@@ -876,48 +745,56 @@ function composeAttempt(
                       ? "description"
                       : "generic",
                 wrapping: "wrapping" in source ? source.wrapping : null,
+                anchor: source.anchor,
                 fieldValueIndex: field ? runs.length - 1 : null,
             };
         });
     let name = toPreviewLine(
-        ellipsizeLine(
-            nameRuns,
-            fonts,
-            Math.min(
-                maximumWidth,
-                theme.characterFrame?.maximumWidthPixels ?? 4096,
-                theme.segmentedFrame?.maximumWidthPixels ?? 4096,
-                theme.canvas?.widthPixels ?? 4096,
-            ),
-        ).runs,
+        ellipsizeLine(nameRuns, fonts, maximumWidth).runs,
         fonts,
     );
     let composed: Array<{ line: PreviewLine; origin: string | null }>;
+    let canvasElements: readonly CanvasElementOrigin[] | undefined;
     try {
-        const engine = new FlowComposer(document, theme, layout, fonts);
-        const frame =
-            theme.renderer === "VANILLA_CHARACTER_FRAME"
-                ? theme.characterFrame
-                : theme.renderer === "SEGMENTED_FRAME"
-                  ? theme.segmentedFrame
-                  : null;
-        const available = frame
-            ? frame.maximumWidthPixels -
-              frame.leftPaddingPixels -
-              frame.rightPaddingPixels -
-              8
-            : maximumWidth;
-        const flow = engine.flow(blocks, available);
-        if (theme.renderer === "VANILLA_CHARACTER_FRAME")
-            composed = engine.characterFrame(flow);
-        else if (theme.renderer === "SEGMENTED_FRAME")
-            composed = engine.segmentedFrame(flow);
-        else if (theme.renderer === "BITMAP_CANVAS")
-            composed = composeCanvas(context, flow.lines);
-        else {
-            const anchored = engine.anchorFlow(name, flow);
-            name = anchored.name;
-            composed = anchored.lines;
+        if (theme.renderer === "BITMAP_CANVAS") {
+            const canvas = new CanvasComposer(
+                document,
+                theme,
+                layout,
+                fonts,
+            ).compose(blocks, name);
+            composed = canvas.lines;
+            canvasElements = canvas.elements;
+        } else {
+            const engine = new FlowComposer(document, theme, layout, fonts);
+            const frame =
+                theme.renderer === "VANILLA_CHARACTER_FRAME"
+                    ? theme.characterFrame
+                    : theme.renderer === "SEGMENTED_FRAME"
+                      ? theme.segmentedFrame
+                      : null;
+            const available = frame
+                ? frame.maximumWidthPixels -
+                  frame.leftPaddingPixels -
+                  frame.rightPaddingPixels -
+                  8
+                : maximumWidth;
+            if (theme.renderer === "SEGMENTED_FRAME" && theme.segmentedFrame && usesDecoratedFrame(theme.segmentedFrame)) {
+                const framed = new SegmentedFrameComposer(document, theme, fonts).compose((maximum) => engine.flow(blocks, maximum), name);
+                name = framed.name;
+                composed = framed.lines;
+            } else {
+                const flow = engine.flow(blocks, available);
+                if (theme.renderer === "VANILLA_CHARACTER_FRAME")
+                    composed = engine.characterFrame(flow);
+                else if (theme.renderer === "SEGMENTED_FRAME")
+                    composed = engine.segmentedFrame(flow);
+                else {
+                    const anchored = engine.anchorFlow(name, flow);
+                    name = anchored.name;
+                    composed = anchored.lines;
+                }
+            }
         }
     } catch (error) {
         if (!(error instanceof LayoutOverflowError)) throw error;
@@ -928,7 +805,12 @@ function composeAttempt(
         display: {
             displayName: name,
             lore: composed.map((entry) => entry.line),
-            tooltipStyle: theme.tooltipStyle,
+            tooltipStyle:
+                theme.renderer === "NATIVE_TOOLTIP_STYLE" ||
+                theme.renderer === "SEGMENTED_FRAME" ||
+                theme.renderer === "BITMAP_CANVAS"
+                    ? theme.tooltipStyle
+                    : null,
             renderer: theme.renderer,
             selectedTheme: theme.id,
             requestedTheme,
@@ -938,6 +820,7 @@ function composeAttempt(
         diagnostics,
         themeChain: chain,
         lineOrigins: composed.map((entry) => entry.origin),
+        ...(canvasElements ? { canvasElements } : {}),
     };
 }
 

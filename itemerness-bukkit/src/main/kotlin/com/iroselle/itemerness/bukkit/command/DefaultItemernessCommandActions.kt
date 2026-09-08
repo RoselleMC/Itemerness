@@ -60,6 +60,7 @@ internal class DefaultItemernessCommandActions(
     private val playerRefreshed: (UUID) -> Boolean = { false },
     private val runtimeActive: () -> Boolean = { true },
     private val effectiveItemData: EffectiveItemDataResolver = EffectiveItemDataResolver(),
+    private val catalogPublished: (Long) -> Unit = {},
 ) : ItemernessCommandActions {
     override fun reload(
         sender: CommandSender,
@@ -312,11 +313,26 @@ internal class DefaultItemernessCommandActions(
                         )
                         return@tryRunGlobal
                     }
+                    // publish has released its coherence lock; keep external callbacks in this
+                    // global task so a later queued reload cannot overtake the notification.
+                    if (published is RuntimeCatalogUpdate.Published && runtimeActive()) {
+                        notifyCatalogPublished(published.active.domain.revision)
+                    }
                     handleCatalogUpdate(replyTarget, format, published)
                 }
             } else {
                 handleCatalogUpdate(replyTarget, format, update)
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun notifyCatalogPublished(revision: Long) {
+        try {
+            catalogPublished(revision)
+        } catch (failure: Throwable) {
+            if (failure is VirtualMachineError || failure is ThreadDeath) throw failure
+            plugin.logger.log(Level.WARNING, "Catalog publication event failed after committing revision $revision", failure)
         }
     }
 

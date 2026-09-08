@@ -686,6 +686,16 @@ class CatalogCompiler {
             ?.let(BaseItemComponent::Damage)
         "minecraft:repair_cost" -> integerComponent(value, path, 0, Int.MAX_VALUE, diagnostics)
             ?.let(BaseItemComponent::RepairCost)
+        "minecraft:attribute_modifiers" -> {
+            if (value is SourceDataValue.ListValue && value.values.isEmpty()) {
+                BaseItemComponent.EmptyAttributeModifiers
+            } else {
+                diagnostics.add(CatalogDiagnosticCode.INVALID_COMPONENT, path, "Only an empty attribute modifier list is supported")
+                null
+            }
+        }
+        "minecraft:enchantments" -> compileEnchantments(value, path, diagnostics)?.let(BaseItemComponent::Enchantments)
+        "minecraft:stored_enchantments" -> compileEnchantments(value, path, diagnostics)?.let(BaseItemComponent::StoredEnchantments)
         "minecraft:unbreakable" -> {
             val enabled = when (value) {
                 is SourceDataValue.BooleanValue -> value.value
@@ -725,6 +735,29 @@ class CatalogCompiler {
             )
             null
         }
+    }
+
+    private fun compileEnchantments(
+        value: SourceDataValue,
+        path: String,
+        diagnostics: DiagnosticCollector,
+    ): Map<ItemKey, Int>? {
+        val entries = (value as? SourceDataValue.CompoundValue)?.entries
+        if (entries == null) {
+            diagnostics.add(CatalogDiagnosticCode.INVALID_COMPONENT, path, "Expected an enchantment-to-level mapping")
+            return null
+        }
+        if (entries.size > MAX_COMPONENT_LIST_SIZE) {
+            diagnostics.add(CatalogDiagnosticCode.INVALID_COMPONENT, path, "Enchantments may contain at most $MAX_COMPONENT_LIST_SIZE entries")
+            return null
+        }
+        val initialCount = diagnostics.size
+        val levels = TreeMap<ItemKey, Int>()
+        entries.forEach { (rawKey, rawLevel) ->
+            val key = diagnostics.parseItemKey(rawKey, "$path.$rawKey") ?: return@forEach
+            integerComponent(rawLevel, "$path.$rawKey", 1, 255, diagnostics)?.let { levels[key] = it }
+        }
+        return levels.takeIf { diagnostics.size == initialCount }
     }
 
     private fun compileCustomModelData(

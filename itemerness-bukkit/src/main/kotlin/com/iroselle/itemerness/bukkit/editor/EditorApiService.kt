@@ -1,11 +1,19 @@
 package com.iroselle.itemerness.bukkit.editor
 
+import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.bukkit.config.EditorEndpoint
+import com.iroselle.itemerness.bukkit.config.ItemernessSettings
+import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogValidator
+import com.iroselle.itemerness.bukkit.catalog.DataKeyIntegration
+import com.iroselle.itemerness.bukkit.catalog.DataReadAccess
+import com.iroselle.itemerness.bukkit.catalog.PdcFallbackSource
 import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.editor.agent.AgentScheduler
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorApiServer
 import com.iroselle.itemerness.editor.agent.EditorDraftStore
+import com.iroselle.itemerness.editor.agent.ServerIdentity
+import com.iroselle.itemerness.editor.agent.ServerMetadataStore
 import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonObject
 import com.iroselle.itemerness.editor.protocol.JsonValue
@@ -19,29 +27,47 @@ import java.util.logging.Logger
 /** Owns an inbound API, never an outbound connection. No handler retains Bukkit state. */
 internal class EditorApiService(
     override val endpoint: EditorEndpoint,
-    serverId: String,
+    serverName: String,
     agentVersion: String,
     minecraftVersion: String,
     platform: String,
     builtinFontMetrics: BuiltinFontMetricsArtifact,
+    settings: () -> ItemernessSettings,
     private val logger: Logger,
     private val scheduler: AgentScheduler,
     worker: Executor,
     draftPath: Path,
+    catalogPath: Path,
 ) : EditorApiHandle {
     private val metrics = BundledBuiltinFontMetrics(builtinFontMetrics)
-    private val bridge = CompilerBridge(metrics, agentVersion)
-    private val api = EditorApiServer(
+    private val validator = RuntimeCatalogValidator()
+    private val bridge = CompilerBridge(metrics, agentVersion) { decoded, domain, presentation ->
+        validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
+    }
+    private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
+    private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge)
+    private val serverMetadata by lazy {
+        ServerMetadataStore(draftPath.resolveSibling("server-metadata.json"), ServerIdentity.loadOrCreate(draftPath.resolveSibling("server-id")))
+    }
+    private val apiDelegate = lazy { EditorApiServer(
         address = InetSocketAddress.createUnresolved(endpoint.bindHost, endpoint.port),
         token = endpoint.token,
         allowedOrigins = endpoint.allowedOrigins,
-        metadata = EditorApiServer.Metadata(serverId, agentVersion, minecraftVersion, platform, bridge.compilerDigest()),
+        metadata = EditorApiServer.Metadata(
+            serverMetadata.serverId,
+            agentVersion, minecraftVersion, platform, bridge.compilerDigest(), serverName,
+            persistentIdentity = true,
+        ),
         drafts = EditorDraftStore(draftPath) { ProjectDocumentCodec.decode(it, metrics) },
         compile = ::compile,
         worker = worker,
         scheduler = scheduler,
         onFailure = { logger.log(Level.WARNING, "Editor API request failed (${it.javaClass.simpleName})") },
-    )
+        readCatalog = if (minecraftVersion == "26.1.2") catalogReader::read else null,
+        exportCatalog = if (minecraftVersion == "26.1.2") catalogExporter::export else null,
+        serverMetadata = serverMetadata,
+    ) }
+    private val api by apiDelegate
     private var stopped = false
 
     override fun start() {
@@ -64,7 +90,7 @@ internal class EditorApiService(
     @Synchronized
     override fun stop() {
         stopped = true
-        api.close()
+        if (apiDelegate.isInitialized()) api.close()
     }
 
     private fun compile(payload: JsonValue): JsonValue {
@@ -88,3 +114,14 @@ internal class EditorApiService(
         })
     }
 }
+
+internal fun ProjectDocumentCodec.Decoded.runtimeIntegrations(): Map<ItemKey, DataKeyIntegration> =
+    java.util.Collections.unmodifiableMap(dataKeyIntegrations.mapValues { (_, integration) ->
+        DataKeyIntegration(
+            readAccess = DataReadAccess.valueOf(integration.readAccess.name),
+            writePrincipals = integration.writePrincipals,
+            pdcFallbacks = java.util.List.copyOf(integration.pdcFallbackKeys.map(::PdcFallbackSource)),
+            placeholderExposed = integration.placeholderExposed,
+            placeholderFormatter = integration.placeholderFormatter,
+        )
+    })

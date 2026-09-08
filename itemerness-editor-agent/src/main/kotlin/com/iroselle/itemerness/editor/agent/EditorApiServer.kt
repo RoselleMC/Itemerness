@@ -4,6 +4,7 @@ import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonException
 import com.iroselle.itemerness.editor.protocol.JsonObject
 import com.iroselle.itemerness.editor.protocol.JsonValue
+import com.iroselle.itemerness.editor.protocol.ProjectDocumentCodec
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -25,6 +26,9 @@ class EditorApiServer(
     private val worker: Executor,
     private val scheduler: AgentScheduler,
     private val onFailure: (Throwable) -> Unit,
+    private val readCatalog: (() -> JsonValue)? = null,
+    private val exportCatalog: ((JsonValue) -> JsonValue)? = null,
+    private val serverMetadata: ServerMetadataStore? = null,
 ) : AutoCloseable {
     data class Metadata(
         val serverId: String,
@@ -32,11 +36,14 @@ class EditorApiServer(
         val minecraftVersion: String,
         val platform: String,
         val compilerDigest: String,
+        val serverName: String = serverId,
+        val persistentIdentity: Boolean = false,
     )
 
     private val authorization = token.takeIf(String::isNotEmpty)?.let { "Bearer $it".toByteArray(Charsets.UTF_8) }
     private val origins = allowedOrigins.toSet()
     private val slots = Semaphore(8)
+    private val transferSlot = Semaphore(1)
     private var server: HttpServer? = null
     val port: Int get() = checkNotNull(server).address.port
 
@@ -109,16 +116,48 @@ class EditorApiServer(
                 return error(exchange, 426, "PROTOCOL_INCOMPATIBLE")
             }
             when (path) {
+                "/api/v2/server" -> {
+                    if (exchange.requestMethod != "PUT") return error(exchange, 405, "METHOD_NOT_ALLOWED")
+                    val store = serverMetadata ?: return error(exchange, 404, "NOT_FOUND")
+                    val request = JsonObject.of(body(exchange), "server").rejectUnknown("alias", "expectedAlias", "targetServerId")
+                    if (request.requiredString("targetServerId") != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
+                    val alias = request.requiredString("alias")
+                    try { ServerMetadataStore.validate(alias) } catch (_: IllegalArgumentException) {
+                        return error(exchange, 400, "SERVER_ALIAS_INVALID")
+                    }
+                    val saved = store.update(alias, request.requiredString("expectedAlias"))
+                    respond(exchange, 200, obj("serverId" to text(metadata.serverId), "serverAlias" to text(saved)))
+                }
+                "/api/v2/catalog" -> {
+                    if (exchange.requestMethod != "GET") return error(exchange, 405, "METHOD_NOT_ALLOWED")
+                    val read = readCatalog ?: return error(exchange, 404, "NOT_FOUND")
+                    respondTransfer(exchange, read)
+                }
+                "/api/v2/catalog/export" -> {
+                    if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
+                    val export = exportCatalog ?: return error(exchange, 404, "NOT_FOUND")
+                    val request = JsonObject.of(body(exchange), "export").rejectUnknown("document", "snapshotHash", "targetServerId")
+                    val target = request.optionalString("targetServerId")
+                    if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
+                    val document = request.raw("document") ?: throw JsonException("Missing document")
+                    if (EditorDraftStore.digest(Json.canonicalize(document)) != request.requiredString("snapshotHash")) {
+                        return error(exchange, 400, "SNAPSHOT_MISMATCH")
+                    }
+                    respondTransfer(exchange) { export(document) }
+                }
                 "/api/v2/document" -> when (exchange.requestMethod) {
                     "GET" -> {
                         val snapshot = drafts.read() ?: return error(exchange, 404, "DRAFT_NOT_FOUND")
-                        respond(exchange, 200, snapshot.json())
+                        respond(exchange, 200, JsonValue.Obj((snapshot.json() as JsonValue.Obj).entries + ("serverId" to text(metadata.serverId))))
                     }
                     "PUT" -> {
-                        val body = JsonObject.of(body(exchange), "save").rejectUnknown("document", "expectedHash")
+                        val body = JsonObject.of(body(exchange), "save").rejectUnknown("document", "expectedHash", "targetServerId")
+                        val target = body.optionalString("targetServerId")
+                        if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
                         val document = body.raw("document") ?: throw JsonException("Missing document")
                         val saved = drafts.save(document, body.requiredString("expectedHash"))
                         respond(exchange, 200, obj(
+                            "serverId" to text(metadata.serverId),
                             "snapshotHash" to text(saved.snapshotHash),
                             "revision" to JsonValue.Num(saved.revision.toDouble()),
                             "diagnostics" to JsonValue.Arr(emptyList()),
@@ -142,6 +181,10 @@ class EditorApiServer(
                 }
                 else -> error(exchange, 404, "NOT_FOUND")
             }
+        } catch (_: ServerMetadataStore.Conflict) {
+            error(exchange, 409, "SERVER_ALIAS_CONFLICT")
+        } catch (failure: CatalogTransferException) {
+            respond(exchange, 422, obj("code" to text(failure.code), "diagnostics" to JsonValue.Arr(failure.diagnostics)))
         } catch (conflict: EditorDraftStore.Conflict) {
             respond(exchange, 409, obj("code" to text("DRAFT_CONFLICT"), "actualHash" to text(conflict.actualHash)))
         } catch (_: TooLarge) {
@@ -176,6 +219,8 @@ class EditorApiServer(
         "product" to text("itemerness"),
         "authentication" to text(if (authorization == null) "none" else "bearer"),
         "serverId" to text(metadata.serverId),
+        "serverName" to text(metadata.serverName),
+        "serverAlias" to text(serverMetadata?.alias() ?: ""),
         "pluginVersion" to text(metadata.pluginVersion),
         "minecraftVersion" to text(metadata.minecraftVersion),
         "platform" to text(metadata.platform),
@@ -183,13 +228,40 @@ class EditorApiServer(
         "protocols" to JsonValue.Arr(listOf(obj(
             "major" to JsonValue.Num(2.0), "minMinor" to JsonValue.Num(0.0), "maxMinor" to JsonValue.Num(0.0),
         ))),
-        "documentSchemas" to JsonValue.Arr(listOf(JsonValue.Num(1.0))),
+        "documentSchemas" to JsonValue.Arr(
+            ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSIONS.map {
+                JsonValue.Num(it.toDouble())
+            },
+        ),
         "previewSchemas" to JsonValue.Arr(listOf(JsonValue.Num(1.0))),
-        "capabilities" to JsonValue.Arr((listOf("draft.read", "draft.write") +
-            if (metadata.minecraftVersion == "26.1.2") listOf("preview.compile") else emptyList()).map(::text)),
+        "capabilities" to JsonValue.Arr((listOf(
+            "draft.read", "draft.write", "presentation.segmented-frame.decorations",
+            "catalog.base-components.attributes-enchantments",
+        ) +
+            (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
+            (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
+            (if (metadata.minecraftVersion == "26.1.2") listOf("preview.compile") else emptyList()) +
+            (if (readCatalog != null) listOf("catalog.read") else emptyList()) +
+            (if (exportCatalog != null) listOf("catalog.export") else emptyList())).map(::text)),
     )
 
-    private fun error(exchange: HttpExchange, status: Int, code: String) = respond(exchange, status, obj("code" to text(code)))
+    private fun error(exchange: HttpExchange, status: Int, code: String) = respond(exchange, status, obj("code" to text(code), "serverId" to text(metadata.serverId)))
+
+    private fun respondTransfer(exchange: HttpExchange, transfer: () -> JsonValue) {
+        if (!transferSlot.tryAcquire()) {
+            exchange.responseHeaders.set("Retry-After", "1")
+            return error(exchange, 429, "CATALOG_BUSY")
+        }
+        try {
+            val body = transfer()
+            if (Json.canonicalize(body).toByteArray(Charsets.UTF_8).size > EditorDraftStore.MAX_BYTES) {
+                throw CatalogTransferException("CATALOG_RESPONSE_TOO_LARGE")
+            }
+            respond(exchange, 200, body)
+        } finally {
+            transferSlot.release()
+        }
+    }
 
     private fun respond(exchange: HttpExchange, status: Int, body: JsonValue) {
         val bytes = Json.canonicalize(body).toByteArray(Charsets.UTF_8)

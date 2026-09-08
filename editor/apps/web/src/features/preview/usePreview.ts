@@ -1,3 +1,4 @@
+import { itemKey, itemLayout } from "@itemerness/protocol";
 import { useMemo } from "react";
 import { resolveItemIcon } from "@itemerness/mc-assets";
 import type { PreviewItemState } from "../../api/previewCache.js";
@@ -7,10 +8,11 @@ import {
     previewFontEvidence,
     type LocalPreview,
 } from "@itemerness/mc-render";
-import type {
-    FidelityClaim,
-    PreviewDisplay,
-    PreviewOrigin,
+import {
+    hasBlockingDiagnostics,
+    type FidelityClaim,
+    type PreviewDisplay,
+    type PreviewOrigin,
 } from "@itemerness/protocol";
 import {
     fontLibraryOf,
@@ -24,6 +26,9 @@ import {
     type ServerPreviewState,
 } from "./useServerPreview.js";
 import { alignLineOrigins } from "./lineOrigins.js";
+import { dataKeyPreviewItem } from "../inspector/dataKeyEditing.js";
+import { presentationLibraryItems } from "../../state/presentationLibrary.js";
+import { useConnectionStore } from "../../state/connection.js";
 
 /**
  * One preview pipeline shared by the stage and the inspector.
@@ -55,6 +60,9 @@ export function usePreview(
     enabled = true,
 ): PreviewBundle {
     const state = useEditorStore();
+    const serverClientVersion = useConnectionStore(
+        (connection) => connection.info?.minecraftVersion,
+    );
 
     const fonts = useMemo(
         () => presentationFontsOf(state),
@@ -62,6 +70,7 @@ export function usePreview(
             state.document.fonts,
             state.document.glyphs,
             state.document.spacing,
+            state.document.measurement?.boldExtraAdvancePixels,
             state.packs,
             state.artifact,
         ],
@@ -82,17 +91,49 @@ export function usePreview(
     // In the layout library the stage previews an item that actually uses the selected layout, so
     // dragging a width slider re-wraps real content instead of an unrelated item.
     const targetItemId = useMemo(() => {
+        if (state.mode === "formats" || state.mode === "facts") {
+            const node =
+                state.mode === "formats"
+                    ? state.document.formats.find(
+                          (entry) => entry.uuid === state.selectedFormatUuid,
+                      )
+                    : state.document.viewerFacts.find(
+                          (entry) =>
+                              entry.uuid === state.selectedViewerFactUuid,
+                      );
+            const using = node
+                ? presentationLibraryItems(state.document, state.mode, node.id)
+                : [];
+            const preferred =
+                using.find(
+                    (item) =>
+                        itemKey(state.document, item) === state.selectedItemId,
+                ) ?? using[0];
+            return preferred ? itemKey(state.document, preferred) : null;
+        }
+        if (state.mode === "data" && state.selectedDataKeyUuid) {
+            const using = dataKeyPreviewItem(
+                state.document,
+                state.selectedDataKeyUuid,
+                state.selectedItemId,
+            );
+            return using
+                ? itemKey(state.document, using)
+                : state.selectedItemId;
+        }
         if (state.mode !== "layouts" || !state.selectedLayoutId)
             return state.selectedItemId;
         const using = state.document.items.find(
-            (item) => item.presentation.layout === state.selectedLayoutId,
+            (item) =>
+                itemLayout(state.document, item) === state.selectedLayoutId,
         );
-        return using
-            ? `${state.document.namespace}:${using.id}`
-            : state.selectedItemId;
+        return using ? itemKey(state.document, using) : state.selectedItemId;
     }, [
         state.mode,
         state.selectedLayoutId,
+        state.selectedDataKeyUuid,
+        state.selectedFormatUuid,
+        state.selectedViewerFactUuid,
         state.selectedItemId,
         state.document,
     ]);
@@ -141,7 +182,7 @@ export function usePreview(
                 ? itemStates
                 : Object.fromEntries(
                       state.document.items.map((item) => {
-                          const id = `${state.document.namespace}:${item.id}`;
+                          const id = itemKey(state.document, item);
                           return [
                               id,
                               id === targetItemId
@@ -152,9 +193,15 @@ export function usePreview(
                   ),
         [itemStates, state.historyTransactionId, state.document, targetItemId],
     );
-    const serverDisplay =
+    const serverArtifact =
         server.status === "verified" || server.status === "mock"
-            ? server.artifact.display
+            ? server.artifact
+            : null;
+    const serverDisplay =
+        serverArtifact &&
+        !serverArtifact.failure &&
+        !hasBlockingDiagnostics(serverArtifact.diagnostics)
+            ? serverArtifact.display
             : null;
     const display = serverDisplay ?? local?.display ?? null;
     const lineOrigins = useMemo(
@@ -165,9 +212,7 @@ export function usePreview(
         [local, display],
     );
     const origin: PreviewOrigin =
-        server.status === "verified" &&
-        server.artifact.display !== null &&
-        !server.artifact.failure
+        server.status === "verified" && serverDisplay !== null
             ? "agent"
             : server.status === "mock"
               ? "mock"
@@ -176,8 +221,7 @@ export function usePreview(
     const itemIconKind = useMemo(() => {
         if (!targetItemId || state.packs.length === 0) return "absent" as const;
         const item = state.document.items.find(
-            (entry) =>
-                `${state.document.namespace}:${entry.id}` === targetItemId,
+            (entry) => itemKey(state.document, entry) === targetItemId,
         );
         if (!item) return "absent" as const;
         return resolveItemIcon(
@@ -196,18 +240,31 @@ export function usePreview(
             display.lore.length > 0
                 ? [display.displayName, ...display.lore]
                 : [display.displayName];
-        return previewFontEvidence(lines, fonts, fontLibraryOf(state.packs));
-    }, [display, fonts, state.packs]);
+        return previewFontEvidence(lines, fonts, fontLibraryOf(state.packs), {
+            serverClientVersion,
+            measurementClientVersion: state.document.measurement?.clientVersion,
+        });
+    }, [
+        display,
+        fonts,
+        state.packs,
+        serverClientVersion,
+        state.document.measurement?.clientVersion,
+    ]);
 
     const claims = useMemo(
         () =>
             buildFidelityClaims({
                 origin,
-                snapshotMatches: server.status === "verified",
+                snapshotMatches:
+                    server.status === "verified" && serverDisplay !== null,
                 mountedMetricsUsed: fontEvidence.mountedMetricsUsed,
+                declaredMetricsUsed: fontEvidence.declaredMetricsUsed,
                 mountedRasterUsed: fontEvidence.mountedRasterUsed,
                 metricsArtifactLoaded: state.artifact !== null,
                 metricsComplete: fontEvidence.metricsComplete,
+                metricsVersionMismatch: fontEvidence.metricsVersionMismatch,
+                metricsRevisionMismatch: fontEvidence.metricsRevisionMismatch,
                 rasterComplete: fontEvidence.rasterComplete,
                 tooltipSpritesAvailable: spritesAvailable,
                 tooltipStyleRequested: display?.tooltipStyle != null,
@@ -217,6 +274,7 @@ export function usePreview(
         [
             origin,
             server.status,
+            serverDisplay,
             state.artifact,
             fontEvidence,
             spritesAvailable,

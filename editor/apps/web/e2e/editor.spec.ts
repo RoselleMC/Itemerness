@@ -329,7 +329,8 @@ test("labels an unverified preview honestly and never claims exact structure", a
 test("switching the preview language redraws the tooltip", async ({ page }) => {
     await page.getByTestId("item-ember-blade").click();
     const english = await canvasSignature(page);
-    await page.getByTestId("locale-chip-zh_cn").click();
+    await page.getByTestId("preview-language").click();
+    await page.getByTestId("preview-language-option-zh_cn").click();
     await expect
         .poll(async () => canvasSignature(page), {
             message: "tooltip should redraw for zh_cn",
@@ -346,7 +347,7 @@ test("switching the interface language leaves the previewed content alone", asyn
     const before = await canvasSignature(page);
     await page.getByTestId("ui-language").click();
     await page.getByTestId("ui-language-zh-CN").click();
-    await expect(page.getByTestId("add-item")).toContainText("新建物品");
+    await expect(page.getByTestId("add-item")).toHaveAccessibleName("新建物品");
     // Interface language and previewed content language are separate axes; changing one must not
     // move the other.
     expect(await canvasSignature(page)).toBe(before);
@@ -386,7 +387,7 @@ test("the geometry overlay is off by default and can be turned on", async ({
     page,
 }) => {
     const plain = await canvasSignature(page);
-    await page.getByTestId("annotations-toggle").check();
+    await page.getByTestId("annotations-toggle").click();
     await expect.poll(async () => canvasSignature(page)).not.toBe(plain);
 });
 
@@ -657,6 +658,8 @@ test("layout sliders re-wrap real content", async ({ page }) => {
     const before = await canvasSize(page);
     // Narrowing the maximum width forces the description to wrap onto more lines: the slider is
     // editing real geometry, not a detached number.
+    await page.getByTestId("layout-minimumWidthPixels").fill("120");
+    await page.getByTestId("layout-minimumWidthPixels").press("Enter");
     await page.getByTestId("layout-max-width").fill("120");
     await expect
         .poll(async () => (await canvasSize(page)).height)
@@ -710,7 +713,8 @@ test("double-clicking a line edits the text in place", async ({ page }) => {
 
 test("dragging a canvas anchor repositions content on the canvas itself", async ({
     page,
-}) => {
+}, testInfo) => {
+    const remote = await mockPlugin(page);
     // Pack acceptance, asset profile, and managed vanilla lines are independent viewer facts.
     await simulateManagedPack(page);
     await page.getByTestId("item-survey-codex").click();
@@ -721,9 +725,12 @@ test("dragging a canvas anchor repositions content on the canvas itself", async 
     const box = page.getByTestId("anchor-box-region");
     await expect(box).toBeVisible();
     const bounds = (await box.boundingBox())!;
+    const scale = Number(
+        await page.getByTestId("canvas-viewport").getAttribute("data-zoom"),
+    );
     const before = await canvasSignature(page);
-    // Drag the region anchor two tooltip lines down; the composer snaps y to the line grid, so
-    // the text lands exactly where the box was dropped.
+    // y=40 cannot fit the glyph on a client baseline in this ten-pixel-high anchor. A fallback
+    // must not unmount the drag controller and silently cancel the document transaction.
     await page.mouse.move(
         bounds.x + bounds.width / 2,
         bounds.y + bounds.height / 2,
@@ -731,11 +738,182 @@ test("dragging a canvas anchor repositions content on the canvas itself", async 
     await page.mouse.down();
     await page.mouse.move(
         bounds.x + bounds.width / 2,
-        bounds.y + bounds.height / 2 + 60,
+        bounds.y + bounds.height / 2 + 4 * scale,
+    );
+    await expect(box).toHaveAttribute("data-anchor-y", "40");
+    await expect(box).toHaveAttribute("data-dragging", "true");
+    await expect(page.getByTestId("selected-theme")).not.toContainText(
+        "itemerness:aurora-canvas",
+    );
+    expect((await box.boundingBox())!.y).toBeCloseTo(bounds.y + 4 * scale, 1);
+    await page.screenshot({
+        path: testInfo.outputPath("anchor-invalid-draft.png"),
+    });
+    await page.waitForTimeout(650);
+    expect(remote.writes).toHaveLength(0);
+    // Continue the same gesture to a valid baseline phase, without server preview replies.
+    await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2 + 10 * scale,
         { steps: 6 },
     );
+    await expect(box).toHaveAttribute("data-anchor-y", "46");
+    await expect(page.getByTestId("selected-theme")).toContainText(
+        "itemerness:aurora-canvas",
+    );
+    await expect.poll(async () => canvasSignature(page)).not.toBe(before);
+    await page.screenshot({
+        path: testInfo.outputPath("anchor-recovered-draft.png"),
+    });
+    expect(remote.writes).toHaveLength(0);
     await page.mouse.up();
     await expect.poll(async () => canvasSignature(page)).not.toBe(before);
+    await expect.poll(() => remote.writes.length).toBe(1);
+    const saved = remote.writes[0]!;
+    const layout = saved.document.layouts.find(
+        (entry) => entry.kind === "canvas",
+    )!;
+    expect(layout.kind === "canvas" && layout.anchors.region?.y).toBe(46);
+    expect(saved.expectedHash).toBe(contentHash(baselineDocument));
+    await page.getByTestId("undo").click();
+    await expect.poll(async () => canvasSignature(page)).toBe(before);
+    await expect(box).toHaveAttribute("data-anchor-y", "36");
+});
+
+test("an invalid canvas anchor drop remains undoable and Escape cancels a later draft", async ({
+    page,
+}) => {
+    const remote = await mockPlugin(page);
+    await simulateManagedPack(page);
+    await page.getByTestId("item-survey-codex").click();
+    const box = page.getByTestId("anchor-box-region");
+    await expect(box).toBeVisible();
+    const bounds = (await box.boundingBox())!;
+    const scale = Number(
+        await page.getByTestId("canvas-viewport").getAttribute("data-zoom"),
+    );
+    const before = await canvasSignature(page);
+    const start = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+    };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x, start.y + 4 * scale);
+    await expect(box).toHaveAttribute("data-anchor-y", "40");
+    await page.mouse.up();
+    await expect(page.getByTestId("selected-theme")).not.toContainText(
+        "itemerness:aurora-canvas",
+    );
+    await expect.poll(() => remote.writes.length).toBe(1);
+    const saved = remote.writes[0]!.document.layouts.find(
+        (entry) => entry.kind === "canvas",
+    )!;
+    expect(saved.kind === "canvas" && saved.anchors.region?.y).toBe(40);
+    await page.getByTestId("undo").click();
+    await expect.poll(async () => canvasSignature(page)).toBe(before);
+    await expect.poll(() => remote.writes.length).toBe(2);
+
+    const restored = (await box.boundingBox())!;
+    await page.mouse.move(
+        restored.x + restored.width / 2,
+        restored.y + restored.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+        restored.x + restored.width / 2,
+        restored.y + restored.height / 2 + 4 * scale,
+    );
+    await expect(box).toHaveAttribute("data-anchor-y", "40");
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await expect(box).toHaveAttribute("data-anchor-y", "36");
+    await expect.poll(async () => canvasSignature(page)).toBe(before);
+    await page.waitForTimeout(650);
+    expect(remote.writes).toHaveLength(2);
+});
+
+for (const cancellation of ["blur", "pointercancel", "navigation"] as const) {
+    test(`canvas anchor ${cancellation} cancels an invalid draft without a save`, async ({
+        page,
+    }) => {
+        const remote = await mockPlugin(page);
+        await simulateManagedPack(page);
+        await page.getByTestId("item-survey-codex").click();
+        const box = page.getByTestId("anchor-box-region");
+        await expect(box).toBeVisible();
+        const bounds = (await box.boundingBox())!;
+        const scale = Number(
+            await page.getByTestId("canvas-viewport").getAttribute("data-zoom"),
+        );
+        await page.mouse.move(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+        );
+        await page.mouse.down();
+        await page.mouse.move(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2 + 4 * scale,
+        );
+        await expect(box).toHaveAttribute("data-anchor-y", "40");
+        if (cancellation === "navigation")
+            await page.getByTestId("mode-themes").press("Enter");
+        else
+            await page.evaluate(
+                (type) => window.dispatchEvent(new Event(type)),
+                cancellation,
+            );
+        await page.mouse.up();
+        if (cancellation === "navigation")
+            await page.getByTestId("mode-items").click();
+        await expect(box).toHaveAttribute("data-anchor-y", "36");
+        await expect(box).toHaveAttribute("data-dragging", "false");
+        await page.waitForTimeout(650);
+        expect(remote.writes).toHaveLength(0);
+    });
+}
+
+test("canvas anchor dragging keeps its origin on a short viewport", async ({
+    page,
+}, testInfo) => {
+    const remote = await mockPlugin(page);
+    await simulateManagedPack(page);
+    await page.getByTestId("item-survey-codex").click();
+    await page.setViewportSize({ width: 640, height: 360 });
+    const box = page.getByTestId("anchor-box-region");
+    await expect(box).toBeVisible();
+    await page.waitForTimeout(200);
+    const bounds = (await box.boundingBox())!;
+    const scale = Number(
+        await page.getByTestId("canvas-viewport").getAttribute("data-zoom"),
+    );
+    const before = await canvasSignature(page);
+    await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2 + 4 * scale,
+    );
+    await expect(box).toHaveAttribute("data-anchor-y", "40");
+    expect((await box.boundingBox())!.y).toBeCloseTo(bounds.y + 4 * scale, 1);
+    await page.mouse.move(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height / 2 + 10 * scale,
+    );
+    await expect(box).toHaveAttribute("data-anchor-y", "46");
+    await page.mouse.up();
+    await expect(page.getByTestId("selected-theme")).toContainText(
+        "itemerness:aurora-canvas",
+    );
+    await expect.poll(async () => canvasSignature(page)).not.toBe(before);
+    await expect.poll(() => remote.writes.length).toBe(1);
+    await page.mouse.move(70, 30);
+    await page.screenshot({
+        path: testInfo.outputPath("anchor-short-viewport.png"),
+    });
 });
 
 test.describe("with vanilla assets mounted", () => {

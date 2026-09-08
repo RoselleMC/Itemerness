@@ -1,0 +1,52 @@
+{
+    "empty": "尚未挂载自定义资源包",
+    "openDirectory": "打开资源包目录",
+    "importFailed": "无法打开资源包",
+    "mountLimit": "已达到 64 个资源包的上限",
+    "reload": "重载资源包",
+    "autoReload": "自动重载",
+    "copyPath": "复制来源路径",
+    "snapshotNotice": "浏览器仅提供了文件快照，需要重新选择文件才能更新。",
+    "lastGood": "仍在使用上一次有效内容",
+    "watchFallback": "文件事件监听不可用，间隔检测仍在运行",
+    "updated": "加载于 {{time}}",
+    "vanilla": "Minecraft 原版资源",
+    "basePriority": "基础资源 · 最低优先级",
+    "version": "Minecraft 版本",
+    "retryVanilla": "加载或重试原版资源",
+    "previewVersionWarning": "精确预览指标仍以 Minecraft {{version}} 为基线。",
+    "status": { "loading": "加载中", "ready": "已加载", "error": "重载失败" },
+    "source": {
+        "archive": "压缩包",
+        "directory": "目录",
+        "snapshot": "文件快照"
+    },
+    "format": {
+        "included": "格式声明兼容",
+        "outside": "格式与预览基线不一致",
+        "unknown": "格式声明未知"
+    },
+    "vanillaStatus": {
+        "idle": "尚未加载",
+        "cache": "正在检查本地缓存",
+        "download": "正在下载并校验",
+        "assemble": "正在准备资源",
+        "cached": "已加载 · 已缓存到本地",
+        "uncached": "已加载 · 缓存不可用",
+        "error": "下载失败 · 可重试"
+    },
+    "mounted": "已挂载 {{name}}",
+    "reloaded": "已重载 {{name}}",
+    "unchanged": "{{name}} 已是最新内容",
+    "reloadFailed": "无法重载 {{name}}",
+    "vanillaReady": "Minecraft {{name}} 资源已就绪",
+    "vanillaFailed": "无法加载 Minecraft {{name}} 资源",
+    "checkPassed": "字体指标自检通过",
+    "checkMismatch": "字体指标存在差异",
+    "settingsHeading": "资源包",
+    "checkInterval": "变动检测间隔（毫秒）",
+    "intervalInvalid": "请输入 250 到 60000 之间的整数",
+    "copied": "已复制到剪贴板",
+    "exportSaved": "已保存导出文件",
+    "exportDownload": "已开始下载导出文件"
+}

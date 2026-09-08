@@ -24,6 +24,22 @@ sealed interface BaseItemComponent {
 
     data class RepairCost(val value: Int) : BaseItemComponent
 
+    /** An explicit override, distinct from inheriting a material's default attributes. */
+    data object EmptyAttributeModifiers : BaseItemComponent
+
+    sealed class EnchantmentLevels(levels: Map<ItemKey, Int>) : BaseItemComponent {
+        val levels: Map<ItemKey, Int> = immutableSortedMap(levels)
+
+        final override fun equals(other: Any?): Boolean =
+            other is EnchantmentLevels && other.javaClass == javaClass && other.levels == levels
+
+        final override fun hashCode(): Int = 31 * javaClass.hashCode() + levels.hashCode()
+    }
+
+    class Enchantments(levels: Map<ItemKey, Int>) : EnchantmentLevels(levels)
+
+    class StoredEnchantments(levels: Map<ItemKey, Int>) : EnchantmentLevels(levels)
+
     class CustomModelData(
         floats: Collection<Float>,
         flags: Collection<Boolean>,

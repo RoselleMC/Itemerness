@@ -24,7 +24,9 @@ test("item actions are icon commands in the global header, with styled confirmat
     expect(plugin.writes).toHaveLength(0);
     await page.getByTestId("item-ember-blade").click({ button: "right" });
     await expect(page.getByTestId("context-menu")).toBeVisible();
-    await expect(page.getByTestId("name-input")).toHaveValue("Ember Blade");
+    await expect(page.getByTestId("name-input")).toHaveValue(
+        "Harbor Travel Token",
+    );
     await page.getByTestId("menu-delete-item").click();
     await expect(page.getByTestId("confirm-dialog")).toContainText(
         "Ember Blade",
@@ -129,6 +131,36 @@ test("text context menus preserve selection and support clipboard commands witho
     await expect(name).toHaveValue("Harbor Travel Token");
 });
 
+test("outline context menus target the clicked block without changing the inspector", async ({
+    page,
+}) => {
+    const plugin = await mockPlugin(page);
+    await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
+    await page.getByTestId("line-hit-1").click();
+    const selected = await page
+        .locator("[data-block]")
+        .getAttribute("data-block");
+    await page.getByTestId("content-menu").click();
+    const target = baselineDocument.items[0]!.presentation.blocks.find(
+        (block) => block.uuid !== selected,
+    )!.uuid;
+    await page
+        .getByTestId(`select-content-${target}`)
+        .click({ button: "right" });
+    await expect(page.getByTestId("menu-edit-content")).toBeVisible();
+    await expect(page.locator("[data-block]")).toHaveAttribute(
+        "data-block",
+        selected!,
+    );
+    await page.getByTestId("menu-edit-content").click();
+    await expect(page.locator("[data-block]")).toHaveAttribute(
+        "data-block",
+        target,
+    );
+    expect(plugin.writes).toHaveLength(0);
+});
+
 test("navigation, library, translations, assets and diagnostics have contextual operations", async ({
     page,
 }) => {
@@ -158,7 +190,7 @@ test("navigation, library, translations, assets and diagnostics have contextual 
     await expect(page.getByTestId("menu-copy-key")).toBeVisible();
     await page.getByTestId("menu-clear-translation").click();
     await expect(page.getByTestId(`message-zh_cn-${key}`)).toHaveValue("");
-    await page.getByTestId("undo").click();
+    await applicationMenuAction(page, "edit", "undo");
     await expect(page.getByTestId(`message-zh_cn-${key}`)).not.toHaveValue("");
 });
 
@@ -268,3 +300,4 @@ test("popups fit light/dark desktop and narrow screens, with keyboard field sele
         }
     }
 });
+import { applicationMenuAction } from "./fixtures/applicationMenu.js";

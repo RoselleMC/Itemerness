@@ -8,7 +8,10 @@
     "metrics": {
         "from_mounted_assets": "advance 来自已挂载的资源包。",
         "from_artifact": "advance 读自由客户端 JAR 生成的指标产物。",
-        "incomplete": "至少有一个字体无法测量。"
+        "from_declarations": "advance 包含文档字形或字体声明中的显式指标。",
+        "incomplete": "至少有一个字体无法测量。",
+        "version_mismatch": "本地原版指标基线与服务器或请求的测量客户端版本不一致。",
+        "revision_mismatch": "请求的字体指标修订在本地不可用；预览使用了未经验证的回退。"
     },
     "wrapping": {
         "agent": "换行由生产排版引擎决定。",
@@ -20,7 +23,7 @@
         "no_assets": "未挂载字形纹理，无法忠实绘制。"
     },
     "frame": {
-        "sprites_mounted": "由挂载的 tooltip 精灵按 nine-slice 拉伸。",
+        "sprites_mounted": "使用挂载的 tooltip 贴图与对应的缩放规则绘制。",
         "sprites_missing": "主题请求的 tooltip 样式不在已挂载的包中。",
         "legacy_gradient": "未挂载 tooltip 精灵，使用旧版渐变绘制。"
     },

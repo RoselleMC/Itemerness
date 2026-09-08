@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { baselineDocument } from "../fixtures/baseline.js";
 import { contentHash } from "../src/canonical.js";
 import { projectDocumentSchema } from "../src/document.js";
+import { catalogReadSchema } from "../src/catalogTransfer.js";
 
 /**
  * The emitted fixture is a cross-language contract, not a convenience copy. If it drifts from the
@@ -37,5 +38,32 @@ describe("emitted fixture", () => {
             JSON.parse(readFileSync(jsonPath, "utf8")),
         );
         expect(contentHash(emitted)).toBe(contentHash(baselineDocument));
+    });
+    it("accepts the production YAML import without dropping metadata", () => {
+        const document = JSON.parse(
+            readFileSync(
+                new URL(
+                    "../fixtures/catalog-import-golden.json",
+                    import.meta.url,
+                ),
+                "utf8",
+            ),
+        );
+        const parsed = catalogReadSchema.parse({
+            document,
+            sourceHash: "sha256:" + "0".repeat(64),
+            diagnostics: [],
+        });
+        expect(parsed.document.items).toHaveLength(5);
+        expect(parsed.document.tooltipStyles).toHaveLength(2);
+        expect(
+            parsed.document.bitmaps.every(
+                (bitmap) =>
+                    bitmap.texture &&
+                    bitmap.sourceWidthPixels &&
+                    bitmap.sourceHeightPixels,
+            ),
+        ).toBe(true);
+        expect(contentHash(parsed.document)).toBe(contentHash(document));
     });
 });

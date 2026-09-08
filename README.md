@@ -51,6 +51,7 @@ An unsupported Minecraft version fails during startup. New Minecraft ABIs requir
 
 ```text
 itemerness-core -> itemerness-api
+itemerness-bukkit-api -> itemerness-api
 itemerness-projection-spi -> itemerness-api
 itemerness-bukkit-spi -> itemerness-api, itemerness-projection-spi
 itemerness-nms-1_21_11 -> itemerness-projection-spi, itemerness-bukkit-spi
@@ -63,6 +64,7 @@ itemerness-bukkit -> all runtime modules
 ```
 
 - `itemerness-api` contains platform-neutral IDs, typed values, results, and bound domain contracts.
+- `itemerness-bukkit-api` contains the public Bukkit service, item/slot contracts, and catalog publication event without platform implementation or NMS dependencies.
 - `itemerness-core` contains catalog and presentation models that do not depend on Bukkit or NMS.
 - `itemerness-projection-spi` contains immutable projection snapshots and adapter lifecycle contracts.
 - `itemerness-bukkit-spi` isolates canonical Bukkit `ItemStack` access from the distribution module.
@@ -74,6 +76,32 @@ itemerness-bukkit -> all runtime modules
 The workspace under `editor/` contains the shared React application, Tauri desktop host, protocol schemas, Minecraft asset readers, and renderer. See [editor/README.md](editor/README.md) for setup, API negotiation, and operational limits.
 
 The NMS module is shaded into the Bukkit distribution. NMS, CraftBukkit, packet, channel, and mutable server types do not enter the public platform-neutral contracts.
+
+## Bukkit API
+
+Consumer plugins compile against `com.iroselle:itemerness-bukkit-api:<version>` and their own Paper
+API dependency. Use `compileOnly`; do not shade or relocate Itemerness API classes into a consumer.
+Declare an Itemerness plugin dependency and obtain `BukkitItemernessApi` from Bukkit's services
+manager. Bind with the consumer's own plugin instance after its enable lifecycle has completed;
+bindings retire when either plugin lifecycle ends. Live inventory edits use `editPlayerSlot` to
+perform the complete transaction in the player's owning context.
+
+Both API artifacts support explicit local publication for development:
+
+```bash
+./gradlew :itemerness-api:publishToMavenLocal :itemerness-bukkit-api:publishToMavenLocal
+```
+
+This does not publish to a remote repository or make Maven Local an implicit build dependency.
+See [tools/runtime-probe/README.md](tools/runtime-probe/README.md) for an independent Java consumer
+that can resolve either the published metadata or the two local API JARs.
+
+`ItemernessCatalogPublishedEvent` announces successful runtime YAML reloads after commit, outside
+the publication lock, in order on the global region scheduler. A consumer reads the current API
+revision for startup and listens for later reloads. Listener failures do not roll back the catalog;
+validation-only reloads, rejected candidates, and authoring draft saves emit no event. The global
+callback does not own players, inventories, blocks, or regions: schedule that work in its owning
+context and never wait for it inside the listener.
 
 ## Build
 
@@ -93,6 +121,39 @@ The build verifies Kotlin/JVM tests, the shaded service boundaries, plugin metad
 
 `tools/runtime-probe` is an independent disposable consumer used by the Craft Runner smoke matrix. It is not part of the plugin dependency graph or the shipped JAR.
 
+## Downloads and Releases
+
+Published builds are available from [GitHub Releases](https://github.com/RoselleMC/Itemerness/releases):
+`Itemerness.jar`, portable macOS `.app.zip` files for Apple Silicon and Intel, a Windows x64 `.exe`,
+and `SHA256SUMS`. macOS builds are ad-hoc signed, not notarized; Windows builds are unsigned and need WebView2.
+
+The Build and Release workflow checks the plugin and editor and builds every distribution on main
+pushes, pull requests, or manual runs. Ordinary runs retain downloads as workflow artifacts.
+Only a main-branch push whose **head commit** contains an independent line such as
+`Release: v0.1.0` publishes a release. Prerelease versions such as `Release: v0.2.0-rc.1`
+produce GitHub prereleases. Pull requests and manual runs never publish.
+
+Before a release, update `itemernessVersion` in `gradle.properties`, both editor package versions,
+`Cargo.toml`, its package entry in `Cargo.lock`, and `tauri.conf.json` to the same version.
+An optional `.github/releases/vVERSION.md` supplies release notes; otherwise GitHub generates them.
+All checks and builds must succeed before publication. Assets are verified and uploaded to a draft
+before it is made public; published versions are never overwritten on reruns.
+
+## Commands
+
+The player arguments in `give`, `inspect`, `data`, and `refresh` accept online player names
+and native player selectors subject to their existing permissions. Other inputs retain the
+server's native player-argument behavior; bare UUIDs are rejected by the pinned `26.1.2` parser.
+Unquoted Unicode names
+are accepted by the server, but vanilla clients still receive the native player grammar and
+may highlight them as invalid. Quote a Unicode player name for native client parsing and
+completion; subsequent item IDs, slots, data keys, and quantities remain separate typed arguments.
+
+This changes command token parsing only, not login authentication, account-name policy, or
+offline identity handling. Online lookup stays with Paper's native resolver; Itemerness does
+not scan player profiles. Actions that access a target player's state still use that entity's
+owning scheduler.
+
 ## Configuration
 
 `config.yml` contains global catalog, pending-name, locale, presentation, and optional editor API settings. `editor.enabled` defaults to false. Enabling it opens the configured `editor.bind-host`/`editor.port` listener (default `0.0.0.0:18087`, all IPv4 interfaces). Connect the editor directly to `http://<server-ip>:18087`; HTTPS endpoints are also supported. An empty `editor.token` allows unauthenticated access; a nonempty token requires Bearer authentication. Anyone who can reach an unauthenticated listener can read and edit its drafts, so restrict network access. HTTP is unencrypted; use a TLS reverse proxy on untrusted networks. All API settings require a server restart, and existing explicit bind addresses are preserved on upgrade. The editor stores the address, not the token. Content is separated by responsibility under:
@@ -109,6 +170,24 @@ The five bundled item definitions are complete examples but are disabled by defa
 /itemerness validate text
 /itemerness reload
 ```
+
+An item's `base.components` can explicitly clear material attributes and set actual enchantments:
+
+```yaml
+base:
+  material: minecraft:diamond_sword
+  components:
+    minecraft:attribute_modifiers: []
+    minecraft:enchantments:
+      minecraft:sharpness: 3
+      minecraft:mending: 1
+```
+
+`minecraft:attribute_modifiers` currently accepts only an empty list, not arbitrary modifiers.
+`minecraft:enchantments` and `minecraft:stored_enchantments` accept up to 64 registered namespaced
+enchantment keys with integer levels from 1 to 255; `{}` explicitly clears the component. Omitting
+a component keeps the material default. The editor exposes the same overrides after negotiating
+`catalog.base-components.attributes-enchantments`; it does not silently remove them for older peers.
 
 PDC may be declared per data key as a typed, read-only, lower-priority fallback. Canonical NBT and definition data always win, PDC never establishes managed identity, and Itemerness never writes authoritative values back to PDC.
 

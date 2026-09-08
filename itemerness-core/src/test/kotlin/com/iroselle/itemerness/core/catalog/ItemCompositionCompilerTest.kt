@@ -66,7 +66,7 @@ class ItemCompositionCompilerTest {
         assertFalse(compilation.successful)
         assertEquals(3, compilation.diagnostics.count { it.code == CatalogDiagnosticCode.INVALID_COMPONENT })
         assertTrue(compilation.diagnostics.any { "owned by Itemerness" in it.message })
-        assertTrue(compilation.diagnostics.any { "Unsupported base component" in it.message })
+        assertTrue(compilation.diagnostics.any { "Only an empty attribute modifier list" in it.message })
         assertTrue(compilation.diagnostics.any { "cannot be combined" in it.message })
     }
 

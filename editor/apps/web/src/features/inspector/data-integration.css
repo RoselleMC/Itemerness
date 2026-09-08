@@ -1,0 +1,118 @@
+.data-integration,
+.integration-fields {
+    min-width: 0;
+}
+.integration-fields h4 {
+    margin: 14px 0 8px;
+    font-size: 12px;
+}
+.integration-source {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    min-width: 0;
+}
+.integration-order {
+    color: var(--muted);
+    width: 16px;
+    flex: 0 0 auto;
+    font-size: 11px;
+}
+.integration-source-value {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+}
+.integration-source-value input {
+    min-width: 0;
+    width: 100%;
+}
+.integration-actions {
+    display: flex;
+    flex: 0 0 auto;
+}
+.integration-add-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin: 7px 0;
+}
+.integration-add-row > input,
+.integration-add-row > .buffered-field,
+.integration-fixed {
+    min-width: 0;
+    flex: 1;
+    width: 0;
+}
+.integration-add-row input {
+    width: 100%;
+}
+.integration-command {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 12px;
+}
+.integration-command:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.integration-field {
+    display: grid;
+    gap: 5px;
+    font-size: 12px;
+    margin: 8px 0;
+}
+.integration-fields p {
+    overflow-wrap: anywhere;
+}
+.unsaved-dialog.integration-upgrade-dialog {
+    width: min(580px, calc(100vw - 32px));
+    max-height: calc(100dvh - 88px);
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+.unsaved-backdrop.integration-upgrade-backdrop {
+    z-index: 90;
+}
+.integration-review-header,
+.integration-review-heading,
+.integration-review-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.integration-review-header h2 {
+    font-size: 16px;
+    margin: 0;
+}
+.integration-review-heading {
+    font-size: 12px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+}
+.integration-review-body {
+    min-height: 0;
+    overflow: auto;
+    margin-top: 8px;
+    padding-right: 5px;
+}
+.integration-upgrade-dialog > .ui-select {
+    flex-shrink: 0;
+}
+.integration-review-navigation {
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+}
+.integration-upgrade-dialog .dialog-actions {
+    flex-shrink: 0;
+}

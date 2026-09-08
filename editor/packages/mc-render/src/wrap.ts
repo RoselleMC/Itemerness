@@ -296,15 +296,7 @@ export function ellipsizeLine(
     const current = measure(runs);
     if (current.logicalWidthPixels <= width || runs.length === 0)
         return current;
-    return ellipsize(
-        atomize(
-            runs.map((run) => ({ ...run, unbreakable: false })),
-            false,
-        ),
-        runs[0]!.style,
-        width,
-        measure,
-    );
+    return ellipsize(atomize(runs, false), runs.at(-1)!.style, width, measure);
 }
 
 function ellipsize(

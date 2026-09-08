@@ -7,6 +7,7 @@ import { useConnectionStore } from "./connection.js";
 export interface MenuAction {
     id: string;
     label: string;
+    shortcut?: string;
     icon?: LucideIcon;
     disabled?: boolean;
     danger?: boolean;
@@ -32,11 +33,14 @@ export function describeContext(
 export function contextFor(event: Event) {
     return contexts.get(event);
 }
-export function contextOwner(state = useEditorStore.getState()) {
+export function contextOwner(
+    state = useEditorStore.getState(),
+    { includeConnectionStatus = true } = {},
+) {
     const connection = useConnectionStore.getState();
     return JSON.stringify([
         connection.address,
-        connection.status,
+        includeConnectionStatus ? connection.status : null,
         connection.info?.serverId,
         state.workspaceEpoch,
         state.snapshotHash,
@@ -45,7 +49,12 @@ export function contextOwner(state = useEditorStore.getState()) {
         state.selectedBlockUuid,
         state.selectedThemeId,
         state.selectedLayoutId,
-        state.selectedDataKeyId,
+        state.selectedDataKeyUuid,
+        state.selectedDataSchemaUuid,
+        state.selectedFormatUuid,
+        state.selectedViewerFactUuid,
+        state.selectedAssetKind,
+        state.selectedAssetUuid,
         state.viewerLocale,
         state.packs.map((slot) => slot.pack.id),
     ]);

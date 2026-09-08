@@ -1,6 +1,15 @@
 export const MIN_ZOOM = 0.01;
 export const MAX_ZOOM = 32;
 export const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
+export function canvasGutter(viewport: {
+    width: number;
+    height: number;
+}): number {
+    return Math.max(
+        16,
+        Math.min(48, Math.min(viewport.width, viewport.height) / 8),
+    );
+}
 export function smoothZoomStep(
     current: number,
     target: number,

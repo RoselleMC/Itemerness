@@ -1,0 +1,122 @@
+{
+    "glyphs": [
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e901",
+            "id": "test.frame.top-cap",
+            "font": "itemerness:frame",
+            "codePoint": 59649,
+            "advancePixels": 27,
+            "visualBounds": { "left": 0, "right": 26, "top": -19, "bottom": 4 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e902",
+            "id": "test.frame.top-fill",
+            "font": "itemerness:frame",
+            "codePoint": 59650,
+            "advancePixels": 2,
+            "visualBounds": { "left": 0, "right": 1, "top": -16, "bottom": 4 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e903",
+            "id": "test.frame.center",
+            "font": "itemerness:frame",
+            "codePoint": 59651,
+            "advancePixels": 12,
+            "visualBounds": { "left": 0, "right": 11, "top": -19, "bottom": 4 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e904",
+            "id": "test.frame.side",
+            "font": "itemerness:frame",
+            "codePoint": 59652,
+            "advancePixels": 3,
+            "visualBounds": { "left": 0, "right": 2, "top": -8, "bottom": 2 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e905",
+            "id": "test.frame.fill",
+            "font": "itemerness:frame",
+            "codePoint": 59653,
+            "advancePixels": 2,
+            "visualBounds": { "left": 0, "right": 1, "top": -8, "bottom": 2 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e906",
+            "id": "test.frame.bottom",
+            "font": "itemerness:frame",
+            "codePoint": 59654,
+            "advancePixels": 3,
+            "visualBounds": { "left": 0, "right": 2, "top": -8, "bottom": 7 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e907",
+            "id": "test.frame.connector",
+            "font": "itemerness:frame",
+            "codePoint": 59655,
+            "advancePixels": 2,
+            "visualBounds": { "left": 0, "right": 1, "top": -4, "bottom": -3 },
+            "bitmap": null
+        },
+        {
+            "uuid": "00000000-0000-4000-8000-00000000e908",
+            "id": "test.frame.kern",
+            "font": "itemerness:frame",
+            "codePoint": 59656,
+            "advancePixels": -1,
+            "visualBounds": { "left": 0, "right": 0, "top": 0, "bottom": 0 },
+            "bitmap": null
+        }
+    ],
+    "frame": {
+        "minimumWidthPixels": 100,
+        "maximumWidthPixels": 180,
+        "leftPaddingPixels": 4,
+        "rightPaddingPixels": 4,
+        "includeName": true,
+        "top": {
+            "left": "test.frame.top-cap",
+            "fill": "test.frame.top-fill",
+            "right": "test.frame.top-cap",
+            "center": "test.frame.center",
+            "kern": "test.frame.kern"
+        },
+        "body": {
+            "left": "test.frame.side",
+            "fill": "test.frame.fill",
+            "right": "test.frame.side",
+            "kern": "test.frame.kern"
+        },
+        "connector": {
+            "left": "test.frame.side",
+            "fill": "test.frame.connector",
+            "right": "test.frame.side",
+            "kern": "test.frame.kern"
+        },
+        "bottom": {
+            "left": "test.frame.bottom",
+            "fill": "test.frame.fill",
+            "right": "test.frame.bottom",
+            "center": "test.frame.center",
+            "kern": "test.frame.kern"
+        }
+    },
+    "cases": [
+        { "name": "name-inside", "frame": {} },
+        { "name": "name-outside", "frame": { "includeName": false } },
+        {
+            "name": "narrow",
+            "frame": { "minimumWidthPixels": 70, "maximumWidthPixels": 104 }
+        },
+        {
+            "name": "wide-padding",
+            "frame": { "leftPaddingPixels": 13, "rightPaddingPixels": 9 }
+        },
+        { "name": "without-connectors", "frame": { "connector": null } }
+    ]
+}

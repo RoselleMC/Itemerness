@@ -12,13 +12,14 @@ import com.iroselle.itemerness.api.LongDataValue
 import com.iroselle.itemerness.api.NamespacedKeyDataValue
 import com.iroselle.itemerness.api.StringDataValue
 import com.iroselle.itemerness.api.UuidDataValue
-import com.iroselle.itemerness.core.catalog.CatalogCompiler
+import com.iroselle.itemerness.core.catalog.CatalogDiagnostic
 import com.iroselle.itemerness.core.catalog.CatalogItemDefinition
+import com.iroselle.itemerness.core.catalog.CatalogSnapshot
 import com.iroselle.itemerness.core.catalog.DataType
 import com.iroselle.itemerness.core.catalog.InstanceDataMutation
 import com.iroselle.itemerness.core.catalog.SourceDataValue
 import com.iroselle.itemerness.core.presentation.NestedItemPresentation
-import com.iroselle.itemerness.core.presentation.PresentationCompiler
+import com.iroselle.itemerness.core.presentation.PresentationCatalogSnapshot
 import com.iroselle.itemerness.core.presentation.PresentationDisplay
 import com.iroselle.itemerness.core.presentation.PresentationEngine
 import com.iroselle.itemerness.core.presentation.PresentationRenderRequest
@@ -48,7 +49,20 @@ import java.util.UUID
 class CompilerBridge(
     private val builtinFontMetrics: BuiltinFontMetrics,
     private val agentVersion: String,
+    private val validateRuntimeContent: (
+        ProjectDocumentCodec.Decoded,
+        CatalogSnapshot,
+        PresentationCatalogSnapshot,
+    ) -> List<CatalogDiagnostic> = { _, _, _ -> emptyList() },
 ) {
+    private val documentCompiler = DocumentCompiler(builtinFontMetrics, validateRuntimeContent)
+
+    fun validateDocument(document: JsonValue): List<JsonValue> = when (val result = documentCompiler.compile(Json.canonicalize(document))) {
+        is DocumentCompiler.Result.Valid -> emptyList()
+        is DocumentCompiler.Result.Invalid -> result.diagnostics.map { diagnosticJson(it.code, it.messageKey, it.params) } +
+            diagnosticJson(result.code, result.messageKey, result.params)
+    }
+
     class PreviewContext(
         val itemId: String,
         val locale: String,
@@ -59,10 +73,11 @@ class CompilerBridge(
         val resourcePackLoaded: Boolean,
         val managesVanillaTooltipLines: Boolean,
         val snapshotHash: String,
+        val documentSchemaVersion: Int? = null,
     ) {
         val capabilities: List<String> = java.util.List.copyOf(capabilities)
 
-        fun withSnapshotHash(snapshotHash: String): PreviewContext =
+        fun withSnapshotHash(snapshotHash: String, documentSchemaVersion: Int? = this.documentSchemaVersion): PreviewContext =
             PreviewContext(
                 itemId = itemId,
                 locale = locale,
@@ -73,6 +88,7 @@ class CompilerBridge(
                 resourcePackLoaded = resourcePackLoaded,
                 managesVanillaTooltipLines = managesVanillaTooltipLines,
                 snapshotHash = snapshotHash,
+                documentSchemaVersion = documentSchemaVersion,
             )
     }
 
@@ -87,8 +103,8 @@ class CompilerBridge(
     fun compilePreview(documentJson: String, requestContext: PreviewContext): Outcome {
         val started = System.nanoTime()
         val diagnostics = ArrayList<JsonValue>()
-        val canonicalDocument = try {
-            Json.canonicalize(Json.parse(documentJson))
+        val parsedDocument = try {
+            Json.parse(documentJson)
         } catch (exception: JsonException) {
             return reject(
                 "DECODE_FAILED",
@@ -99,8 +115,11 @@ class CompilerBridge(
                 started,
             )
         }
+        val canonicalDocument = Json.canonicalize(parsedDocument)
         val actualSnapshotHash = documentDigest(canonicalDocument)
-        val context = requestContext.withSnapshotHash(actualSnapshotHash)
+        val documentVersion = ((parsedDocument as? JsonValue.Obj)?.entries?.get("schemaVersion") as? JsonValue.Num)
+            ?.value?.toInt()
+        val context = requestContext.withSnapshotHash(actualSnapshotHash, documentVersion)
         if (requestContext.snapshotHash != actualSnapshotHash) {
             return reject(
                 "SNAPSHOT_MISMATCH",
@@ -112,60 +131,16 @@ class CompilerBridge(
             )
         }
 
-        val decoded =
-            try {
-                ProjectDocumentCodec.decode(canonicalDocument, builtinFontMetrics)
-            } catch (exception: JsonException) {
-                return reject(
-                    "DECODE_FAILED",
-                    "diagnostics.document.decode_failed",
-                    mapOf("detail" to (exception.message ?: "invalid document")),
-                    context,
-                    diagnostics,
-                    started,
-                )
+        val compilation = when (val result = documentCompiler.compile(canonicalDocument)) {
+            is DocumentCompiler.Result.Valid -> result
+            is DocumentCompiler.Result.Invalid -> {
+                diagnostics += result.diagnostics.map { diagnosticJson(it.code, it.messageKey, it.params) }
+                return reject(result.code, result.messageKey, result.params, context, diagnostics, started)
             }
-
-        val catalogCompilation = CatalogCompiler().compile(decoded.catalog)
-        catalogCompilation.diagnostics.forEach { diagnostic ->
-            diagnostics += diagnosticJson(
-                code = "CATALOG.${diagnostic.code.name}",
-                messageKey = "diagnostics.catalog.${diagnostic.code.name.lowercase()}",
-                params = mapOf("path" to diagnostic.path, "detail" to diagnostic.message),
-            )
         }
-        val catalogCandidate = catalogCompilation.candidate
-        if (catalogCandidate == null || catalogCompilation.diagnostics.isNotEmpty()) {
-            return reject(
-                "DOCUMENT_INVALID",
-                "diagnostics.document.catalog_invalid",
-                mapOf("diagnosticCount" to catalogCompilation.diagnostics.size.toString()),
-                context,
-                diagnostics,
-                started,
-            )
-        }
-        val domainCatalog = catalogCandidate.materializeValidationView()
-
-        val presentationCompilation =
-            PresentationCompiler(decoded.defaultLocale, decoded.budgets).compile(decoded.presentation)
-        presentationCompilation.diagnostics.forEach { diagnostic ->
-            diagnostics += diagnosticJson(
-                code = "PRESENTATION.${diagnostic.code.name}",
-                messageKey = "diagnostics.presentation.${diagnostic.code.name.lowercase()}",
-                params = mapOf("path" to diagnostic.path, "detail" to diagnostic.message),
-            )
-        }
-
-        val catalog = presentationCompilation.catalog
-            ?: return reject(
-                "NO_SAFE_THEME",
-                "diagnostics.presentation.compilation_failed",
-                emptyMap(),
-                context,
-                diagnostics,
-                started,
-            )
+        val decoded = compilation.decoded
+        val domainCatalog = compilation.domain
+        val catalog = compilation.presentation
 
         val itemKey =
             try {
@@ -304,7 +279,7 @@ class CompilerBridge(
             "digests" to obj(
                 "snapshot" to text(context.snapshotHash),
                 "compiler" to text(compilerDigest()),
-                "documentSchema" to text("schema-${ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSION}"),
+                "documentSchema" to (context.documentSchemaVersion?.let { text("schema-$it") } ?: JsonValue.Null),
                 "capability" to text(capabilityDigest(context)),
                 "asset" to (context.metricsRevision?.let(::text) ?: JsonValue.Null),
             ),
@@ -420,7 +395,7 @@ class CompilerBridge(
      */
     fun compilerDigest(): String {
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest("$agentVersion|schema-${ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSION}".toByteArray())
+            .digest("$agentVersion|schemas-${ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSIONS.joinToString(",")}|catalog-validation-7".toByteArray())
         return "sha256:${HexFormat.of().formatHex(digest)}"
     }
 

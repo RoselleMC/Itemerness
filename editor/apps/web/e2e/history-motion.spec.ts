@@ -352,6 +352,6 @@ test("remote reload and disconnect clear history, and dark canvas contrasts with
     await page.getByTestId("name-input").fill("Unsaved");
     await page.getByTestId("connection-trigger").click();
     await page.getByTestId("disconnect-plugin").click();
-    await expect(page.getByTestId("undo")).toBeDisabled();
-    await expect(page.getByTestId("redo")).toBeDisabled();
+    await expect(page.getByTestId("undo")).toHaveCount(0);
+    await expect(page.getByTestId("redo")).toHaveCount(0);
 });

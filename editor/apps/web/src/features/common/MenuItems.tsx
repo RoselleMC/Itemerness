@@ -11,6 +11,9 @@ function MenuEntry({ item }: { item: MenuAction }) {
         <>
             <span className="ui-menu-icon">{Icon && <Icon size={16} />}</span>
             <span className="ui-menu-text">{item.label}</span>
+            {item.shortcut && (
+                <span className="ui-menu-shortcut">{item.shortcut}</span>
+            )}
         </>
     );
     const properties = {
@@ -32,7 +35,7 @@ function MenuEntry({ item }: { item: MenuAction }) {
                             className="ui-positioner"
                             sideOffset={3}
                             collisionPadding={{
-                                top: 56,
+                                top: 8,
                                 left: 8,
                                 right: 8,
                                 bottom: 8,

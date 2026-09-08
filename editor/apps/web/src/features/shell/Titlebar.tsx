@@ -8,11 +8,9 @@ import {
     Minus,
     Sun,
     Moon,
-    Monitor,
+    SunMoon,
     Square,
     X,
-    Undo2,
-    Redo2,
 } from "lucide-react";
 import {
     titlebarAction,
@@ -23,10 +21,11 @@ import {
 import { ConnectionCenter } from "./ConnectionCenter.js";
 import type { DocumentSync } from "../document/useDocumentSync.js";
 import { OptionMenu } from "./OptionMenu.js";
-import { SUPPORTED_UI_LANGUAGES } from "../../i18n/index.js";
+import { SUPPORTED_UI_LANGUAGES, useUiLanguage } from "../../i18n/index.js";
 import { useAppearance } from "../../window/appearance.js";
-import { useEditorStore } from "../../state/store.js";
 import { describeContext, useInterface } from "../../state/interface.js";
+import { ApplicationMenubar } from "./ApplicationMenubar.js";
+import type { ApplicationMenu } from "../../window/useApplicationMenu.js";
 
 export function Titlebar({
     platform,
@@ -34,16 +33,25 @@ export function Titlebar({
     saveMenuError = false,
     onDisconnect,
     interactionBlocked = false,
+    applicationMenu,
 }: {
     platform: WindowPlatform;
     documentSync: DocumentSync;
     saveMenuError?: boolean;
     onDisconnect: () => void;
     interactionBlocked?: boolean;
+    applicationMenu: ApplicationMenu;
 }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
+    const language = useUiLanguage();
+    const languages = [
+        { value: "system" as const, label: t("appearance.system") },
+        ...SUPPORTED_UI_LANGUAGES.map(({ code, label }) => ({
+            value: code,
+            label,
+        })),
+    ];
     const appearance = useAppearance();
-    const history = useEditorStore();
     const connectionRequest = useInterface((state) => state.connectionRequest);
     const [popup, setPopup] = useState<
         "connection" | "language" | "appearance" | null
@@ -51,6 +59,9 @@ export function Titlebar({
     const [maximized, setMaximized] = useState(false);
     const [focused, setFocused] = useState(true);
     const [failed, setFailed] = useState(false);
+    useEffect(() => {
+        if (interactionBlocked) setPopup(null);
+    }, [interactionBlocked]);
 
     const showConnection = useCallback(
         (open: boolean) => setPopup(open ? "connection" : null),
@@ -144,23 +155,20 @@ export function Titlebar({
             id="ui-language"
             label={t("sidebar.uiLanguage")}
             Icon={Globe2}
-            value={i18n.resolvedLanguage ?? "en-US"}
-            options={SUPPORTED_UI_LANGUAGES.map(({ code, label }) => ({
-                value: code,
-                label,
-            }))}
+            value={language.mode}
+            options={languages}
             open={popup === "language"}
             onOpenChange={showLanguage}
-            onChange={(value) => void i18n.changeLanguage(value)}
+            onChange={language.setMode}
             contextMenu={{
                 label: t("sidebar.uiLanguage"),
-                items: SUPPORTED_UI_LANGUAGES.map(({ code, label }) => ({
-                    id: `language-${code}`,
+                items: languages.map(({ value, label }) => ({
+                    id: `language-${value}`,
                     label,
                     icon: Globe2,
-                    checked: i18n.resolvedLanguage === code,
+                    checked: language.mode === value,
                     run: () => {
-                        void i18n.changeLanguage(code);
+                        language.setMode(value);
                     },
                 })),
             }}
@@ -173,7 +181,7 @@ export function Titlebar({
             label={t("appearance.heading")}
             Icon={
                 appearance.mode === "system"
-                    ? Monitor
+                    ? SunMoon
                     : appearance.mode === "light"
                       ? Sun
                       : Moon
@@ -185,7 +193,7 @@ export function Titlebar({
                 {
                     value: "system",
                     label: t("appearance.system"),
-                    Icon: Monitor,
+                    Icon: SunMoon,
                 },
             ]}
             open={popup === "appearance"}
@@ -211,7 +219,7 @@ export function Titlebar({
                     {
                         id: "system",
                         label: t("appearance.system"),
-                        icon: Monitor,
+                        icon: SunMoon,
                         checked: appearance.mode === "system",
                         run: () => appearance.setMode("system"),
                     },
@@ -292,37 +300,12 @@ export function Titlebar({
         >
             <div className="titlebar-lead" data-testid="titlebar-drag-area">
                 {platform === "windows" && preferences}
-                <div className="titlebar-brand">
-                    <h1>{t("app.title")}</h1>
-                </div>
-                <div
-                    className="history-controls"
-                    data-no-drag
-                    inert={interactionBlocked}
-                >
-                    <button
-                        type="button"
-                        className="titlebar-tool"
-                        data-testid="undo"
-                        disabled={!documentSync.ready || !history.canUndo}
-                        data-tooltip={t("history.undo")}
-                        aria-label={t("history.undo")}
-                        onClick={history.undo}
-                    >
-                        <Undo2 size={17} />
-                    </button>
-                    <button
-                        type="button"
-                        className="titlebar-tool"
-                        data-testid="redo"
-                        disabled={!documentSync.ready || !history.canRedo}
-                        data-tooltip={t("history.redo")}
-                        aria-label={t("history.redo")}
-                        onClick={history.redo}
-                    >
-                        <Redo2 size={17} />
-                    </button>
-                </div>
+                {platform !== "macos" && (
+                    <ApplicationMenubar
+                        menu={applicationMenu}
+                        blocked={interactionBlocked}
+                    />
+                )}
                 {(failed || appearance.error || saveMenuError) && (
                     <span
                         className="titlebar-error"
@@ -357,7 +340,11 @@ export function Titlebar({
                             data-testid="window-minimize"
                             onClick={() => perform("minimize")}
                         >
-                            <Minus size={14} />
+                            <Minus
+                                size={14}
+                                strokeWidth={1}
+                                absoluteStrokeWidth
+                            />
                         </button>
                         <button
                             type="button"
@@ -375,9 +362,17 @@ export function Titlebar({
                             onClick={() => perform("zoom")}
                         >
                             {maximized ? (
-                                <Copy size={13} />
+                                <Copy
+                                    size={13}
+                                    strokeWidth={1}
+                                    absoluteStrokeWidth
+                                />
                             ) : (
-                                <Square size={12} />
+                                <Square
+                                    size={12}
+                                    strokeWidth={1}
+                                    absoluteStrokeWidth
+                                />
                             )}
                         </button>
                         <button
@@ -388,7 +383,7 @@ export function Titlebar({
                             data-testid="window-close"
                             onClick={() => perform("close")}
                         >
-                            <X size={16} />
+                            <X size={16} strokeWidth={1} absoluteStrokeWidth />
                         </button>
                     </div>
                 )}

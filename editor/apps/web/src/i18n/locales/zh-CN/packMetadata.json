@@ -1,0 +1,7 @@
+{
+    "included": "声明格式 {{range}} 包含预览基线 Minecraft {{version}}（{{format}}）。",
+    "outside": "声明格式 {{range}} 不包含预览基线 Minecraft {{version}}（{{format}}）。",
+    "unknown": "格式声明未知。预览基线：Minecraft {{version}}（{{format}}）。",
+    "source": "来源：{{source}}",
+    "notice": "仅核对元数据声明，不代表客户端兼容验证。本地预览仍可使用。"
+}

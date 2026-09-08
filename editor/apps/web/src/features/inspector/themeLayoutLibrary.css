@@ -1,0 +1,30 @@
+.theme-layout-add {
+    display: grid;
+    gap: 6px;
+    padding-block: 6px;
+}
+.theme-layout-add .add-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+.theme-layout-add svg {
+    flex: none;
+}
+.theme-layout-header .content-inspector-header {
+    padding: 0 0 8px;
+}
+.theme-layout-references {
+    margin-top: 10px;
+}
+.theme-layout-references summary {
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+.theme-layout-references ul {
+    padding-left: 16px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}

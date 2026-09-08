@@ -1,0 +1,78 @@
+.layout-inspector .field-inline {
+    margin: 7px 0;
+}
+
+.layout-inspector .layout-number-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 92px;
+    align-items: start;
+    gap: 10px;
+}
+
+.layout-number-field > span {
+    padding-top: 6px;
+    overflow-wrap: anywhere;
+}
+
+.layout-number-field .buffered-field,
+.layout-entry-heading .buffered-field {
+    min-width: 0;
+    width: 100%;
+}
+
+.layout-number-field input,
+.layout-entry-heading input,
+.layout-add-row input {
+    width: 100%;
+    min-width: 0;
+}
+
+.layout-number-field .error {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.layout-entry {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.layout-entry:first-of-type {
+    padding-top: 0;
+}
+
+.layout-entry-heading,
+.layout-add-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    gap: 6px;
+    align-items: start;
+}
+
+.layout-entry-heading > button,
+.layout-add-row > button {
+    width: 30px;
+    height: 30px;
+}
+
+.layout-entry-status {
+    margin: 4px 0 10px;
+}
+
+.layout-add-entry {
+    margin-top: 12px;
+}
+
+.layout-width-slider {
+    width: 100%;
+    margin: 0 0 10px;
+}
+
+.layout-inspector .error {
+    overflow-wrap: anywhere;
+}
+
+.layout-inspector .field-inline > .ui-select {
+    min-width: 0;
+    max-width: 58%;
+}

@@ -14,7 +14,7 @@ export const namespacedIdSchema = z
     .min(3)
     .max(256)
     .regex(
-        /^[a-z0-9_.-]+:[a-z0-9_./-]+$/,
+        /^[a-z0-9_.-]{1,64}:[a-z0-9_./-]+$/,
         "expected a lowercase namespace:path identifier",
     );
 
@@ -22,23 +22,31 @@ export const namespacedIdSchema = z
 export const idPathSchema = z
     .string()
     .min(1)
-    .max(200)
+    .max(254)
     .regex(/^[a-z0-9_./-]+$/, "expected a lowercase path segment");
+
+/** Format 2 item IDs may supply their own namespace; format 1 is checked separately. */
+export const itemIdSchema = z.union([
+    z
+        .string()
+        .min(1)
+        .max(254)
+        .regex(/^[a-z0-9_./-]+$/, "expected a lowercase item path"),
+    namespacedIdSchema,
+]);
 
 /** Translation key, e.g. `item.travel-token.name`. */
 export const messageKeySchema = z
     .string()
     .min(1)
-    .max(256)
-    .regex(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/, "expected a message key");
+    .regex(/^[a-z0-9][a-z0-9._-]*$/, "expected a lowercase message key");
 
 /** Minecraft locale directory name, e.g. `en_us`. */
 export const localeSchema = z
     .string()
     .min(2)
-    .max(32)
     .regex(
-        /^[a-z]{2,8}(_[a-z0-9]{2,8})*$/,
+        /^[a-z]{2}_[a-z]{2}(?:_[a-z0-9]+)?$/,
         "expected a Minecraft locale such as en_us",
     );
 
@@ -65,7 +73,7 @@ export const uuidSchema = z.string().uuid();
 
 /** Signed pixel geometry. Mirrors `VisualBoundsSource`. */
 export const visualBoundsSchema = z
-    .object({
+    .strictObject({
         left: z.number().finite(),
         right: z.number().finite(),
         top: z.number().finite(),
@@ -91,16 +99,22 @@ export type DataValue =
 
 export const dataValueSchema: z.ZodType<DataValue> = z.lazy(() =>
     z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("null") }),
-        z.object({ kind: z.literal("boolean"), value: z.boolean() }),
-        z.object({ kind: z.literal("integer"), value: longStringSchema }),
-        z.object({ kind: z.literal("decimal"), value: decimalStringSchema }),
-        z.object({ kind: z.literal("string"), value: z.string().max(65_536) }),
-        z.object({
-            kind: z.literal("list"),
-            values: z.array(dataValueSchema).max(4096),
+        z.strictObject({ kind: z.literal("null") }),
+        z.strictObject({ kind: z.literal("boolean"), value: z.boolean() }),
+        z.strictObject({ kind: z.literal("integer"), value: longStringSchema }),
+        z.strictObject({
+            kind: z.literal("decimal"),
+            value: decimalStringSchema,
         }),
-        z.object({
+        z.strictObject({
+            kind: z.literal("string"),
+            value: z.string(),
+        }),
+        z.strictObject({
+            kind: z.literal("list"),
+            values: z.array(dataValueSchema),
+        }),
+        z.strictObject({
             kind: z.literal("compound"),
             entries: z.record(z.string().max(256), dataValueSchema),
         }),
@@ -127,25 +141,24 @@ export interface CompoundFieldNode {
 
 export const dataTypeSchema: z.ZodType<DataTypeNode> = z.lazy(() =>
     z.discriminatedUnion("kind", [
-        z.object({ kind: z.literal("boolean") }),
-        z.object({ kind: z.literal("integer") }),
-        z.object({ kind: z.literal("long") }),
-        z.object({ kind: z.literal("decimal") }),
-        z.object({ kind: z.literal("string") }),
-        z.object({ kind: z.literal("uuid") }),
-        z.object({ kind: z.literal("namespacedKey") }),
-        z.object({ kind: z.literal("list"), element: dataTypeSchema }),
-        z.object({
+        z.strictObject({ kind: z.literal("boolean") }),
+        z.strictObject({ kind: z.literal("integer") }),
+        z.strictObject({ kind: z.literal("long") }),
+        z.strictObject({ kind: z.literal("decimal") }),
+        z.strictObject({ kind: z.literal("string") }),
+        z.strictObject({ kind: z.literal("uuid") }),
+        z.strictObject({ kind: z.literal("namespacedKey") }),
+        z.strictObject({ kind: z.literal("list"), element: dataTypeSchema }),
+        z.strictObject({
             kind: z.literal("compound"),
             fields: z
                 .array(
-                    z.object({
+                    z.strictObject({
                         name: z.string().min(1).max(256),
                         type: dataTypeSchema,
                         nullable: z.boolean(),
                     }),
                 )
-                .max(256)
                 .nullable(),
         }),
     ]),

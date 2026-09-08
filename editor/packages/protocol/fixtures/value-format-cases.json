@@ -1,0 +1,41 @@
+{
+  "formats": [
+    { "id": "test:integer", "kind": "integer", "pattern": "00" },
+    { "id": "test:decimal", "kind": "decimal", "pattern": "0.00", "multiply": 10, "suffixMessage": "unit" },
+    { "id": "test:boolean", "kind": "boolean", "trueMessage": "yes", "falseMessage": "no" },
+    { "id": "test:path", "kind": "namespacedKey", "mode": "PATH", "messagePattern": null, "missingValue": "ERROR" },
+    { "id": "test:key", "kind": "namespacedKey", "mode": "MESSAGE", "messagePattern": "{namespace}.{namespace}.{path}.{path}", "missingValue": "ERROR" },
+    { "id": "test:key-path", "kind": "namespacedKey", "mode": "MESSAGE", "messagePattern": "missing.{path}", "missingValue": "PATH" },
+    { "id": "test:key-full", "kind": "namespacedKey", "mode": "MESSAGE", "messagePattern": "missing.{path}", "missingValue": "FULL_KEY" },
+    { "id": "test:list", "kind": "list", "elementFormat": "test:integer", "separatorMessage": "separator" },
+    { "id": "test:nested-list", "kind": "list", "elementFormat": "test:list", "separatorMessage": "outer" },
+    { "id": "test:key-list", "kind": "list", "elementFormat": "test:key", "separatorMessage": "separator" }
+  ],
+  "messages": { "yes": "Enabled", "no": "Disabled", "unit": " points", "separator": " / ", "outer": " | ", "example.example.stone.stone": "example.example.stone.stone", "example.example.gold.gold": "Gold" },
+  "cases": [
+    { "name": "boolean-true", "format": "test:boolean", "value": { "kind": "boolean", "value": true } },
+    { "name": "boolean-false", "format": "test:boolean", "value": { "kind": "boolean", "value": false } },
+    { "name": "boolean-wrong-type", "format": "test:boolean", "value": { "kind": "string", "value": "false" } },
+    { "name": "integer-long", "format": "test:integer", "type": { "kind": "long" }, "value": { "kind": "integer", "value": "9223372036854775807" } },
+    { "name": "integer-declared-decimal", "format": "test:integer", "type": { "kind": "decimal" }, "value": { "kind": "integer", "value": "1" } },
+    { "name": "decimal-long-conversion", "format": "test:decimal", "type": { "kind": "long" }, "value": { "kind": "integer", "value": "9223372036854775807" } },
+    { "name": "decimal-multiply-suffix", "format": "test:decimal", "value": { "kind": "decimal", "value": "0.2675" } },
+    { "name": "decimal-wrong-type", "format": "test:decimal", "value": { "kind": "string", "value": "0.2675" } },
+    { "name": "key-path", "format": "test:path", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:dir/stone" } },
+    { "name": "key-declared-string", "format": "test:path", "type": { "kind": "string" }, "value": { "kind": "string", "value": "example:stone" } },
+    { "name": "key-equal-message-key", "format": "test:key", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:stone" } },
+    { "name": "key-localized", "format": "test:key", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:gold" } },
+    { "name": "key-missing-error", "format": "test:key", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:missing" } },
+    { "name": "key-missing-path", "format": "test:key-path", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:missing" } },
+    { "name": "key-missing-full", "format": "test:key-full", "type": { "kind": "namespacedKey" }, "value": { "kind": "string", "value": "example:missing" } },
+    { "name": "integer-list", "format": "test:list", "value": { "kind": "list", "values": [{ "kind": "integer", "value": "1" }, { "kind": "integer", "value": "2" }] } },
+    { "name": "empty-list", "format": "test:list", "value": { "kind": "list", "values": [] } },
+    { "name": "list-wrong-element", "format": "test:list", "value": { "kind": "list", "values": [{ "kind": "integer", "value": "1" }, { "kind": "string", "value": "2" }] } },
+    { "name": "nested-list", "format": "test:nested-list", "value": { "kind": "list", "values": [{ "kind": "list", "values": [{ "kind": "integer", "value": "1" }, { "kind": "integer", "value": "2" }] }, { "kind": "list", "values": [{ "kind": "integer", "value": "3" }] }] } },
+    { "name": "key-list", "format": "test:key-list", "type": { "kind": "list", "element": { "kind": "namespacedKey" } }, "value": { "kind": "list", "values": [{ "kind": "string", "value": "example:stone" }, { "kind": "string", "value": "example:gold" }] } },
+    { "name": "default-uuid", "format": null, "type": { "kind": "uuid" }, "value": { "kind": "string", "value": "A0000000-0000-4000-8000-000000000001" } },
+    { "name": "default-compound-order", "format": null, "value": { "kind": "compound", "entries": { "z": { "kind": "decimal", "value": "1.2300e-7" }, "a": { "kind": "integer", "value": "9223372036854775807" }, "values": { "kind": "list", "values": [{ "kind": "string", "value": "minecraft:stone" }, { "kind": "boolean", "value": true }] } } } },
+    { "name": "default-declared-decimal", "format": null, "type": { "kind": "decimal" }, "value": { "kind": "integer", "value": "9223372036854775807" } },
+    { "name": "unknown-formatter", "format": "test:unknown", "value": { "kind": "string", "value": "value" } }
+  ]
+}

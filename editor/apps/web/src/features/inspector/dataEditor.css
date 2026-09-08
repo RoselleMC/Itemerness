@@ -1,0 +1,124 @@
+.data-key-id {
+    overflow-wrap: anywhere;
+}
+.data-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.data-editor-row > :first-child {
+    flex: 1;
+    min-width: 0;
+}
+.data-editor-row h3,
+.data-editor-row h4 {
+    margin: 0;
+}
+.data-editor-row > .icon-button {
+    flex: 0 0 28px;
+}
+.data-label-field + .data-label-field {
+    margin-top: 12px;
+}
+.data-label-field > label {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+}
+.data-label-field input {
+    width: 100%;
+    min-width: 0;
+}
+.data-type-editor {
+    border: 0;
+    padding: 0;
+    margin: 0 0 12px;
+    min-width: 0;
+}
+.data-type-editor > legend {
+    font-size: 12px;
+    padding: 0;
+    margin-bottom: 6px;
+}
+.data-type-editor > .data-type-editor,
+.data-type-field {
+    margin: 10px 0 0;
+    padding-left: 10px;
+    border-left: 1px solid var(--line);
+}
+.data-type-field .toggle-row {
+    margin: 6px 0;
+}
+.data-constraints {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.data-constraint {
+    min-width: 0;
+}
+.data-constraint .field-label {
+    display: block;
+    overflow-wrap: anywhere;
+}
+.data-allowed-entry {
+    display: flex;
+    gap: 4px;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+.data-allowed-entry > .typed-value {
+    min-width: 0;
+    flex: 1;
+}
+.data-schema-library ul,
+.data-schema-keys {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.data-schema-group + .data-schema-group {
+    margin-top: 12px;
+}
+.data-schema-heading {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    padding: 8px;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    text-align: left;
+    font-size: 11px;
+}
+.data-schema-heading > :first-child {
+    min-width: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+.data-schema-heading > :last-child {
+    white-space: nowrap;
+}
+.data-schema-heading.selected {
+    background: var(--accent-dim);
+    color: var(--text);
+}
+.data-schema-keys button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 8px 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.data-schema-keys button:hover {
+    color: var(--accent);
+}
+.content-inspector-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+}

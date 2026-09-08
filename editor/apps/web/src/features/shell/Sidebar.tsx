@@ -1,19 +1,10 @@
-import { useState } from "react";
+import { itemKey } from "@itemerness/protocol";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { describeContext } from "../../state/interface.js";
-import {
-    itemActions,
-    newItemAction,
-    copyAction,
-    relatedItems,
-    blockUses,
-} from "../common/contextActions.js";
+import { itemActions, newItemAction } from "../common/contextActions.js";
 import { useEditorStore, type EditorMode } from "../../state/store.js";
-import {
-    humanizePath,
-    itemDisplayName,
-    resolveMessage,
-} from "../common/messages.js";
+import { humanizePath, itemDisplayName } from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
 import {
     CircleCheck,
@@ -23,6 +14,16 @@ import {
     CircleSlash,
 } from "lucide-react";
 import type { PreviewItemState } from "../../api/previewCache.js";
+import { DataLibrary } from "./DataLibrary.js";
+import { PresentationLibrary } from "./PresentationLibrary.js";
+import { addPresentationAction } from "../common/presentationLibraryActions.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
+import {
+    createThemeLayoutActions,
+    themeLayoutActions,
+} from "../common/themeLayoutActions.js";
+import { NewItemDialog } from "../items/NewItemDialog.js";
+import { LibraryCreateControl } from "./LibraryCreateControl.js";
 
 /**
  * The library rail.
@@ -33,19 +34,52 @@ import type { PreviewItemState } from "../../api/previewCache.js";
  */
 export function Sidebar({
     itemStates,
+    active,
 }: {
     itemStates: Readonly<Record<string, PreviewItemState>>;
+    active: boolean;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
     const { document } = store;
+    const sidebarRef = useRef<HTMLElement>(null);
     const [queries, setQueries] = useState<Record<EditorMode, string>>({
         items: "",
         themes: "",
         layouts: "",
         data: "",
+        formats: "",
+        facts: "",
     });
     const query = queries[store.mode];
+    useLayoutEffect(() => {
+        const list = sidebarRef.current?.querySelector<HTMLElement>(
+            ":scope > .item-list",
+        );
+        if (!list) return;
+        const revealSelection = () => {
+            const selected =
+                list.querySelector<HTMLElement>(".item-row.selected");
+            if (!selected || list.clientHeight === 0) return;
+            const viewport = list.getBoundingClientRect();
+            const row = selected.getBoundingClientRect();
+            const top = viewport.top + list.clientTop;
+            const bottom = top + list.clientHeight;
+            // Scroll only this list; scrolling ancestors would move the fitted preview offscreen.
+            if (row.top < top) list.scrollTop += row.top - top;
+            else if (row.bottom > bottom) list.scrollTop += row.bottom - bottom;
+        };
+        revealSelection();
+        const observer = new ResizeObserver(revealSelection);
+        observer.observe(list);
+        return () => observer.disconnect();
+    }, [
+        store.mode,
+        store.selectedItemId,
+        store.selectedThemeId,
+        store.selectedLayoutId,
+        query,
+    ]);
     const count =
         store.mode === "items"
             ? document.items.length
@@ -53,32 +87,49 @@ export function Sidebar({
               ? document.themes.length
               : store.mode === "layouts"
                 ? document.layouts.length
-                : document.dataSchemas.reduce(
-                      (total, schema) => total + schema.keys.length,
-                      0,
-                  );
+                : store.mode === "formats"
+                  ? document.formats.length
+                  : store.mode === "facts"
+                    ? document.viewerFacts.length
+                    : document.dataSchemas.reduce(
+                          (total, schema) => total + schema.keys.length,
+                          0,
+                      );
 
     const matches = (text: string) =>
         query === "" || text.toLowerCase().includes(query.toLowerCase());
 
     return (
         <aside
+            ref={sidebarRef}
             className="sidebar"
             aria-labelledby="library-heading"
             onContextMenu={(event) => {
+                if (store.mode === "formats" || store.mode === "facts")
+                    describeContext(event, {
+                        label: t(`sidebar.mode.${store.mode}`),
+                        items: [addPresentationAction(store.mode, t)],
+                    });
                 if (store.mode === "items")
                     describeContext(event, {
                         label: t("sidebar.mode.items"),
                         items: [newItemAction(t)],
                     });
+                else if (store.mode === "themes" || store.mode === "layouts")
+                    describeContext(event, {
+                        label: t(`sidebar.mode.${store.mode}`),
+                        items: createThemeLayoutActions(store.mode, t),
+                    });
             }}
         >
+            <NewItemDialog />
             <header className="sidebar-head">
                 <div className="library-heading">
                     <h2 id="library-heading" data-testid="library-heading">
-                        {t(`sidebar.mode.${store.mode}`)}
+                        <span>{t(`sidebar.mode.${store.mode}`)}</span>{" "}
+                        <span className="library-count">({count})</span>
                     </h2>
-                    <span>{count}</span>
+                    <LibraryCreateControl mode={store.mode} active={active} />
                 </div>
                 <input
                     type="search"
@@ -102,7 +153,7 @@ export function Sidebar({
                         {document.items
                             .map((item) => ({
                                 item,
-                                id: `${document.namespace}:${item.id}`,
+                                id: itemKey(document, item),
                                 name: itemDisplayName(
                                     document,
                                     store.viewerLocale,
@@ -110,19 +161,25 @@ export function Sidebar({
                                 ),
                             }))
                             .filter(
-                                (row) =>
-                                    matches(row.name) || matches(row.item.id),
+                                (row) => matches(row.name) || matches(row.id),
                             )
                             .map((row) => (
                                 <li key={row.item.uuid}>
                                     <button
                                         type="button"
                                         className={`item-row ${store.selectedItemId === row.id ? "selected" : ""} ${row.item.enabled ? "" : "disabled-item"}`}
-                                        onClick={() => store.selectItem(row.id)}
+                                        onClick={() => {
+                                            if (commitInlineEditor())
+                                                store.selectItem(row.id);
+                                        }}
                                         data-testid={`item-${row.item.id}`}
                                         aria-label={row.name}
                                         onContextMenu={(event) => {
-                                            store.selectItem(row.id);
+                                            if (!commitInlineEditor()) {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                return;
+                                            }
                                             describeContext(event, {
                                                 label: row.name,
                                                 items: itemActions(
@@ -160,210 +217,127 @@ export function Sidebar({
                                 </li>
                             ))}
                     </ul>
-                    <button
-                        type="button"
-                        className="add-item"
-                        onClick={() => store.addItem(t("sidebar.newItemName"))}
-                        data-testid="add-item"
-                    >
-                        + {t("sidebar.addItem")}
-                    </button>
                 </>
             ) : null}
 
             {store.mode === "themes" ? (
-                <ul className="item-list" data-testid="theme-list">
-                    {document.themes
-                        .filter((theme) => matches(theme.id))
-                        .map((theme) => {
-                            const path = theme.id.split(":").pop() ?? theme.id;
-                            const swatch =
-                                theme.styles["item-name"]?.color ?? null;
-                            return (
-                                <li key={theme.uuid}>
-                                    <button
-                                        type="button"
-                                        className={`item-row ${store.selectedThemeId === theme.id ? "selected" : ""}`}
-                                        onClick={() =>
-                                            store.selectTheme(theme.id)
-                                        }
-                                        data-testid={`theme-${path}`}
-                                        onContextMenu={(event) => {
-                                            store.selectTheme(theme.id);
-                                            describeContext(event, {
-                                                label: humanizePath(path),
-                                                items: [
-                                                    copyAction(
-                                                        "copy-id",
-                                                        t("menus.copyId"),
-                                                        theme.id,
-                                                    ),
-                                                    relatedItems(
-                                                        document.items.filter(
-                                                            (item) =>
-                                                                item
-                                                                    .presentation
-                                                                    .theme ===
-                                                                theme.id,
-                                                        ),
+                <>
+                    <ul className="item-list" data-testid="theme-list">
+                        {document.themes
+                            .filter((theme) => matches(theme.id))
+                            .map((theme) => {
+                                const path =
+                                    theme.id.split(":").pop() ?? theme.id;
+                                const swatch =
+                                    theme.styles["item-name"]?.color ?? null;
+                                return (
+                                    <li key={theme.uuid}>
+                                        <button
+                                            type="button"
+                                            className={`item-row ${store.selectedThemeId === theme.id ? "selected" : ""}`}
+                                            onClick={() => {
+                                                if (commitInlineEditor())
+                                                    store.selectTheme(theme.id);
+                                            }}
+                                            data-testid={`theme-${path}`}
+                                            onContextMenu={(event) => {
+                                                if (!commitInlineEditor()) {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    return;
+                                                }
+                                                describeContext(event, {
+                                                    label: humanizePath(path),
+                                                    items: themeLayoutActions(
+                                                        "themes",
+                                                        theme.uuid,
                                                         t,
                                                     ),
-                                                ],
-                                            });
-                                        }}
-                                    >
-                                        <span
-                                            className="swatch"
-                                            style={{
-                                                background: swatchColor(swatch),
+                                                });
                                             }}
-                                        />
-                                        <span className="item-row-text">
-                                            <span className="item-row-name">
-                                                {humanizePath(path)}
+                                        >
+                                            <span
+                                                className="swatch"
+                                                style={{
+                                                    background:
+                                                        swatchColor(swatch),
+                                                }}
+                                            />
+                                            <span className="item-row-text">
+                                                <span className="item-row-name">
+                                                    {humanizePath(path)}
+                                                </span>
+                                                <span className="item-row-note">
+                                                    {t(
+                                                        `inspector.renderer.${theme.renderer}`,
+                                                    )}
+                                                </span>
                                             </span>
-                                            <span className="item-row-note">
-                                                {t(
-                                                    `inspector.renderer.${theme.renderer}`,
-                                                )}
-                                            </span>
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                </ul>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                    </ul>
+                </>
             ) : null}
 
             {store.mode === "layouts" ? (
-                <ul className="item-list" data-testid="layout-list">
-                    {document.layouts
-                        .filter((layout) => matches(layout.id))
-                        .map((layout) => {
-                            const path =
-                                layout.id.split(":").pop() ?? layout.id;
-                            return (
-                                <li key={layout.uuid}>
-                                    <button
-                                        type="button"
-                                        className={`item-row ${store.selectedLayoutId === layout.id ? "selected" : ""}`}
-                                        onClick={() =>
-                                            store.selectLayout(layout.id)
-                                        }
-                                        data-testid={`layout-${path}`}
-                                        onContextMenu={(event) => {
-                                            store.selectLayout(layout.id);
-                                            describeContext(event, {
-                                                label: humanizePath(path),
-                                                items: [
-                                                    copyAction(
-                                                        "copy-id",
-                                                        t("menus.copyId"),
+                <>
+                    <ul className="item-list" data-testid="layout-list">
+                        {document.layouts
+                            .filter((layout) => matches(layout.id))
+                            .map((layout) => {
+                                const path =
+                                    layout.id.split(":").pop() ?? layout.id;
+                                return (
+                                    <li key={layout.uuid}>
+                                        <button
+                                            type="button"
+                                            className={`item-row ${store.selectedLayoutId === layout.id ? "selected" : ""}`}
+                                            onClick={() => {
+                                                if (commitInlineEditor())
+                                                    store.selectLayout(
                                                         layout.id,
-                                                    ),
-                                                    relatedItems(
-                                                        document.items.filter(
-                                                            (item) =>
-                                                                item
-                                                                    .presentation
-                                                                    .layout ===
-                                                                layout.id,
-                                                        ),
+                                                    );
+                                            }}
+                                            data-testid={`layout-${path}`}
+                                            onContextMenu={(event) => {
+                                                if (!commitInlineEditor()) {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    return;
+                                                }
+                                                describeContext(event, {
+                                                    label: humanizePath(path),
+                                                    items: themeLayoutActions(
+                                                        "layouts",
+                                                        layout.uuid,
                                                         t,
                                                     ),
-                                                ],
-                                            });
-                                        }}
-                                    >
-                                        <span className="item-row-text">
-                                            <span className="item-row-name">
-                                                {humanizePath(path)}
+                                                });
+                                            }}
+                                        >
+                                            <span className="item-row-text">
+                                                <span className="item-row-name">
+                                                    {humanizePath(path)}
+                                                </span>
+                                                <span className="item-row-note">
+                                                    {t(
+                                                        `inspector.layoutKind.${layout.kind}`,
+                                                    )}
+                                                </span>
                                             </span>
-                                            <span className="item-row-note">
-                                                {t(
-                                                    `inspector.layoutKind.${layout.kind}`,
-                                                )}
-                                            </span>
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
-                </ul>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                    </ul>
+                </>
             ) : null}
 
-            {store.mode === "data" ? (
-                <ul className="item-list" data-testid="data-list">
-                    {document.dataSchemas
-                        .flatMap((schema) => schema.keys)
-                        .map((key) => {
-                            const path = key.id.split(":").pop() ?? key.id;
-                            const label = resolveMessage(
-                                document,
-                                store.viewerLocale,
-                                `data.${path}.label`,
-                            );
-                            return {
-                                key,
-                                path,
-                                name:
-                                    label.source === "missing"
-                                        ? humanizePath(path)
-                                        : label.text,
-                            };
-                        })
-                        .filter(
-                            (row) => matches(row.name) || matches(row.key.id),
-                        )
-                        .map((row) => (
-                            <li key={row.key.uuid}>
-                                <button
-                                    type="button"
-                                    className={`item-row ${store.selectedDataKeyId === row.key.id ? "selected" : ""}`}
-                                    onClick={() =>
-                                        store.selectDataKey(row.key.id)
-                                    }
-                                    data-testid={`datakey-${row.path}`}
-                                    onContextMenu={(event) => {
-                                        store.selectDataKey(row.key.id);
-                                        describeContext(event, {
-                                            label: row.name,
-                                            items: [
-                                                copyAction(
-                                                    "copy-id",
-                                                    t("menus.copyId"),
-                                                    row.key.id,
-                                                ),
-                                                relatedItems(
-                                                    document.items.filter(
-                                                        (item) =>
-                                                            item.presentation.blocks.some(
-                                                                (block) =>
-                                                                    blockUses(
-                                                                        block,
-                                                                        row.key
-                                                                            .id,
-                                                                    ),
-                                                            ),
-                                                    ),
-                                                    t,
-                                                ),
-                                            ],
-                                        });
-                                    }}
-                                >
-                                    <span className="item-row-text">
-                                        <span className="item-row-name">
-                                            {row.name}
-                                        </span>
-                                        <span className="item-row-note">
-                                            {row.path}
-                                        </span>
-                                    </span>
-                                </button>
-                            </li>
-                        ))}
-                </ul>
+            {store.mode === "data" ? <DataLibrary query={query} /> : null}
+            {store.mode === "formats" || store.mode === "facts" ? (
+                <PresentationLibrary kind={store.mode} query={query} />
             ) : null}
         </aside>
     );

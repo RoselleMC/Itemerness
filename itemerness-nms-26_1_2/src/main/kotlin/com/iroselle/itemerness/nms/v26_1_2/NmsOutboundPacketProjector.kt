@@ -150,6 +150,7 @@ internal class NmsOutboundPacketProjector(
         itemProjector,
         registration,
         sessionViewerId = viewerId,
+        limits = limits,
         registryAccessSource = registryAccessSource,
     ).project(source, viewerId)
 
@@ -158,6 +159,7 @@ internal class NmsOutboundPacketProjector(
         NmsProjectionRegistration.NONE,
         sessionViewerId = UNBOUND_VIEWER_ID,
         sanitizingSession = true,
+        limits = limits,
         registryAccessSource = registryAccessSource,
     ).project(source, UNBOUND_VIEWER_ID)
 
@@ -186,6 +188,7 @@ internal class NmsOutboundPacketProjector(
                 itemProjector,
                 NmsProjectionRegistration.NONE,
                 sessionViewerId = viewerId,
+                limits = limits,
                 registryAccessSource = registryAccessSource,
             ).project(source, viewerId, ProjectionBudget(limits))
         } else {
@@ -275,8 +278,12 @@ internal class NmsOutboundPacketProjector(
             is ClientboundSetPlayerTeamPacket -> projectTeam(source, viewerId)
             is ClientboundSetScorePacket -> projectScore(source, viewerId)
             is ClientboundUpdateAdvancementsPacket -> projectAdvancements(source, viewerId)
-            is ClientboundUpdateRecipesPacket -> projectUpdateRecipes(source, viewerId)
-            is ClientboundRecipeBookAddPacket -> projectRecipeBook(source, viewerId)
+            is ClientboundUpdateRecipesPacket -> currentPayloadBudget().withinRecipe {
+                projectUpdateRecipes(source, viewerId)
+            }
+            is ClientboundRecipeBookAddPacket -> currentPayloadBudget().withinRecipe {
+                projectRecipeBook(source, viewerId)
+            }
             is ClientboundPlaceGhostRecipePacket -> projectGhostRecipe(source, viewerId)
             is ClientboundPlayerCombatKillPacket -> projectCombatKill(source, viewerId)
             is ClientboundServerDataPacket -> projectServerData(source, viewerId)

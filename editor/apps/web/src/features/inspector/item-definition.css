@@ -1,0 +1,139 @@
+.item-definition {
+    min-width: 0;
+}
+.component-value-fields {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+.component-fields > .definition-add-row > input {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+}
+.definition-section {
+    border-top: 1px solid var(--line);
+    padding: 10px 0;
+    min-width: 0;
+}
+.definition-section > summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+}
+.definition-section[open] > summary {
+    margin-bottom: 10px;
+}
+.definition-entry {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    min-width: 0;
+}
+.definition-entry:last-of-type {
+    border-bottom: 0;
+}
+.definition-row-heading,
+.definition-add-row,
+.component-scalar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.definition-row-heading {
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+.definition-row-heading > :first-child,
+.definition-add-row > .ui-select,
+.component-scalar > .buffered-field {
+    flex: 1;
+    min-width: 0;
+}
+.definition-row-heading > code,
+.definition-row-heading > strong {
+    overflow-wrap: anywhere;
+    font-size: 12px;
+}
+.definition-row-heading .ui-select {
+    width: 0;
+}
+.definition-row-actions {
+    display: flex;
+    flex: 0 0 auto;
+}
+.definition-add-row {
+    margin-top: 8px;
+}
+.definition-add-row .icon-button,
+.definition-row-heading > .icon-button {
+    flex: 0 0 auto;
+}
+.definition-field {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0;
+    font-size: 12px;
+    min-width: 0;
+}
+.definition-field input,
+.component-scalar input {
+    width: 100%;
+    min-width: 0;
+}
+.definition-inherited {
+    padding: 7px 0;
+}
+.definition-inherited > span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+.definition-diagnostics p,
+.definition-entry .error {
+    overflow-wrap: anywhere;
+}
+.definition-add-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 4px 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+.component-field {
+    margin: 8px 0;
+    font-size: 12px;
+    min-width: 0;
+}
+.component-list-entry {
+    padding: 6px 0;
+    min-width: 0;
+}
+.component-list-entry > .definition-row-actions {
+    justify-content: flex-end;
+}
+.definition-invalid-value {
+    min-width: 0;
+}
+.item-identity-key {
+    color: var(--dim);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+.item-theme-inherit {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+}
+.item-theme-inherit input {
+    flex: none;
+}
+.item-theme-inherit span {
+    overflow-wrap: anywhere;
+}

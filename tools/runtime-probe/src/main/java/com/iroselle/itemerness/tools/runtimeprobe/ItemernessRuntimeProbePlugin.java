@@ -14,6 +14,7 @@ import com.iroselle.itemerness.bukkit.api.BukkitItemIdentity;
 import com.iroselle.itemerness.bukkit.api.BukkitItemernessApi;
 import com.iroselle.itemerness.bukkit.api.BukkitPlayerSlot;
 import com.iroselle.itemerness.bukkit.api.BukkitSlotEditReceipt;
+import com.iroselle.itemerness.bukkit.event.ItemernessCatalogPublishedEvent;
 import io.papermc.paper.threadedregions.scheduler.EntityScheduler;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.lang.reflect.InvocationHandler;
@@ -21,21 +22,27 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /** Disposable black-box probe for Itemerness's public Bukkit service contract. */
-public final class ItemernessRuntimeProbePlugin extends JavaPlugin {
+public final class ItemernessRuntimeProbePlugin extends JavaPlugin implements Listener {
     private static final String PASS = "ITEMERNESS_RUNTIME_PROBE_PASS";
     private static final String FAIL = "ITEMERNESS_RUNTIME_PROBE_FAIL";
     private static final ItemKey ITEM = ItemKey.parse("itemerness:travel-token");
@@ -44,14 +51,75 @@ public final class ItemernessRuntimeProbePlugin extends JavaPlugin {
     private static final DataKey CREATED_AT = DataKey.parse("itemerness:created-at");
 
     private final AtomicBoolean reported = new AtomicBoolean();
+    private final AtomicLong observedCatalogRevision = new AtomicLong();
+    private final AtomicLong catalogEventCount = new AtomicLong();
+    private final AtomicLong catalogEventFailures = new AtomicLong();
+    private final AtomicLong injectedListenerFailures = new AtomicLong();
+    private final AtomicBoolean injectCatalogListenerFailure = new AtomicBoolean();
+    private volatile String probeScope = "pending";
+    private volatile boolean sharedApiClassLoader;
 
     @Override
     public void onEnable() {
         try {
+            getServer().getPluginManager().registerEvents(this, this);
             getServer().getGlobalRegionScheduler().execute(this, this::executeProbe);
         } catch (Throwable failure) {
             reportFailure("global scheduling", failure);
         }
+    }
+
+    @Override
+    public void onDisable() {
+        HandlerList.unregisterAll((Listener) this);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void failCatalogListenerWhenRequested(ItemernessCatalogPublishedEvent event) {
+        if (injectCatalogListenerFailure.get()) {
+            injectedListenerFailures.incrementAndGet();
+            throw new IllegalStateException("ITEMERNESS_EXPECTED_CATALOG_LISTENER_FAILURE revision=" + event.getCatalogRevision());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCatalogPublished(ItemernessCatalogPublishedEvent event) {
+        try {
+            requireCondition(getServer().isGlobalTickThread(), "catalog event did not run on the global scheduler");
+            requireCondition(!event.isAsynchronous(), "catalog event was marked asynchronous");
+            BukkitItemernessApi service = Objects.requireNonNull(
+                getServer().getServicesManager().load(BukkitItemernessApi.class),
+                "BukkitItemernessApi service is not registered"
+            );
+            BoundBukkitItemernessApi api = requireSuccess(service.forPlugin(this), "bind catalog event consumer");
+            requireCondition(api.getCatalogRevision() == event.getCatalogRevision(), "event and API revisions disagree");
+            long previous = observedCatalogRevision.getAndSet(event.getCatalogRevision());
+            requireCondition(event.getCatalogRevision() > previous, "catalog events were duplicated or delivered out of order");
+            catalogEventCount.incrementAndGet();
+            getLogger().info("ITEMERNESS_CATALOG_EVENT_PASS revision=" + event.getCatalogRevision() + " global=true");
+        } catch (Throwable failure) {
+            catalogEventFailures.incrementAndGet();
+            getLogger().log(java.util.logging.Level.SEVERE, "ITEMERNESS_CATALOG_EVENT_FAIL", failure);
+        }
+    }
+
+    /** Test-only switch, invoked explicitly through the Craft Runner debug agent. */
+    public void setCatalogEventFailureProbe(boolean enabled) {
+        requireCondition(getServer().isGlobalTickThread(), "listener probe switch requires the global context");
+        injectCatalogListenerFailure.set(enabled);
+    }
+
+    public Map<String, Object> catalogProbeStatus() {
+        return Map.of(
+            "scope", probeScope,
+            "reported", reported.get(),
+            "sharedApiClassLoader", sharedApiClassLoader,
+            "revision", observedCatalogRevision.get(),
+            "events", catalogEventCount.get(),
+            "eventFailures", catalogEventFailures.get(),
+            "injectedFailures", injectedListenerFailures.get(),
+            "injectFailure", injectCatalogListenerFailure.get()
+        );
     }
 
     private void executeProbe() {
@@ -59,8 +127,9 @@ public final class ItemernessRuntimeProbePlugin extends JavaPlugin {
             ProbeReport report = runProbe();
             if (reported.compareAndSet(false, true)) {
                 getLogger().info(PASS
+                    + " scope=" + probeScope
                     + " catalogRevision=" + report.catalogRevision()
-                    + " item=" + ITEM
+                    + " item=" + (probeScope.equals("empty-visible-catalog") ? "none" : ITEM)
                     + " asyncSlotRevision=" + report.asyncSlotRevision());
             }
         } catch (Throwable failure) {
@@ -78,6 +147,12 @@ public final class ItemernessRuntimeProbePlugin extends JavaPlugin {
             getServer().getPluginManager().getPlugin("Itemerness"),
             "Itemerness plugin is not registered"
         );
+        ClassLoader implementationLoader = itemerness.getClass().getClassLoader();
+        sharedApiClassLoader = BukkitItemernessApi.class.getClassLoader() == implementationLoader
+            && BoundBukkitItemernessApi.class.getClassLoader() == implementationLoader
+            && ItemernessCatalogPublishedEvent.class.getClassLoader() == implementationLoader
+            && service.getClass().getClassLoader() == implementationLoader;
+        requireCondition(sharedApiClassLoader, "consumer loaded a duplicate API or event class");
         expectDenied(
             service.forPlugin(itemerness),
             ApiDenialReason.CALLER_NOT_ACTIVE,
@@ -87,14 +162,20 @@ public final class ItemernessRuntimeProbePlugin extends JavaPlugin {
         BoundBukkitItemernessApi api = requireSuccess(service.forPlugin(this), "bind probe plugin");
         requireCondition(getName().equals(api.getCallerPluginName()), "bound caller name changed");
         requireCondition(api.getCatalogRevision() > 0, "catalog revision is not active");
+        observedCatalogRevision.set(api.getCatalogRevision());
 
         List<ItemDefinition> items = requireSuccess(api.items(), "list catalog items");
+        if (items.isEmpty()) {
+            probeScope = "empty-visible-catalog";
+            return new ProbeReport(api.getCatalogRevision(), -1);
+        }
+        probeScope = "fixture";
         requireCondition(
             items.stream().map(ItemDefinition::getKey).anyMatch(ITEM::equals),
             "runtime fixture item is not visible"
         );
 
-        ItemStack created = requireSuccess(api.createItem(ITEM, 1), "create canonical item");
+        ItemStack created = requireSuccess(api.createItem(ITEM), "create canonical item");
         BukkitItemIdentity identity = Objects.requireNonNull(
             requireSuccess(api.identifyItem(created), "identify canonical item"),
             "created item was reported as unmanaged"

@@ -1,39 +1,26 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
-import { NAMED_COLORS, parseColor } from "@itemerness/mc-render";
+import { RotateCcw, Trash2 } from "lucide-react";
+import { NAMED_COLORS } from "@itemerness/mc-render";
+import {
+    namespacedIdSchema,
+    supportsSegmentedFrameDecorations,
+    type ThemeNode,
+} from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
-import { humanizePath } from "../common/messages.js";
+import { useConnectionStore } from "../../state/connection.js";
 import { SelectField } from "../common/SelectField.js";
-import { ColorWell } from "../common/ColorWell.js";
 import { describeContext } from "../../state/interface.js";
-import { copyAction, relatedItems } from "../common/contextActions.js";
-import { Bold, Italic } from "lucide-react";
-
-/**
- * Theme editing, with the stage as the colour proof.
- *
- * A theme is mostly colour and typography decisions, and those are edited with the tools people
- * already know: a colour well per role, a font dropdown per role, sliders for widths. Every change
- * recompiles the preview immediately — the theme library previews against the currently selected
- * item, so an editor is always looking at their own content while restyling it.
- */
-
-/** Roles in the order themes conventionally use them; unknown roles append after. */
-const KNOWN_ROLES = [
-    "item-name",
-    "label",
-    "value",
-    "description",
-    "requirement-met",
-    "requirement-unmet",
-    "frame",
-] as const;
-
-function toHex(color: string | null): string {
-    const parsed = parseColor(color);
-    if (parsed === null) return "#ffffff";
-    return `#${parsed.toString(16).padStart(6, "0")}`;
-}
+import { themeLayoutActions } from "../common/themeLayoutActions.js";
+import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
+import { ThemeRoles } from "./ThemeRoles.js";
+import { ThemeContent, ThemeGeometry } from "./ThemeGeometry.js";
+import { AddThemeEntry, ThemeToggle } from "./ThemeFields.js";
+import {
+    incompatibleThemeSettings,
+    switchThemeRenderer,
+    type ThemePatch,
+} from "./themeEditing.js";
 
 export function ThemeInspector({
     previewSettings,
@@ -42,326 +29,344 @@ export function ThemeInspector({
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
+    const decorationsSupported = useConnectionStore((state) =>
+        supportsSegmentedFrameDecorations(state.info?.capabilities),
+    );
     const doc = store.document;
     const theme = doc.themes.find(
         (entry) => entry.id === store.selectedThemeId,
     );
-
-    if (!theme) {
+    if (!theme)
         return (
             <aside className="inspector">
-                <p className="muted">{t("stage.noItem")}</p>
+                <ThemeLayoutAdd kind="themes" testIdPrefix="empty-" />
+                {previewSettings}
             </aside>
         );
-    }
-
-    const roles = [
-        ...KNOWN_ROLES.filter((role) => role in theme.styles),
-        ...Object.keys(theme.styles).filter(
-            (role) => !(KNOWN_ROLES as readonly string[]).includes(role),
-        ),
-    ];
-
-    const setStyle = (
-        role: string,
-        patch: Partial<(typeof theme.styles)[string]>,
-    ) =>
-        store.updateTheme(theme.uuid, (current) => ({
-            ...current,
-            styles: {
-                ...current.styles,
-                [role]: { ...current.styles[role]!, ...patch },
-            },
-        }));
-
-    const roleLabel = (role: string) => {
-        const key = `inspector.roles.${role}`;
-        const translated = t(key);
-        return translated === key ? humanizePath(role) : translated;
-    };
-
+    const update: ThemePatch = (mutate) =>
+        store.updateTheme(theme.uuid, mutate);
+    const isNative = theme.renderer === "NATIVE_TOOLTIP_STYLE";
+    const usesTooltipStyle =
+        isNative ||
+        theme.renderer === "BITMAP_CANVAS" ||
+        theme.renderer === "SEGMENTED_FRAME";
+    const isPlain = theme.renderer === "PLAIN";
+    const incompatible = incompatibleThemeSettings(theme);
+    const rendererState = theme.extensions?.editorRendererState;
+    const saved =
+        rendererState &&
+        typeof rendererState === "object" &&
+        !Array.isArray(rendererState)
+            ? (rendererState as Record<string, unknown>)
+            : {};
+    const requiresPack =
+        !isPlain && theme.renderer !== "VANILLA_CHARACTER_FRAME";
+    const fixedPolicy =
+        theme.renderer === "VANILLA_CHARACTER_FRAME"
+            ? "PRESERVE_OUTSIDE_FRAME"
+            : theme.renderer === "SEGMENTED_FRAME" ||
+                theme.renderer === "BITMAP_CANVAS"
+              ? "REQUIRE_MANAGED"
+              : null;
+    const retained = [
+        theme.characterFrame && theme.renderer !== "VANILLA_CHARACTER_FRAME"
+            ? "characterFrame"
+            : null,
+        theme.segmentedFrame && theme.renderer !== "SEGMENTED_FRAME"
+            ? "segmentedFrame"
+            : null,
+        theme.canvas && theme.renderer !== "BITMAP_CANVAS" ? "canvas" : null,
+        saved.content && !isNative ? "content" : null,
+        saved.requireExactFontMetrics && theme.renderer !== "BITMAP_CANVAS"
+            ? "requireExactFontMetrics"
+            : null,
+        saved.tooltipStyle && !usesTooltipStyle ? "tooltipStyle" : null,
+        isPlain && rendererState ? "plainSavedSettings" : null,
+    ].filter((kind): kind is string => kind !== null);
     return (
         <aside
-            className="inspector"
+            className="inspector theme-inspector"
             aria-label={t("inspector.theme.heading")}
             onContextMenu={(event) =>
                 describeContext(event, {
                     label: theme.id,
-                    items: [
-                        copyAction("copy-id", t("menus.copyId"), theme.id),
-                        relatedItems(
-                            doc.items.filter(
-                                (item) => item.presentation.theme === theme.id,
-                            ),
-                            t,
-                        ),
-                    ],
+                    items: themeLayoutActions("themes", theme.uuid, t),
                 })
             }
         >
+            <ThemeLayoutHeader kind="themes" uuid={theme.uuid} />
             <section>
-                <h3>{t("inspector.theme.heading")}</h3>
-                <p className="library-title">
-                    {humanizePath(theme.id.split(":").pop() ?? theme.id)}
-                    <span className="tag">
-                        {t(`inspector.renderer.${theme.renderer}`)}
-                    </span>
-                    {theme.requiresResourcePack ? (
-                        <span className="tag tag-pack">
-                            {t("inspector.appearance.requiresPack")}
-                        </span>
-                    ) : null}
-                </p>
-                <p className="muted small">
-                    {t("inspector.theme.previewHint")}
-                </p>
-            </section>
-
-            <section>
-                <h3>{t("inspector.theme.colors")}</h3>
-                <div className="color-rows">
-                    {roles.map((role) => (
-                        <label key={role} className="color-row">
-                            <ColorWell
-                                label={`${t("inspector.theme.colors")}: ${roleLabel(role)}`}
-                                owner={`${theme.uuid}:${role}`}
-                                value={toHex(theme.styles[role]?.color ?? null)}
-                                onValueChange={(value) =>
-                                    setStyle(role, {
-                                        color: value,
-                                    })
-                                }
-                                onClear={() => setStyle(role, { color: null })}
-                                id={`color-${role}`}
-                            />
-                            <span>{roleLabel(role)}</span>
-                            <span className="dim small">
-                                {theme.styles[role]?.color ?? "—"}
-                            </span>
-                            <span className="style-toggles">
-                                <button
-                                    type="button"
-                                    className={
-                                        theme.styles[role]?.bold ? "on" : ""
-                                    }
-                                    onClick={() =>
-                                        setStyle(role, {
-                                            bold: !theme.styles[role]?.bold,
-                                        })
-                                    }
-                                    aria-label={t("inspector.theme.bold")}
-                                    data-tooltip={t("inspector.theme.bold")}
-                                >
-                                    <Bold size={14} />
-                                </button>
-                                <button
-                                    type="button"
-                                    className={
-                                        theme.styles[role]?.italic ? "on" : ""
-                                    }
-                                    onClick={() =>
-                                        setStyle(role, {
-                                            italic: !theme.styles[role]?.italic,
-                                        })
-                                    }
-                                    aria-label={t("inspector.theme.italic")}
-                                    data-tooltip={t("inspector.theme.italic")}
-                                >
-                                    <Italic size={14} />
-                                </button>
-                            </span>
-                        </label>
-                    ))}
-                </div>
-            </section>
-
-            <section>
-                <h3>{t("inspector.theme.fonts")}</h3>
-                {Object.entries(theme.fonts).map(([role, fontId]) => (
-                    <label key={role} className="field-inline">
-                        {humanizePath(role)}
-                        <SelectField
-                            label={`${t("inspector.theme.fonts")}: ${humanizePath(role)}`}
-                            value={fontId}
-                            onValueChange={(value) =>
-                                store.updateTheme(theme.uuid, (current) => ({
-                                    ...current,
-                                    fonts: {
-                                        ...current.fonts,
-                                        [role]: value,
-                                    },
-                                }))
+                <label className="field-inline">
+                    <span>{t("themeAuthoring.renderer")}</span>
+                    <SelectField
+                        label={t("themeAuthoring.renderer")}
+                        value={theme.renderer}
+                        data-testid="theme-renderer"
+                        onValueChange={(renderer) =>
+                            update((current) =>
+                                switchThemeRenderer(
+                                    current,
+                                    renderer as ThemeNode["renderer"],
+                                ),
+                            )
+                        }
+                        options={[
+                            "PLAIN",
+                            "VANILLA_CHARACTER_FRAME",
+                            "NATIVE_TOOLTIP_STYLE",
+                            "SEGMENTED_FRAME",
+                            "BITMAP_CANVAS",
+                        ].map((renderer) => ({
+                            value: renderer,
+                            label: t(`inspector.renderer.${renderer}`),
+                        }))}
+                    />
+                </label>
+                <label className="toggle-row">
+                    <input
+                        type="checkbox"
+                        checked={theme.requiresResourcePack}
+                        disabled
+                        aria-label={t("themeAuthoring.requiresResourcePack")}
+                    />
+                    {t("themeAuthoring.requiresResourcePack")}
+                </label>
+                {theme.requiresResourcePack !== requiresPack && (
+                    <div className="error small">
+                        <p>{t("themeAuthoring.packRequirementMismatch")}</p>
+                        <button
+                            type="button"
+                            className="page-command"
+                            onClick={() =>
+                                update((current) =>
+                                    switchThemeRenderer(
+                                        current,
+                                        current.renderer,
+                                    ),
+                                )
                             }
-                            options={doc.fonts.map((font) => ({
-                                value: font.id,
-                                label: font.id,
-                            }))}
-                        />
-                    </label>
-                ))}
+                        >
+                            <RotateCcw size={14} />
+                            {t("themeAuthoring.applyRendererRequirements")}
+                        </button>
+                    </div>
+                )}
+                <label className="field-inline">
+                    <span>{t("themeAuthoring.vanillaTooltipLines")}</span>
+                    <SelectField
+                        label={t("themeAuthoring.vanillaTooltipLines")}
+                        value={theme.vanillaTooltipLines}
+                        data-testid="theme-vanilla-policy"
+                        onValueChange={(vanillaTooltipLines) =>
+                            update((current) => ({
+                                ...current,
+                                vanillaTooltipLines:
+                                    vanillaTooltipLines as ThemeNode["vanillaTooltipLines"],
+                            }))
+                        }
+                        options={(fixedPolicy
+                            ? [fixedPolicy]
+                            : [
+                                  "PRESERVE",
+                                  "PRESERVE_OUTSIDE_FRAME",
+                                  "REQUIRE_MANAGED",
+                              ]
+                        ).map((policy) => ({
+                            value: policy,
+                            label: t(`themeAuthoring.${policy}`),
+                        }))}
+                    />
+                </label>
+                {theme.renderer === "BITMAP_CANVAS" && (
+                    <ThemeToggle
+                        name="requireExactFontMetrics"
+                        checked={theme.requireExactFontMetrics}
+                        onChange={(requireExactFontMetrics) =>
+                            update((current) => ({
+                                ...current,
+                                requireExactFontMetrics,
+                            }))
+                        }
+                    />
+                )}
             </section>
-
+            {incompatible.length > 0 && (
+                <section
+                    className="error small"
+                    data-testid="theme-incompatible-settings"
+                >
+                    <h3>{t("themeAuthoring.incompatibleSettings")}</h3>
+                    <dl>
+                        {incompatible.map((field) => (
+                            <div key={field}>
+                                <dt>{t(`themeAuthoring.${field}`)}</dt>
+                                <dd>
+                                    {field === "content" && theme.content
+                                        ? `${theme.content.minimumWidthPixels}..${theme.content.maximumWidthPixels}px; ${theme.content.leftPaddingPixels}/${theme.content.rightPaddingPixels}px`
+                                        : field === "fallbackBidirectionalText"
+                                          ? "false"
+                                          : String(
+                                                theme[
+                                                    field as
+                                                        | "tooltipStyle"
+                                                        | "fallback"
+                                                        | "requireExactFontMetrics"
+                                                ],
+                                            )}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                    <button
+                        type="button"
+                        className="page-command"
+                        data-testid="theme-normalize-settings"
+                        onClick={() =>
+                            update((current) =>
+                                switchThemeRenderer(current, current.renderer),
+                            )
+                        }
+                    >
+                        <RotateCcw size={14} />
+                        {t("themeAuthoring.normalizeSettings")}
+                    </button>
+                </section>
+            )}
             <section>
-                <h3>{t("inspector.theme.fallback")}</h3>
-                <SelectField
-                    label={t("inspector.theme.fallback")}
-                    value={theme.fallback ?? ""}
-                    onValueChange={(value) =>
-                        store.updateTheme(theme.uuid, (current) => ({
+                <h3>{t("themeAuthoring.requiredCapabilities")}</h3>
+                <ul className="theme-capabilities">
+                    {theme.requiredCapabilities.map((capability, index) => (
+                        <li key={`${capability}:${index}`}>
+                            <code>{capability}</code>
+                            <button
+                                type="button"
+                                className="icon-button danger"
+                                aria-label={t(
+                                    "themeAuthoring.removeCapability",
+                                    { capability },
+                                )}
+                                data-tooltip={t(
+                                    "themeAuthoring.removeCapability",
+                                    { capability },
+                                )}
+                                onClick={() =>
+                                    update((current) => ({
+                                        ...current,
+                                        requiredCapabilities:
+                                            current.requiredCapabilities.filter(
+                                                (_, position) =>
+                                                    position !== index,
+                                            ),
+                                    }))
+                                }
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+                <AddThemeEntry
+                    key={`${theme.uuid}:capabilities`}
+                    label={t("themeAuthoring.addCapability")}
+                    owner="capability"
+                    validate={(value) =>
+                        !namespacedIdSchema.safeParse(value).success
+                            ? t("themeAuthoring.invalidCapability")
+                            : theme.requiredCapabilities.includes(value)
+                              ? t("themeAuthoring.duplicateCapability")
+                              : null
+                    }
+                    onAdd={(capability) =>
+                        update((current) => ({
                             ...current,
-                            fallback: value || null,
+                            requiredCapabilities: [
+                                ...current.requiredCapabilities,
+                                capability,
+                            ],
                         }))
                     }
-                    data-testid="theme-fallback"
-                    options={[
-                        { value: "", label: t("inspector.none") },
-                        ...doc.themes
-                            .filter((entry) => entry.id !== theme.id)
-                            .map((entry) => ({
-                                value: entry.id,
-                                label: humanizePath(
-                                    entry.id.split(":").pop() ?? entry.id,
-                                ),
-                            })),
-                    ]}
                 />
-                <p className="muted small">
-                    {t("inspector.theme.fallbackHint")}
-                </p>
             </section>
-
-            {theme.content ? (
+            {!isPlain && (
                 <section>
-                    <h3>{t("inspector.theme.contentWidth")}</h3>
-                    <WidthSliders
-                        minimum={theme.content.minimumWidthPixels}
-                        maximum={theme.content.maximumWidthPixels}
-                        onChange={(minimum, maximum) =>
-                            store.updateTheme(theme.uuid, (current) => ({
+                    <h3>{t("inspector.theme.fallback")}</h3>
+                    <SelectField
+                        label={t("inspector.theme.fallback")}
+                        value={theme.fallback ?? ""}
+                        data-testid="theme-fallback"
+                        onValueChange={(fallback) =>
+                            update((current) => ({
                                 ...current,
-                                content: {
-                                    ...current.content!,
-                                    minimumWidthPixels: minimum,
-                                    maximumWidthPixels: maximum,
-                                },
+                                fallback: fallback || null,
                             }))
                         }
+                        options={[
+                            { value: "", label: t("inspector.none") },
+                            ...doc.themes
+                                .filter((entry) => entry.id !== theme.id)
+                                .map((entry) => ({
+                                    value: entry.id,
+                                    label: entry.id,
+                                })),
+                        ]}
                     />
+                    {!theme.fallback && (
+                        <p className="error small">
+                            {t("themeAuthoring.missingFallback")}
+                        </p>
+                    )}
                 </section>
-            ) : null}
-
-            {theme.characterFrame ? (
+            )}
+            {usesTooltipStyle && (
                 <section>
-                    <h3>{t("inspector.theme.frame")}</h3>
-                    <label className="field-inline">
-                        {t("inspector.theme.preset")}
-                        <SelectField
-                            label={t("inspector.theme.preset")}
-                            value={theme.characterFrame.preset}
-                            onValueChange={(value) =>
-                                store.updateTheme(theme.uuid, (current) => ({
-                                    ...current,
-                                    characterFrame: {
-                                        ...current.characterFrame!,
-                                        preset: value as never,
-                                    },
-                                }))
-                            }
-                            data-testid="frame-preset"
-                            options={[
-                                "UNICODE_SINGLE",
-                                "UNICODE_DOUBLE",
-                                "ASCII_SAFE",
-                                "BRACKETED_SECTION",
-                                "SEPARATOR_ONLY",
-                            ].map((preset) => ({
-                                value: preset,
-                                label: t(`inspector.framePresets.${preset}`),
-                            }))}
-                        />
-                    </label>
-                    <WidthSliders
-                        minimum={theme.characterFrame.minimumWidthPixels}
-                        maximum={theme.characterFrame.maximumWidthPixels}
-                        onChange={(minimum, maximum) =>
-                            store.updateTheme(theme.uuid, (current) => ({
+                    <h3>{t("themeAuthoring.tooltipStyle")}</h3>
+                    <SelectField
+                        label={t("themeAuthoring.tooltipStyle")}
+                        value={theme.tooltipStyle ?? ""}
+                        data-testid="theme-tooltip-style"
+                        disabled={
+                            theme.renderer === "SEGMENTED_FRAME" &&
+                            !decorationsSupported
+                        }
+                        onValueChange={(tooltipStyle) =>
+                            update((current) => ({
                                 ...current,
-                                characterFrame: {
-                                    ...current.characterFrame!,
-                                    minimumWidthPixels: minimum,
-                                    maximumWidthPixels: maximum,
-                                },
+                                tooltipStyle: tooltipStyle || null,
                             }))
                         }
+                        options={[
+                            { value: "", label: t("inspector.none") },
+                            ...doc.tooltipStyles.map((style) => ({
+                                value: style.id,
+                                label: style.id,
+                            })),
+                        ]}
                     />
+                    {isNative && !theme.tooltipStyle && (
+                        <p className="error small">
+                            {t("themeAuthoring.missingTooltipStyle")}
+                        </p>
+                    )}
                 </section>
-            ) : null}
-
-            {theme.canvas ? (
+            )}
+            {isNative && (
+                <ThemeContent theme={theme} document={doc} update={update} />
+            )}
+            <ThemeGeometry theme={theme} document={doc} update={update} />
+            <ThemeRoles theme={theme} document={doc} update={update} />
+            {retained.length > 0 && (
                 <details className="advanced">
-                    <summary>{t("inspector.theme.canvas")}</summary>
-                    <dl>
-                        <dt>{t("inspector.theme.canvasSize")}</dt>
-                        <dd>
-                            {theme.canvas.widthPixels} ×{" "}
-                            {theme.canvas.heightPixels} px
-                        </dd>
-                        <dt>{t("inspector.theme.reserveLines")}</dt>
-                        <dd>{theme.canvas.reserveTooltipLines}</dd>
-                        <dt>{t("inspector.theme.layers")}</dt>
-                        <dd>{theme.canvas.layers.length}</dd>
-                    </dl>
+                    <summary>{t("themeAuthoring.retainedSettings")}</summary>
+                    <ul>
+                        {retained.map((kind) => (
+                            <li key={kind}>{t(`themeAuthoring.${kind}`)}</li>
+                        ))}
+                    </ul>
                 </details>
-            ) : null}
+            )}
             {previewSettings}
         </aside>
     );
 }
 
-function WidthSliders({
-    minimum,
-    maximum,
-    onChange,
-}: {
-    minimum: number;
-    maximum: number;
-    onChange: (minimum: number, maximum: number) => void;
-}) {
-    const { t } = useTranslation();
-    return (
-        <div className="slider-rows">
-            <label className="slider-row">
-                <span>{t("inspector.theme.minWidth")}</span>
-                <input
-                    type="range"
-                    min={40}
-                    max={220}
-                    value={minimum}
-                    onChange={(event) => {
-                        const next = Number(event.target.value);
-                        onChange(next, Math.max(next, maximum));
-                    }}
-                />
-                <span className="dim small">{minimum}px</span>
-            </label>
-            <label className="slider-row">
-                <span>{t("inspector.theme.maxWidth")}</span>
-                <input
-                    type="range"
-                    min={60}
-                    max={220}
-                    value={maximum}
-                    onChange={(event) => {
-                        const next = Number(event.target.value);
-                        onChange(Math.min(minimum, next), next);
-                    }}
-                    data-testid="max-width-slider"
-                />
-                <span className="dim small">{maximum}px</span>
-            </label>
-        </div>
-    );
-}
-
-/** Named colours resolve through the same table the renderer uses; re-exported for tests. */
 export const NAMED_COLOR_TABLE = NAMED_COLORS;

@@ -31,7 +31,7 @@ export function useEditingShortcuts(enabled: boolean) {
             ) {
                 if (typing && (!element || !documentInput(element))) return;
                 event.preventDefault();
-                commitInlineEditor();
+                if (!commitInlineEditor()) return;
                 if (event.shiftKey || event.key.toLowerCase() === "y")
                     state.redo();
                 else state.undo();
@@ -66,6 +66,7 @@ export function useEditingShortcuts(enabled: boolean) {
                 ["historyUndo", "historyRedo"].includes(event.inputType)
             ) {
                 event.preventDefault();
+                if (!commitInlineEditor()) return;
                 if (event.inputType === "historyUndo")
                     useEditorStore.getState().undo();
                 else useEditorStore.getState().redo();

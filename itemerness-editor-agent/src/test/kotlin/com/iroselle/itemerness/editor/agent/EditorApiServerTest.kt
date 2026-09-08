@@ -15,6 +15,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.Executors
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -23,7 +25,10 @@ class EditorApiServerTest {
     private val token = "test-" + "a".repeat(40)
     private val document = Json.parse("""{"schemaVersion":1,"value":"draft"}""")
 
-    private fun fixture(version: String = "26.1.2", apiToken: String = token, action: (EditorApiServer, AtomicInteger) -> Unit) {
+    private fun fixture(version: String = "26.1.2", apiToken: String = token,
+                        readCatalog: (() -> JsonValue)? = null, exportCatalog: ((JsonValue) -> JsonValue)? = null,
+                        persistentIdentity: Boolean = false,
+                        action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
         val clock = Executors.newSingleThreadScheduledExecutor()
         val scheduler = object : AgentScheduler {
@@ -36,9 +41,11 @@ class EditorApiServerTest {
         val compiles = AtomicInteger()
         val api = EditorApiServer(
             InetSocketAddress("127.0.0.1", 0), apiToken, listOf("http://127.0.0.1:5173"),
-            EditorApiServer.Metadata("test", "0.1.0", version, "Folia", "sha256:" + "0".repeat(64)),
+            EditorApiServer.Metadata("test", "0.1.0", version, "Folia", "sha256:" + "0".repeat(64), "Test Server", persistentIdentity),
             EditorDraftStore(directory.resolve("draft.json")) { Json.parse(it) },
             { compiles.incrementAndGet(); JsonValue.Text("compiled") }, workers, scheduler, { throw AssertionError(it) },
+            readCatalog, exportCatalog,
+            serverMetadata = if (persistentIdentity) ServerMetadataStore(directory.resolve("server-metadata.json"), "test") else null,
         )
         try { api.start(); action(api, compiles) } finally {
             api.close(); workers.shutdownNow(); clock.shutdownNow()
@@ -60,6 +67,43 @@ class EditorApiServerTest {
     private fun saveBody(hash: String = "") = Json.canonicalize(JsonValue.Obj(mapOf("document" to document, "expectedHash" to JsonValue.Text(hash))))
 
     @Test
+    fun `server alias writes are authenticated target bound and independent of drafts`() = fixture(persistentIdentity = true) { api, _ ->
+        fun aliasBody(alias: String, expected: String = "", target: String = "test") = Json.canonicalize(JsonValue.Obj(mapOf(
+            "alias" to JsonValue.Text(alias), "expectedAlias" to JsonValue.Text(expected), "targetServerId" to JsonValue.Text(target),
+        )))
+        assertEquals(401, request(api, "/api/v2/server", "PUT", aliasBody("Preview"), auth = null).statusCode())
+        assertEquals(426, request(api, "/api/v2/server", "PUT", aliasBody("Preview"), protocol = null).statusCode())
+        assertEquals(403, request(api, "/api/v2/server", "PUT", aliasBody("Preview"), origin = "https://evil.example").statusCode())
+        assertEquals(409, request(api, "/api/v2/server", "PUT", aliasBody("Preview", target = "other")).statusCode())
+        assertEquals(400, request(api, "/api/v2/server", "PUT", aliasBody("x".repeat(81))).statusCode())
+        assertEquals(200, request(api, "/api/v2/server", "PUT", aliasBody("Preview")).statusCode())
+        val stale = request(api, "/api/v2/server", "PUT", aliasBody("Overwrite"))
+        assertEquals(409, stale.statusCode())
+        assertTrue(stale.body().contains("SERVER_ALIAS_CONFLICT"))
+        val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
+        assertEquals("Preview", handshake.requiredString("serverAlias"))
+        assertFalse(Files.exists(directory.resolve("draft.json")))
+    }
+
+    @Test
+    fun `persistent identity is advertised and mismatched saves cannot touch the draft`() = fixture(persistentIdentity = true) { api, _ ->
+        val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
+        assertEquals("Test Server", handshake.requiredString("serverName"))
+        assertTrue(JsonValue.Text("server.identity.persistent") in handshake.requiredArray("capabilities"))
+        val mismatched = Json.canonicalize(JsonValue.Obj(mapOf(
+            "document" to document, "expectedHash" to JsonValue.Text(""), "targetServerId" to JsonValue.Text("another-server"),
+        )))
+        val response = request(api, "/api/v2/document", "PUT", mismatched)
+        assertEquals(409, response.statusCode())
+        assertTrue(response.body().contains("TARGET_MISMATCH"))
+        assertFalse(Files.exists(directory.resolve("draft.json")))
+        val saved = JsonObject.of(Json.parse(request(api, "/api/v2/document", "PUT", saveBody()).body()), "save")
+        assertEquals("test", saved.requiredString("serverId"))
+        val loaded = JsonObject.of(Json.parse(request(api, "/api/v2/document").body()), "load")
+        assertEquals("test", loaded.requiredString("serverId"))
+    }
+
+    @Test
     fun `handshake authenticates and mutations require negotiated protocol`() = fixture { api, _ ->
         assertEquals(401, request(api, "/api/handshake", auth = null).statusCode())
         assertEquals(401, request(api, "/api/handshake", auth = "").statusCode())
@@ -73,6 +117,23 @@ class EditorApiServerTest {
             assertEquals(426, request(api, "/api/v2/document", "PUT", saveBody(), protocol = version).statusCode())
         }
         assertFalse(Files.exists(directory.resolve("draft.json")))
+    }
+
+    @Test
+    fun `segmented frame document capability is advertised independently of preview ABI`() {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+            fixture(version) { api, _ ->
+                val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
+                assertTrue(
+                    JsonValue.Text("presentation.segmented-frame.decorations") in handshake.requiredArray("capabilities"),
+                    version,
+                )
+                assertTrue(
+                    JsonValue.Text("catalog.base-components.attributes-enchantments") in handshake.requiredArray("capabilities"),
+                    version,
+                )
+            }
+        }
     }
 
     @Test
@@ -153,5 +214,79 @@ class EditorApiServerTest {
         val payload = JsonValue.Obj(mapOf("document" to document, "snapshotHash" to JsonValue.Text(EditorDraftStore.digest(Json.canonicalize(document)))))
         assertEquals(200, request(api, "/api/v2/preview", "POST", Json.canonicalize(payload), auth = null).statusCode())
         assertEquals(1, count.get())
+    }
+
+    @Test
+    fun `configuration transfer is explicit authenticated versioned and never creates drafts`() {
+        val reads = AtomicInteger()
+        val exports = AtomicInteger()
+        fixture(readCatalog = { reads.incrementAndGet(); document }, exportCatalog = { exports.incrementAndGet(); it }) { api, _ ->
+            assertEquals(0, reads.get())
+            val handshake = request(api, "/api/handshake")
+            assertTrue(handshake.body().contains("catalog.read"))
+            assertTrue(handshake.body().contains("catalog.export"))
+            assertEquals(0, reads.get())
+            assertEquals(401, request(api, "/api/v2/catalog", auth = null).statusCode())
+            assertEquals(403, request(api, "/api/v2/catalog", origin = "https://evil.example").statusCode())
+            assertEquals(426, request(api, "/api/v2/catalog", protocol = "1.0").statusCode())
+            assertEquals(405, request(api, "/api/v2/catalog", "PUT", "{}").statusCode())
+            assertEquals(0, reads.get())
+            assertEquals(200, request(api, "/api/v2/catalog").statusCode())
+            assertEquals(1, reads.get())
+            val payload = JsonValue.Obj(mapOf("document" to document, "snapshotHash" to JsonValue.Text(EditorDraftStore.digest(Json.canonicalize(document)))))
+            assertEquals(401, request(api, "/api/v2/catalog/export", "POST", Json.canonicalize(payload), auth = null).statusCode())
+            assertEquals(426, request(api, "/api/v2/catalog/export", "POST", Json.canonicalize(payload), protocol = "9.0").statusCode())
+            assertEquals(400, request(api, "/api/v2/catalog/export", "POST", """{"document":{},"snapshotHash":"wrong"}""").statusCode())
+            assertEquals(409, request(api, "/api/v2/catalog/export", "POST", Json.canonicalize(JsonValue.Obj(payload.entries + ("targetServerId" to JsonValue.Text("another"))))).statusCode())
+            assertEquals(0, exports.get())
+            assertEquals(200, request(api, "/api/v2/catalog/export", "POST", Json.canonicalize(payload)).statusCode())
+            assertEquals(1, exports.get())
+            assertFalse(Files.exists(directory.resolve("draft.json")))
+        }
+    }
+
+    @Test
+    fun `unsupported transfer is not advertised and structured refusals do not log payloads`() {
+        fixture { api, _ ->
+            assertFalse(request(api, "/api/handshake").body().contains("catalog.read"))
+            assertFalse(request(api, "/api/handshake").body().contains("catalog.export"))
+            assertEquals(404, request(api, "/api/v2/catalog").statusCode())
+        }
+        fixture(readCatalog = { throw CatalogTransferException("CATALOG_SETTINGS_INVALID") }) { api, _ ->
+            val response = request(api, "/api/v2/catalog")
+            assertEquals(422, response.statusCode())
+            assertEquals("CATALOG_SETTINGS_INVALID", JsonObject.parse(response.body(), "response").requiredString("code"))
+        }
+    }
+
+    @Test
+    fun `transfer response byte limits include the envelope and UTF8 expansion`() {
+        fixture(readCatalog = { JsonValue.Text("\u4e2d".repeat(EditorDraftStore.MAX_BYTES / 2)) }) { api, _ ->
+            val response = request(api, "/api/v2/catalog")
+            assertEquals(422, response.statusCode())
+            assertEquals("CATALOG_RESPONSE_TOO_LARGE", JsonObject.parse(response.body(), "response").requiredString("code"))
+            assertFalse(Files.exists(directory.resolve("draft.json")))
+        }
+    }
+
+    @Test
+    fun `only one transfer runs at a time without blocking ordinary API requests`() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        fixture(readCatalog = { entered.countDown(); check(release.await(5, TimeUnit.SECONDS)); document }) { api, _ ->
+            val first = CompletableFuture.supplyAsync { request(api, "/api/v2/catalog") }
+            try {
+                assertTrue(entered.await(2, TimeUnit.SECONDS))
+                val busy = request(api, "/api/v2/catalog")
+                assertEquals(429, busy.statusCode())
+                assertEquals("CATALOG_BUSY", JsonObject.parse(busy.body(), "busy").requiredString("code"))
+                assertEquals(200, request(api, "/api/handshake").statusCode())
+                assertEquals(404, request(api, "/api/v2/document").statusCode())
+            } finally {
+                release.countDown()
+            }
+            assertEquals(200, first.get(5, TimeUnit.SECONDS).statusCode())
+            assertEquals(200, request(api, "/api/v2/catalog").statusCode())
+        }
     }
 }

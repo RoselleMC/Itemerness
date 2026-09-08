@@ -34,6 +34,62 @@ afterEach(() => {
 });
 
 describe("SerialDocumentAutosave", () => {
+    it("retains edits during interruption and resumes only after remote classification", async () => {
+        vi.useFakeTimers();
+        const save = vi.fn(async (document: ProjectDocument) =>
+            saved(document, 2),
+        );
+        const queue = new SerialDocumentAutosave({
+            initialHash: contentHash(baselineDocument),
+            save,
+            onStatus() {},
+            onSaved() {},
+        });
+        queue.queue(edited("before"));
+        queue.setSuspended(true);
+        queue.queue(edited("during"));
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(save).not.toHaveBeenCalled();
+        expect(await queue.saveNow(edited("during"))).toBe(false);
+        expect(
+            queue.observeRemoteUpdate(
+                contentHash(baselineDocument),
+                edited("during"),
+            ),
+        ).toBe("known");
+        queue.setSuspended(false);
+        await vi.runAllTimersAsync();
+        expect(save.mock.calls.map(([document]) => document.namespace)).toEqual(
+            ["during"],
+        );
+        queue.dispose();
+    });
+    it("recovery cannot bypass a conflict or automatically submit manual-mode edits", async () => {
+        vi.useFakeTimers();
+        for (const conflict of [true, false]) {
+            const save = vi.fn(async (document: ProjectDocument) =>
+                saved(document, 2),
+            );
+            const queue = new SerialDocumentAutosave({
+                initialHash: contentHash(baselineDocument),
+                automatic: false,
+                save,
+                onStatus() {},
+                onSaved() {},
+            });
+            queue.setSuspended(true);
+            queue.queue(edited("during"));
+            queue.observeRemoteUpdate(
+                contentHash(conflict ? edited("remote") : baselineDocument),
+                edited("during"),
+            );
+            queue.setSuspended(false);
+            await vi.runAllTimersAsync();
+            expect(save).not.toHaveBeenCalled();
+            expect(await queue.saveNow(edited("during"))).toBe(!conflict);
+            queue.dispose();
+        }
+    });
     it("continues automatic saving after duplicate explicit requests match a completed PUT", async () => {
         vi.useFakeTimers();
         const first = deferred<ReturnType<typeof saved>>();

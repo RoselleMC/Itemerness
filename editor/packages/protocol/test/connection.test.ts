@@ -43,7 +43,7 @@ describe("plugin handshake", () => {
             { protocols: [{ major: 1, minMinor: 0, maxMinor: 9 }] },
             { protocols: [{ major: 3, minMinor: 0, maxMinor: 0 }] },
             { protocols: [{ major: 2, minMinor: 1, maxMinor: 5 }] },
-            { documentSchemas: [2] },
+            { documentSchemas: [3] },
             { previewSchemas: [2] },
             { capabilities: ["draft.read"] },
         ])

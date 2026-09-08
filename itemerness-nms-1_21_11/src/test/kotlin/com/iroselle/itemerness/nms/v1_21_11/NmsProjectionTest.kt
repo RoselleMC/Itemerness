@@ -540,6 +540,23 @@ class NmsProjectionTest {
     }
 
     @Test
+    fun `registered packet sessions retain caller item limits`() {
+        assertCallerItemLimits { projector, source ->
+            projector.project(source, VIEWER_ID, NmsProjectionRegistration.NONE)
+        }
+    }
+
+    @Test
+    fun `unbound packet sessions retain caller item limits`() {
+        assertCallerItemLimits { projector, source -> projector.projectUnbound(source) }
+    }
+
+    @Test
+    fun `unregistered packet sessions retain caller item limits`() {
+        assertCallerItemLimits { projector, source -> projector.project(source, VIEWER_ID) }
+    }
+
+    @Test
     fun `exact adapter factory is service loaded with the pinned version`() {
         val factories = ServiceLoader.load(ProjectionAdapterFactory::class.java).toList()
 
@@ -565,8 +582,30 @@ class NmsProjectionTest {
         },
     )
 
-    private fun packetProjector(): NmsOutboundPacketProjector =
-        NmsOutboundPacketProjector(NmsItemStackProjector(runtime()))
+    private fun packetProjector(
+        limits: NmsProjectionLimits = NmsProjectionLimits.DEFAULT,
+    ): NmsOutboundPacketProjector = NmsOutboundPacketProjector(
+        itemProjector = NmsItemStackProjector(runtime()),
+        limits = limits,
+    )
+
+    private fun assertCallerItemLimits(project: (NmsOutboundPacketProjector, Packet<*>) -> Packet<*>) {
+        val first = ClientboundContainerSetSlotPacket(2, 9, 4, ItemStack(Items.STONE))
+        val second = ClientboundContainerSetSlotPacket(2, 9, 5, ItemStack(Items.STONE))
+        val restricted = packetProjector(NmsProjectionLimits.DEFAULT.copy(items = 1))
+        assertSame(first, project(restricted, first))
+        assertThrows(NmsRecoverableProjectionException::class.java) {
+            project(restricted, bundle(first, second))
+        }
+
+        val larger = bundle(*Array(NmsProjectionLimits.DEFAULT.items + 1) { index ->
+            ClientboundContainerSetSlotPacket(2, 9, index, ItemStack(Items.STONE))
+        })
+        assertThrows(NmsRecoverableProjectionException::class.java) {
+            project(packetProjector(), larger)
+        }
+        assertSame(larger, project(packetProjector(NmsProjectionLimits.DEFAULT.copy(items = 257)), larger))
+    }
 
     private fun connectionState(): NmsConnectionProjectionState = NmsConnectionProjectionState(
         connectionGeneration = 41,

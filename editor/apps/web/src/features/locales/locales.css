@@ -1,0 +1,139 @@
+.locale-matrix .panel-header {
+    flex-wrap: wrap;
+}
+.locale-matrix .panel-header > input {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+.locale-toolbar-actions,
+.locale-object-actions,
+.locale-object-heading,
+.locale-message-key {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.locale-toolbar-actions {
+    flex-wrap: wrap;
+}
+.locale-toolbar-actions > button,
+.locale-creation > button[type="submit"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.locale-creation {
+    display: flex;
+    align-items: end;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 12px 0;
+    border-block: 1px solid var(--line);
+    margin-bottom: 12px;
+}
+.locale-creation > label {
+    display: grid;
+    gap: 5px;
+    flex: 1 1 180px;
+}
+.locale-creation > .error {
+    flex-basis: 100%;
+}
+.locale-matrix .locale-creation input {
+    min-width: 0;
+}
+.locale-table-scroll {
+    max-width: 100%;
+    overflow: auto;
+}
+.locale-matrix table {
+    min-width: 100%;
+}
+.locale-matrix th {
+    min-width: 244px;
+}
+.locale-matrix th:first-child {
+    min-width: 280px;
+}
+.locale-column-controls {
+    display: grid;
+    gap: 8px;
+    font-weight: 400;
+}
+.locale-object-heading > .buffered-field,
+.locale-message-key > .buffered-field {
+    flex: 1;
+    min-width: 0;
+}
+.locale-object-heading > svg,
+.locale-message-key > button {
+    flex: none;
+}
+.locale-message-key > code {
+    overflow-wrap: anywhere;
+    flex: 1;
+    min-width: 0;
+}
+.locale-fallback {
+    display: grid;
+    gap: 4px;
+}
+.locale-matrix .locale-object-heading input,
+.locale-matrix .locale-message-key input {
+    min-width: 0;
+}
+.locale-object-actions {
+    flex-wrap: wrap;
+}
+.locale-object-actions [aria-pressed="true"] {
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+.locale-matrix textarea {
+    width: 100%;
+    min-width: 210px;
+    min-height: 48px;
+    resize: vertical;
+}
+.locale-narrow-selector {
+    display: none;
+}
+@media (max-width: 720px) {
+    .locale-narrow-selector {
+        display: block;
+        margin-bottom: 12px;
+    }
+    .locale-table-scroll {
+        overflow: visible;
+    }
+    .locale-matrix table,
+    .locale-matrix thead,
+    .locale-matrix tbody,
+    .locale-matrix tr {
+        display: block;
+        width: 100%;
+    }
+    .locale-matrix th,
+    .locale-matrix td,
+    .locale-matrix th:first-child {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+    .locale-matrix thead th:first-child,
+    .locale-matrix [data-active-locale="false"] {
+        display: none;
+    }
+    .locale-matrix tbody tr {
+        border-bottom: 1px solid var(--line);
+        padding-block: 10px;
+    }
+    .locale-matrix tbody th,
+    .locale-matrix tbody td {
+        border: 0;
+    }
+    .locale-matrix textarea {
+        min-width: 0;
+    }
+}

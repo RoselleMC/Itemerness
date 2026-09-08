@@ -1,0 +1,31 @@
+.pack-metadata-status {
+    flex-basis: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+    padding-left: 24px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.pack-metadata-status > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.pack-metadata-status[data-pack-format-status="outside"] {
+    color: var(--warn);
+}
+
+.pack-metadata-source {
+    margin-left: 6px;
+    color: var(--muted);
+}
+
+.pack-metadata-note {
+    display: block;
+    color: var(--muted);
+}

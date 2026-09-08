@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import {
     Braces,
     LayoutTemplate,
+    ListFilter,
+    UserRound,
     Package,
     Palette,
     PackageOpen,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEditorStore, type EditorMode } from "../../state/store.js";
 import { describeContext } from "../../state/interface.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 
 export type WorkspacePage =
     "editor" | "assets" | "translations" | "settings" | "diagnostics";
@@ -21,6 +24,8 @@ const MODES = [
     { mode: "themes", Icon: Palette },
     { mode: "layouts", Icon: LayoutTemplate },
     { mode: "data", Icon: Braces },
+    { mode: "formats", Icon: ListFilter },
+    { mode: "facts", Icon: UserRound },
 ] as const satisfies readonly { mode: EditorMode; Icon: typeof Package }[];
 
 export function PrimaryNavigation({
@@ -78,6 +83,7 @@ export function PrimaryNavigation({
                             disabled: !enabled,
                             checked: page === "editor" && target === mode,
                             run: () => {
+                                if (!commitInlineEditor()) return;
                                 setMode(target);
                                 onPageChange("editor");
                             },
@@ -156,6 +162,7 @@ export function PrimaryNavigation({
                             aria-label={t(`sidebar.mode.${target}`)}
                             disabled={!enabled}
                             onClick={() => {
+                                if (!commitInlineEditor()) return;
                                 setMode(target);
                                 onPageChange("editor");
                             }}

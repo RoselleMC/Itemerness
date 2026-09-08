@@ -62,7 +62,7 @@ test("turning automatic saving back on flushes the dirty draft without changing 
     });
     await page.getByTestId("auto-save-toggle").check();
     await expect.poll(() => plugin.writes.length).toBe(1);
-    await page.getByTestId("undo").click();
+    await applicationMenuAction(page, "edit", "undo");
     await expect.poll(() => plugin.writes.length).toBe(2);
     await page.getByTestId("mode-items").click();
     await expect(page.getByTestId("name-input")).toHaveValue(
@@ -242,12 +242,24 @@ test("native File Save events use the same queue, menu state and unsaved exit co
             page.evaluate(() =>
                 (
                     window as unknown as {
-                        menuStates: { enabled: boolean; saveLabel: string }[];
+                        menuStates: {
+                            groups: {
+                                id: string;
+                                items: {
+                                    id: string;
+                                    enabled: boolean;
+                                    label: string;
+                                }[];
+                            }[];
+                        }[];
                     }
-                ).menuStates.at(-1),
+                ).menuStates
+                    .at(-1)
+                    ?.groups.find((group) => group.id === "file")
+                    ?.items.find((item) => item.id === "save-document"),
             ),
         )
-        .toMatchObject({ enabled: true, saveLabel: "Save" });
+        .toMatchObject({ enabled: true, label: "Save" });
     await page.getByTestId("name-input").fill("Native exit save");
     await page.evaluate(() =>
         (window as unknown as { emitNative(event: string): void }).emitNative(
@@ -361,3 +373,4 @@ test("checkerboard coordinates and tile size follow pan, zoom and scrolling", as
     expect(zoomed.tile).toBeCloseTo(zoomed.zoom * 6, 3);
     expect(zoomed.tile).toBe(before.tile * 4);
 });
+import { applicationMenuAction } from "./fixtures/applicationMenu.js";

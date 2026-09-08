@@ -1,11 +1,17 @@
 use reqwest::{redirect::Policy, Client, Method, Url};
 use serde::Serialize;
 use std::time::Duration;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 mod app_menu;
+mod asset_cache;
+mod local_export;
+mod resource_packs;
+mod server_workspace;
 
 #[cfg(target_os = "macos")]
 mod mac_chrome;
+#[cfg(target_os = "macos")]
+mod mac_exit;
 
 const MAX_JSON: usize = 2 * 1024 * 1024;
 
@@ -78,9 +84,11 @@ async fn plugin_request(
     }
     let allowed = matches!(
         (method.as_str(), path.as_str()),
-        ("GET", "/api/handshake" | "/api/v2/document")
-            | ("PUT", "/api/v2/document")
-            | ("POST", "/api/v2/preview")
+        (
+            "GET",
+            "/api/handshake" | "/api/v2/document" | "/api/v2/catalog"
+        ) | ("PUT", "/api/v2/document" | "/api/v2/server")
+            | ("POST", "/api/v2/preview" | "/api/v2/catalog/export")
     );
     if !allowed || body.as_ref().is_some_and(|value| value.len() > MAX_JSON) {
         return Err("INVALID_REQUEST".into());
@@ -108,99 +116,84 @@ async fn plugin_request(
         return Err("REDIRECT_FORBIDDEN".into());
     }
     let status = response.status().as_u16();
-    let bytes = bounded_body(response, MAX_JSON + 1024).await?;
+    let bytes = bounded_body(response, MAX_JSON).await?;
     let body = String::from_utf8(bytes).map_err(|_| "INVALID_API_RESPONSE")?;
     Ok(ApiResponse { status, body })
 }
 
 fn allowed_asset(url: &str) -> bool {
-    let manifest: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../../tools/font-metrics/26.1.2.sources.json"
-    ))
-    .expect("bundled asset manifest");
-    if ["client", "assetIndex"]
-        .iter()
-        .any(|key| manifest[key]["url"].as_str() == Some(url))
-    {
-        return true;
-    }
-    manifest["assetResources"]
-        .as_object()
-        .expect("assetResources")
-        .values()
-        .any(|value| {
-            let hash = value.as_str().expect("asset hash");
-            url == format!(
-                "https://resources.download.minecraft.net/{}/{}",
-                &hash[..2],
-                hash
-            )
-        })
+    asset_cache::expected_hash(url).is_some()
 }
 
 #[tauri::command]
-async fn download_asset(url: String) -> Result<tauri::ipc::Response, String> {
+async fn download_asset(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<tauri::ipc::Response, String> {
     if !allowed_asset(&url) {
         return Err("ASSET_URL_FORBIDDEN".into());
     }
-    let response = client(120)?
-        .get(url)
-        .send()
-        .await
-        .map_err(|_| "NETWORK_UNAVAILABLE")?;
-    if !response.status().is_success() {
-        return Err("ASSET_DOWNLOAD_FAILED".into());
-    }
-    Ok(tauri::ipc::Response::new(
-        bounded_body(response, 128 * 1024 * 1024).await?,
-    ))
+    asset_cache::download(app, url).await
 }
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(resource_packs::PackSources::default())
+        .manage(server_workspace::WorkspaceStorage::default())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|_app| {
             app_menu::install(_app)?;
+            #[cfg(target_os = "windows")]
+            if let Some(window) = _app.get_webview_window("main") {
+                if let Some(monitor) = window.current_monitor()? {
+                    let size = window.outer_size()?;
+                    let work = monitor.work_area().size;
+                    // Keep the bottom navigation above the taskbar on smaller desktops.
+                    if size.width > work.width || size.height > work.height {
+                        window.maximize()?;
+                    }
+                }
+            }
             #[cfg(target_os = "macos")]
             {
                 let window = _app
                     .get_webview_window("main")
                     .ok_or("Main window is unavailable")?;
                 mac_chrome::apply(&window)?;
+                mac_exit::install(_app.handle())?;
             }
             Ok(())
         })
         .on_menu_event(|app, event| {
-            if event.id().as_ref() == "save-document" {
-                if let Err(error) = app.emit_to("main", "editor-save", ()) {
-                    eprintln!("Could not dispatch Save: {error}");
-                }
+            app_menu::dispatch(app, event.id().as_ref());
+        })
+        .on_webview_event(|webview, event| {
+            if let tauri::WebviewEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                resource_packs::dropped(webview.app_handle(), paths);
             }
         })
         .invoke_handler(tauri::generate_handler![
             plugin_request,
             download_asset,
+            resource_packs::pick_resource_packs,
+            resource_packs::read_resource_pack,
+            resource_packs::resource_pack_stamp,
+            resource_packs::watch_resource_pack,
+            resource_packs::release_resource_pack,
+            server_workspace::load_server_workspace,
+            server_workspace::save_server_workspace,
+            local_export::save_editor_export,
             app_menu::update_editor_menu,
-            app_menu::confirm_editor_exit
+            app_menu::confirm_editor_exit,
+            app_menu::cancel_editor_exit
         ])
         .build(tauri::generate_context!())
         .expect("could not run Itemerness Editor")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                if app
-                    .state::<app_menu::EditorMenuState>()
-                    .guard_ready
-                    .load(std::sync::atomic::Ordering::Acquire)
-                    && !app
-                        .state::<app_menu::EditorMenuState>()
-                        .exit_allowed
-                        .load(std::sync::atomic::Ordering::Acquire)
-                    && app.get_webview_window("main").is_some()
-                {
+                if app_menu::request_editor_exit(app) {
                     api.prevent_exit();
-                    if let Err(error) = app.emit_to("main", "editor-exit-requested", ()) {
-                        eprintln!("Could not dispatch exit confirmation: {error}");
-                    }
                 }
             }
         });
@@ -227,13 +220,16 @@ mod tests {
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
+            stream
+                .set_write_timeout(Some(Duration::from_secs(1)))
+                .unwrap();
             let mut request = Vec::new();
             let mut byte = [0];
             while !request.ends_with(b"\r\n\r\n") {
                 stream.read_exact(&mut byte).unwrap();
                 request.push(byte[0]);
             }
-            stream.write_all(response.as_bytes()).unwrap();
+            let _ = stream.write_all(response.as_bytes());
             String::from_utf8(request).unwrap()
         });
         (url, handle)
@@ -325,5 +321,76 @@ mod tests {
         assert!(allowed_asset("https://piston-data.mojang.com/v1/objects/4e618f09a0c649dde3fdf829df443ce0b8831e65/client.jar"));
         assert!(!allowed_asset("https://piston-data.mojang.com/other.jar"));
         assert!(!allowed_asset("http://127.0.0.1:18087/api/handshake"));
+    }
+
+    #[tokio::test]
+    async fn catalog_transport_allows_only_negotiated_read_and_export_routes() {
+        for (method, path) in [
+            ("GET", "/api/v2/catalog"),
+            ("POST", "/api/v2/catalog/export"),
+            ("PUT", "/api/v2/server"),
+        ] {
+            let (url, request) = http_fixture("200 OK", "{}", "");
+            let result = plugin_request(
+                url,
+                String::new(),
+                path.into(),
+                method.into(),
+                None,
+                Some("2.0".into()),
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.status, 200);
+            let sent = request.join().unwrap().to_lowercase();
+            assert!(sent.starts_with(&format!("{} {path} http/1.1", method.to_lowercase())));
+            assert!(sent.contains("x-itemerness-protocol: 2.0"));
+        }
+        for (method, path) in [
+            ("PUT", "/api/v2/catalog"),
+            ("DELETE", "/api/v2/server"),
+            ("GET", "/api/v2/catalog/export"),
+            ("POST", "/api/v2/catalog/publish"),
+            ("DELETE", "/api/v2/catalog"),
+            ("GET", "/api/v2/catalog?file=config.yml"),
+        ] {
+            let result = plugin_request(
+                "http://127.0.0.1:1".into(),
+                String::new(),
+                path.into(),
+                method.into(),
+                None,
+                Some("2.0".into()),
+            )
+            .await;
+            assert!(matches!(result, Err(error) if error == "INVALID_REQUEST"));
+        }
+        let result = plugin_request(
+            "http://127.0.0.1:1".into(),
+            String::new(),
+            "/api/v2/catalog".into(),
+            "GET".into(),
+            None,
+            None,
+        )
+        .await;
+        assert!(matches!(result, Err(error) if error == "PROTOCOL_INCOMPATIBLE"));
+    }
+
+    #[tokio::test]
+    async fn native_catalog_responses_keep_the_common_two_mebibyte_cap() {
+        let (url, request) = http_fixture("200 OK", &"x".repeat(MAX_JSON + 1), "");
+        let result = plugin_request(
+            url,
+            String::new(),
+            "/api/v2/catalog".into(),
+            "GET".into(),
+            None,
+            Some("2.0".into()),
+        )
+        .await;
+        assert!(matches!(result, Err(error) if error == "RESPONSE_TOO_LARGE"));
+        // The client can close as soon as Content-Length exceeds the cap.
+        let _ = request.join();
     }
 }

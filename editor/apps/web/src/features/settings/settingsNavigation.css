@@ -1,0 +1,95 @@
+.workspace-page[data-page="settings"] {
+    --page-width: 920px;
+}
+.settings-layout {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 680px);
+    gap: 32px;
+    align-items: start;
+}
+.settings-toc {
+    position: sticky;
+    top: 16px;
+    min-width: 0;
+    max-height: calc(100dvh - 160px);
+    overflow: auto;
+    padding-block: 24px;
+    font-size: 12px;
+}
+.settings-toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.settings-toc > ul > li + li {
+    margin-top: 20px;
+}
+.settings-toc a {
+    display: block;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 7px 10px;
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+}
+.settings-toc ul ul a {
+    padding-left: 22px;
+}
+.settings-toc a:hover {
+    background: var(--hover);
+    color: var(--text);
+}
+.settings-toc a[aria-current] {
+    color: var(--text);
+    background: var(--accent-dim);
+    box-shadow: inset 2px 0 var(--accent);
+}
+.settings-toc .settings-toc-group {
+    font-weight: 600;
+    color: var(--text);
+}
+.settings-body {
+    min-width: 0;
+}
+.settings-body .settings-group-heading {
+    margin: 28px 0 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 15px;
+}
+.settings-body [data-settings-region],
+.settings-group-heading {
+    scroll-margin-top: 16px;
+}
+.settings-body > [data-settings-region] > .settings-section {
+    margin-inline: 0;
+}
+.settings-body .settings-row > .ui-select {
+    width: 220px;
+    max-width: 55%;
+}
+@media (max-width: 900px) {
+    .settings-layout {
+        grid-template-columns: 156px minmax(0, 1fr);
+        gap: 20px;
+    }
+}
+@media (max-width: 680px) {
+    .settings-layout {
+        display: block;
+    }
+    .settings-toc {
+        position: static;
+        max-height: none;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 16px;
+    }
+    .settings-toc > ul {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    .settings-toc > ul > li + li {
+        margin-top: 0;
+    }
+}

@@ -7,6 +7,7 @@ import com.iroselle.itemerness.bukkit.api.DefaultBukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
+import com.iroselle.itemerness.bukkit.event.ItemernessCatalogPublishedEvent
 import com.iroselle.itemerness.bukkit.catalog.PreparedRuntimeCatalogPublication
 import com.iroselle.itemerness.bukkit.editor.EditorApiService
 import com.iroselle.itemerness.bukkit.editor.EditorApiCoordinator
@@ -159,16 +160,17 @@ class ItemernessPlugin : JavaPlugin() {
                 val asyncExecutor = FoliaAsyncExecutor(scheduler)
                 EditorApiService(
                     endpoint = endpoint,
-                    // Informational identity; the operator selects and authenticates the API URL.
-                    serverId = "${server.name.lowercase()}-${server.port}",
+                    serverName = "${server.name} :${server.port}",
                     agentVersion = pluginMeta.version,
                     minecraftVersion = server.minecraftVersion,
                     platform = server.name,
                     builtinFontMetrics = builtinFontMetrics,
+                    settings = { requireNotNull(catalog.snapshot()) { "The runtime catalog is unavailable" }.settings },
                     logger = logger,
                     scheduler = FoliaAgentScheduler(scheduler),
                     worker = asyncExecutor,
                     draftPath = dataFolder.toPath().resolve("editor/draft.json"),
+                    catalogPath = dataFolder.toPath(),
                 )
             }
 
@@ -289,7 +291,7 @@ class ItemernessPlugin : JavaPlugin() {
                                 failures += factPublication.complete()
                                 if (failures.isNotEmpty()) {
                                     val failure = IllegalStateException(
-                                        "${failures.size} viewer fact listener(s) failed after catalog commit",
+                                        "${failures.size} post-commit callback(s) failed after catalog commit",
                                     )
                                     failures.forEach(failure::addSuppressed)
                                     throw failure
@@ -302,6 +304,9 @@ class ItemernessPlugin : JavaPlugin() {
                     },
                     runtimeActive = {
                         runtimeActive.get() && runtimeGeneration.get() == generation
+                    },
+                    catalogPublished = { revision ->
+                        server.pluginManager.callEvent(ItemernessCatalogPublishedEvent(revision))
                     },
                 ),
                 catalog = catalog,

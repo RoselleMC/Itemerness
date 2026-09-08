@@ -4,11 +4,12 @@ import {
     useState,
     type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
     componentTop,
     type TooltipGeometry,
-    type TooltipProfile,
+    type PresentationFonts,
 } from "@itemerness/mc-render";
 import type {
     ItemNode,
@@ -18,6 +19,7 @@ import type {
 } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { resolveMessage } from "../common/messages.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 import { ContentMenu } from "./ContentMenu.js";
 import { locateBlock } from "../../state/blocks.js";
 import { moveBlockTree } from "../../state/blocks.js";
@@ -25,6 +27,11 @@ import { ArrowUp, ArrowDown } from "lucide-react";
 import { useCanvasReorder } from "./useCanvasReorder.js";
 import { describeContext } from "../../state/interface.js";
 import { contentActions } from "../common/contextActions.js";
+import { previewAccessibleText } from "./previewAccessibleText.js";
+import {
+    canvasAnchorOrigin,
+    draggedCanvasAnchor,
+} from "./canvasAnchorGeometry.js";
 
 /**
  * The preview as an editing surface.
@@ -80,6 +87,7 @@ export function CanvasOverlay({
     item,
     layout,
     guiScale,
+    fonts,
 }: {
     display: PreviewDisplay;
     geometry: TooltipGeometry;
@@ -87,6 +95,7 @@ export function CanvasOverlay({
     item: ItemNode;
     layout: LayoutNode | undefined;
     guiScale: number;
+    fonts: PresentationFonts;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
@@ -227,7 +236,10 @@ export function CanvasOverlay({
                         data-testid={testid}
                         data-origin={origin}
                         onContextMenu={(event) => {
-                            store.selectBlock(origin);
+                            if (!commitInlineEditor()) {
+                                event.preventDefault();
+                                return;
+                            }
                             describeContext(event, {
                                 label: t(
                                     origin === "__name"
@@ -240,10 +252,9 @@ export function CanvasOverlay({
                         aria-label={
                             componentIndex === 0
                                 ? t("inspector.name.heading")
-                                : display.lore[componentIndex - 1]?.runs
-                                      .map((run) => run.text)
-                                      .join("") ||
-                                  t("inspector.content.heading")
+                                : previewAccessibleText(
+                                      display.lore[componentIndex - 1],
+                                  ) || t("inspector.content.heading")
                         }
                         aria-pressed={selected}
                         onPointerEnter={() => setHovered(componentIndex)}
@@ -263,8 +274,11 @@ export function CanvasOverlay({
                                     : origin,
                             )
                         }
-                        onClick={() => store.selectBlock(origin)}
+                        onClick={() => {
+                            if (commitInlineEditor()) store.selectBlock(origin);
+                        }}
                         onDoubleClick={() => {
+                            if (!commitInlineEditor()) return;
                             const messageKey =
                                 origin === "__name"
                                     ? item.presentation.nameMessage
@@ -349,13 +363,13 @@ export function CanvasOverlay({
                     </>
                 )}
 
-            {layout?.kind === "canvas" &&
-            display.renderer === "BITMAP_CANVAS" ? (
+            {layout?.kind === "canvas" ? (
                 <CanvasAnchors
                     layout={layout}
                     scale={scale}
-                    origin={origin}
-                    profile={geometry.profile}
+                    display={display}
+                    geometry={geometry}
+                    fonts={fonts}
                 />
             ) : null}
 
@@ -404,40 +418,52 @@ export function CanvasOverlay({
 /**
  * Draggable anchor regions for a canvas layout.
  *
- * The composer maps an anchor's `y` to a tooltip line with `floor(y / 10)`, so vertical drags snap
- * to the ten-pixel line grid — the box lands exactly where the content will land, never between
- * lines. The right edge resizes the wrapping width.
+ * Keep the transaction alive when an intermediate draft selects a fallback renderer. The active
+ * box uses the drag's original viewport coordinates so auto-fit cannot move its target away.
  */
 function CanvasAnchors({
     layout,
     scale,
-    origin,
-    profile,
+    display,
+    geometry,
+    fonts,
 }: {
     layout: Extract<LayoutNode, { kind: "canvas" }>;
     scale: number;
-    origin: TooltipGeometry["contentOriginPixels"];
-    profile: TooltipProfile;
+    display: PreviewDisplay;
+    geometry: TooltipGeometry;
+    fonts: PresentationFonts;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
-    const lineHeight = profile.lineHeightPixels;
+    const [dragging, setDragging] = useState(false);
     const dragState = useRef<{
         name: string;
         mode: "move" | "resize";
         startX: number;
         startY: number;
         origin: { x: number; y: number; width: number };
+        screenOrigin: { x: number; y: number };
+        scale: number;
     } | null>(null);
     const cancelDrag = useRef<(() => void) | null>(null);
-    useEffect(() => () => cancelDrag.current?.(), [layout.uuid]);
+    useEffect(
+        () => () => cancelDrag.current?.(),
+        [layout.uuid, store.workspaceEpoch],
+    );
+    const theme = store.document.themes.find(
+        (entry) => entry.id === display.selectedTheme,
+    );
+    const origin = theme
+        ? canvasAnchorOrigin(store.document, theme, fonts, geometry)
+        : geometry.contentOriginPixels;
 
     const patchAnchor = (
         name: string,
         patch: Partial<{ x: number; y: number; width: number }>,
     ) =>
         store.updateLayout(layout.uuid, (current) =>
-            current.kind === "canvas"
+            current.kind === "canvas" && current.anchors[name]
                 ? {
                       ...current,
                       anchors: {
@@ -454,11 +480,23 @@ function CanvasAnchors({
         mode: "move" | "resize",
     ) => {
         if (event.button !== 0) return;
+        if (!commitInlineEditor()) return;
         event.preventDefault();
         event.stopPropagation();
+        if (
+            useEditorStore
+                .getState()
+                .document.layouts.find(
+                    (entry) => entry.uuid === layout.uuid,
+                ) !== layout
+        )
+            return;
         const anchor = layout.anchors[name];
         if (!anchor) return;
         cancelDrag.current?.();
+        const rect = event.currentTarget
+            .closest(".anchor-box")!
+            .getBoundingClientRect();
         const transaction = store.beginTransaction();
         const pointer = event.pointerId;
         dragState.current = {
@@ -467,7 +505,13 @@ function CanvasAnchors({
             startX: event.clientX,
             startY: event.clientY,
             origin: { x: anchor.x, y: anchor.y, width: anchor.width },
+            screenOrigin: {
+                x: rect.left - anchor.x * scale,
+                y: rect.top - anchor.y * scale,
+            },
+            scale,
         };
+        setDragging(true);
         const onMove = (move: globalThis.PointerEvent) => {
             const drag = dragState.current;
             if (!drag || move.pointerId !== pointer) return;
@@ -477,25 +521,19 @@ function CanvasAnchors({
                 finish(true);
                 return;
             }
-            const deltaX = (move.clientX - drag.startX) / scale;
-            const deltaY = (move.clientY - drag.startY) / scale;
-            if (drag.mode === "move") {
-                patchAnchor(drag.name, {
-                    x: Math.max(0, Math.round(drag.origin.x + deltaX)),
-                    y: Math.max(
-                        0,
-                        Math.round((drag.origin.y + deltaY) / lineHeight) *
-                            lineHeight,
-                    ),
-                });
-            } else {
-                patchAnchor(drag.name, {
-                    width: Math.max(20, Math.round(drag.origin.width + deltaX)),
-                });
-            }
+            patchAnchor(
+                drag.name,
+                draggedCanvasAnchor(
+                    drag.origin,
+                    drag.mode,
+                    (move.clientX - drag.startX) / drag.scale,
+                    (move.clientY - drag.startY) / drag.scale,
+                ),
+            );
         };
         const finish = (cancel: boolean) => {
             dragState.current = null;
+            setDragging(false);
             cancelDrag.current = null;
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
@@ -524,30 +562,49 @@ function CanvasAnchors({
         window.addEventListener("keydown", onKey, true);
     };
 
-    return (
+    const drag = dragging ? dragState.current : null;
+    if (!drag && display.renderer !== "BITMAP_CANVAS") return null;
+    const boxes = (
         <>
             {Object.entries(layout.anchors).map(([name, anchor]) => {
-                // The name occupies component 0, so canvas line n renders as component n + 1.
-                const line = Math.floor(anchor.y / lineHeight);
-                const top =
-                    (origin.y + componentTop(line + 1, profile)) * scale;
+                if (drag && drag.name !== name) return null;
+                const boxScale = drag?.scale ?? scale;
+                const boxOrigin = drag?.screenOrigin ?? {
+                    x: origin.x * scale,
+                    y: origin.y * scale,
+                };
                 return (
                     <div
                         key={name}
                         className="anchor-box"
                         style={{
-                            top,
-                            left: (origin.x + anchor.x) * scale,
-                            width: anchor.width * scale,
-                            height: Math.max(lineHeight, anchor.height) * scale,
+                            ...(drag
+                                ? {
+                                      position: "fixed",
+                                      zIndex: 95,
+                                      pointerEvents: "none",
+                                  }
+                                : {}),
+                            top: boxOrigin.y + anchor.y * boxScale,
+                            left: boxOrigin.x + anchor.x * boxScale,
+                            width: anchor.width * boxScale,
+                            height: anchor.height * boxScale,
                         }}
-                        data-tooltip={t("stage.anchorTitle")}
+                        data-tooltip={`${name}: ${t("stage.anchorTitle")}`}
                         data-testid={`anchor-box-${name}`}
+                        data-anchor-x={anchor.x}
+                        data-anchor-y={anchor.y}
+                        data-dragging={drag !== null}
                         onPointerDown={(event) =>
                             beginDrag(event, name, "move")
                         }
                     >
-                        <span className="anchor-name">{name}</span>
+                        <span
+                            className="anchor-name"
+                            hidden={!drag && scale < 1}
+                        >
+                            {name}
+                        </span>
                         <span
                             className="anchor-resize"
                             onPointerDown={(event) =>
@@ -559,4 +616,5 @@ function CanvasAnchors({
             })}
         </>
     );
+    return drag ? createPortal(boxes, document.body) : boxes;
 }

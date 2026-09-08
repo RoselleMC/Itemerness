@@ -26,7 +26,8 @@ test("language uses an application menu, supports keyboard selection, and stays 
         "BUTTON",
     );
     await language.press("ArrowDown");
-    await expect(page.getByTestId("ui-language-en-US")).toBeFocused();
+    await expect(page.getByTestId("ui-language-system")).toBeFocused();
+    await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await expect(page.getByTestId("ui-language-zh-CN")).toBeFocused();
     await page.keyboard.press("Enter");

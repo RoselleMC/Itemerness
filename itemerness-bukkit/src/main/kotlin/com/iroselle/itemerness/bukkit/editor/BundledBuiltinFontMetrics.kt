@@ -15,8 +15,14 @@ import com.iroselle.itemerness.editor.protocol.BuiltinFontTable
 internal class BundledBuiltinFontMetrics(
     private val artifact: BuiltinFontMetricsArtifact,
 ) : BuiltinFontMetrics {
+    override val clientVersion: String get() = artifact.clientVersion
+
     override fun table(metricsRevision: String): BuiltinFontTable? {
-        val table = artifact.tablesByRevision["builtin:$metricsRevision"] ?: return null
+        val resolvedRevision = when (metricsRevision) {
+            "minecraft-default", "minecraft-uniform" -> "$metricsRevision-${artifact.clientVersion}"
+            else -> metricsRevision
+        }
+        val table = artifact.tablesByRevision["builtin:$resolvedRevision"] ?: return null
         return BuiltinFontTable(
             fontId = table.fontId,
             metricsRevision = table.metricsRevision,

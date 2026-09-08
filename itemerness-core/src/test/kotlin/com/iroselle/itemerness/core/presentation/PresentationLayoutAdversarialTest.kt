@@ -194,6 +194,36 @@ class PresentationLayoutAdversarialTest {
         assertFalse(display.lore.flatMap(PresentationLine::runs).any { it.kind == PresentationRunKind.BITMAP })
     }
 
+    @Test
+    fun `canvas anchor pixel phases must contain quantized baselines and can be repaired by height`() {
+        val base = PresentationFixtures.source()
+        listOf(36 to 10, 40 to 10, 40 to 16, 56 to 10).forEach { (y, height) ->
+            val layouts = base.layouts.map { layout ->
+                if (layout !is LayoutSource.Canvas || layout.id != "itemerness:bitmap-canvas") return@map layout
+                LayoutSource.Canvas(
+                    id = layout.id,
+                    widthPixels = layout.widthPixels,
+                    heightPixels = layout.heightPixels,
+                    maximumWidthPixels = layout.maximumWidthPixels,
+                    maximumHeightPixels = layout.maximumHeightPixels,
+                    reserveTooltipLines = layout.reserveTooltipLines,
+                    anchors = layout.anchors + ("region" to CanvasAnchorSource(18, y, 140, height, OverflowPolicy.ELLIPSIS)),
+                    wrapping = layout.wrapping,
+                )
+            }
+            val display = renderCanvasProbe(compile(copySource(base, layouts = layouts)))
+            val invalid = y == 40 && height == 10
+            assertEquals(
+                ItemKey.parse(if (invalid) "itemerness:ember" else "itemerness:aurora-canvas"),
+                display.selectedTheme,
+                "anchor y=$y height=$height",
+            )
+            assertEquals(invalid, display.fallbackReasons.any {
+                it.theme == ItemKey.parse("itemerness:aurora-canvas") && it.code == ThemeFallbackCode.LAYOUT_OVERFLOW
+            })
+        }
+    }
+
     private fun renderTextProbe(
         value: String,
         preserveExplicitLines: Boolean,

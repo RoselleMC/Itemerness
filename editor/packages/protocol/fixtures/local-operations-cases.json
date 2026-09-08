@@ -1,0 +1,358 @@
+[
+    {
+        "name": "origin-ipv4-trailing-dot",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://1.2.3.4.']",
+        "valid": false
+    },
+    {
+        "name": "origin-single-numeric-trailing-dot",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://123.']",
+        "valid": true
+    },
+    {
+        "name": "origin-ipv6-scope-hyphen",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[fe80::1%eth-0]']",
+        "valid": false
+    },
+    {
+        "name": "origin-ipv6-scope-underscore",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[fe80::1%eth_0]']",
+        "valid": true
+    },
+    {
+        "name": "origin-ipv6-scope-period",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[fe80::1%eth.0]']",
+        "valid": true
+    },
+    {
+        "name": "origin-ipv6-embedded-octal",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[::ffff:192.168.001.1]']",
+        "valid": true
+    },
+    {
+        "name": "origin-ipv6-embedded-hex",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[::ffff:0x1.0.0.1]']",
+        "valid": false
+    },
+    {
+        "name": "origin-normal",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://example.com']",
+        "valid": true
+    },
+    {
+        "name": "origin-high-port",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://127.0.0.1:99999']",
+        "valid": true
+    },
+    {
+        "name": "origin-empty-port",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://example.com:']",
+        "valid": true
+    },
+    {
+        "name": "origin-max-port",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://example.com:2147483647']",
+        "valid": true
+    },
+    {
+        "name": "origin-overflow-port",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://example.com:2147483648']",
+        "valid": false
+    },
+    {
+        "name": "origin-ipv6",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[::1]:18107']",
+        "valid": true
+    },
+    {
+        "name": "origin-ipv6-scope",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://[fe80::1%eth0]:18107']",
+        "valid": true
+    },
+    {
+        "name": "origin-numeric-host",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://123']",
+        "valid": true
+    },
+    {
+        "name": "origin-numeric-tld",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://a.123']",
+        "valid": false
+    },
+    {
+        "name": "origin-leading-zero-ipv4",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://0001.002.003.004']",
+        "valid": true
+    },
+    {
+        "name": "origin-trailing-dot",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://example.com.']",
+        "valid": true
+    },
+    {
+        "name": "origin-underscore",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['http://a_b.com']",
+        "valid": false
+    },
+    {
+        "name": "origin-path",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://example.com/']",
+        "valid": false
+    },
+    {
+        "name": "origin-uppercase-scheme",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['HTTPS://example.com']",
+        "valid": false
+    },
+    {
+        "name": "origin-credentials",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://user@example.com']",
+        "valid": false
+    },
+    {
+        "name": "origin-query",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://example.com?query']",
+        "valid": false
+    },
+    {
+        "name": "origin-fragment",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://example.com#fragment']",
+        "valid": false
+    },
+    {
+        "name": "origin-idn",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://例子.com']",
+        "valid": false
+    },
+    {
+        "name": "origin-duplicate-allowed",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: ['https://example.com', 'https://example.com']",
+        "valid": true
+    },
+    {
+        "name": "yaml-boolean-yes",
+        "kind": "config",
+        "from": "enabled: false",
+        "to": "enabled: yes",
+        "valid": true
+    },
+    {
+        "name": "yaml-directive-12-boolean-yes",
+        "kind": "config",
+        "prefix": "%YAML 1.2\n---\n",
+        "from": "enabled: false",
+        "to": "enabled: yes",
+        "valid": true
+    },
+    {
+        "name": "yaml-port-octal",
+        "kind": "config",
+        "from": "port: 18087",
+        "to": "port: 043247",
+        "valid": true
+    },
+    {
+        "name": "yaml-port-float",
+        "kind": "config",
+        "from": "port: 18087",
+        "to": "port: 18087.0",
+        "valid": false
+    },
+    {
+        "name": "yaml-port-quoted",
+        "kind": "config",
+        "from": "port: 18087",
+        "to": "port: '18087'",
+        "valid": false
+    },
+    {
+        "name": "yaml-duplicate-key",
+        "kind": "config",
+        "from": "port: 18087",
+        "to": "port: 18087\n  port: 18088",
+        "valid": false
+    },
+    {
+        "name": "yaml-collection-alias",
+        "kind": "config",
+        "from": "allowed-origins: []",
+        "to": "allowed-origins: &origins []\n  extra: *origins",
+        "valid": false
+    },
+    {
+        "name": "yaml-direct-merge",
+        "kind": "config",
+        "from": "catalog:\n  default-namespace: itemerness",
+        "to": "catalog:\n  <<: {default-namespace: itemerness}",
+        "valid": true
+    },
+    {
+        "name": "yaml-scalar-alias",
+        "kind": "config",
+        "from": "default-layout: itemerness:plain\n  default-theme: itemerness:default",
+        "to": "default-layout: &shared itemerness:plain\n  default-theme: *shared",
+        "valid": true
+    },
+    {
+        "name": "yaml-scalar-key-alias",
+        "kind": "config",
+        "from": "catalog:\n  default-namespace: itemerness",
+        "to": "catalog:\n  &key default-namespace: itemerness\n  *key: other",
+        "valid": false
+    },
+    {
+        "name": "yaml-timestamp",
+        "kind": "config",
+        "from": "default-namespace: itemerness",
+        "to": "default-namespace: 2026-09-08",
+        "valid": false
+    },
+    {
+        "name": "yaml-binary",
+        "kind": "config",
+        "from": "default-namespace: itemerness",
+        "to": "default-namespace: !!binary aGVsbG8=",
+        "valid": false
+    },
+    {
+        "name": "config-unknown-preserved",
+        "kind": "config",
+        "suffix": "\nfuture-key: preserved\n",
+        "valid": false
+    },
+    {
+        "name": "yaml-second-document",
+        "kind": "config",
+        "suffix": "\n---\nconfig-version: 3\n",
+        "valid": false
+    },
+    {
+        "name": "config-disabled-bad-token",
+        "kind": "config",
+        "from": "token: \"\"",
+        "to": "token: invalid",
+        "valid": true
+    },
+    {
+        "name": "config-pending-newline",
+        "kind": "config",
+        "from": "text: \"[{item-id}]\"",
+        "to": "text: |\n      Loading\n      {item-id}",
+        "valid": true
+    },
+    {
+        "name": "access-facts-only",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Facts, actions: [write-viewer-fact], viewer-fact-namespaces: [viewer]}]",
+        "valid": true
+    },
+    {
+        "name": "access-read-complete",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Read, actions: [read-data], item-namespaces: [items], data-namespaces: [data]}]",
+        "valid": true
+    },
+    {
+        "name": "access-read-missing-data",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Read, actions: [read-data], item-namespaces: [items]}]",
+        "valid": false
+    },
+    {
+        "name": "access-irrelevant-null-namespaces",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Facts, actions: [write-viewer-fact], item-namespaces: null, viewer-fact-namespaces: [viewer]}]",
+        "valid": true
+    },
+    {
+        "name": "access-duplicate-action",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Read, actions: [identify, identify], item-namespaces: [items]}]",
+        "valid": false
+    },
+    {
+        "name": "access-wildcard-namespace",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Read, actions: [identify], item-namespaces: ['*']}]",
+        "valid": false
+    },
+    {
+        "name": "access-invalid-default",
+        "kind": "access",
+        "from": "create: allow",
+        "to": "create: schema-policy",
+        "valid": false
+    },
+    {
+        "name": "access-missing-default",
+        "kind": "access",
+        "from": "    create: allow\n",
+        "to": "",
+        "valid": false
+    },
+    {
+        "name": "access-grant-decision-forbidden",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Read, actions: [identify], item-namespaces: [items], decision: deny}]",
+        "valid": false
+    }
+]

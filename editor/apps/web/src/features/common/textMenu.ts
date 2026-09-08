@@ -34,6 +34,7 @@ export function isTextControl(
 
 export function documentInput(element: Element) {
     return (
+        !element.closest("[data-local-operations]") &&
         !(element instanceof HTMLInputElement && element.type === "search") &&
         !!element.closest(
             ".inspector,.workspace-page-content,.inline-editor,.ui-document-popup",
@@ -94,8 +95,9 @@ export function textMenu(
             element.setSelectionRange(start + text.length, start + text.length);
     };
     const inlineChanged =
-        element.classList.contains("inline-editor") &&
-        element.value !== element.defaultValue;
+        (element.classList.contains("inline-editor") &&
+            element.value !== element.defaultValue) ||
+        element.getAttribute("data-dirty") === "true";
     return [
         {
             id: "undo",
@@ -109,7 +111,7 @@ export function textMenu(
             run: () => {
                 if (!valid()) return;
                 if (isDocument) {
-                    commitInlineEditor();
+                    if (!commitInlineEditor()) return;
                     state.undo();
                 } else {
                     focus();
@@ -128,8 +130,10 @@ export function textMenu(
                     : !document.queryCommandEnabled("redo")),
             run: () => {
                 if (!valid()) return;
-                if (isDocument) state.redo();
-                else {
+                if (isDocument) {
+                    if (!commitInlineEditor()) return;
+                    state.redo();
+                } else {
                     focus();
                     document.execCommand("redo");
                 }

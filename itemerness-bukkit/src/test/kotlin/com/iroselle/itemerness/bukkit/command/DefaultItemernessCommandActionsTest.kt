@@ -61,6 +61,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Material
@@ -166,9 +169,11 @@ class DefaultItemernessCommandActionsTest {
         val catalog = RuntimeCatalogManager(directory, "26.1.2")
         assertEquals(1, (catalog.reload() as RuntimeCatalogUpdate.Published).active.domain.revision)
         var projectedRevision = 1L
+        val notifications = ArrayList<Long>()
         val actions = actions(
             platform,
             catalog = catalog,
+            catalogPublished = notifications::add,
             catalogPublication = RuntimeCatalogPublication { candidate ->
                 object : PreparedRuntimeCatalogPublication {
                     override fun commit() {
@@ -187,6 +192,7 @@ class DefaultItemernessCommandActionsTest {
 
         assertEquals(1, catalog.catalogRevision)
         assertEquals(1, projectedRevision)
+        assertTrue(notifications.isEmpty())
         assertEquals(
             Component.text(
                 "Catalog publication failed; revision 1 remains active: projection rejected candidate",
@@ -194,6 +200,137 @@ class DefaultItemernessCommandActionsTest {
             ),
             platform.messages.last(),
         )
+    }
+
+    @Test
+    fun `successful reload notifies once on global context after releasing publication lock`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        val platform = Platform(runAsyncImmediately = false)
+        val observations = ArrayList<Triple<Long, Long?, Boolean>>()
+        val reader = Executors.newSingleThreadExecutor()
+        try {
+            val actions = actions(platform, catalog = catalog, catalogPublished = { revision ->
+                val visibleRevision = reader.submit<Long?> {
+                    catalog.withCurrentSnapshot { it.domain.revision }
+                }.get(5, TimeUnit.SECONDS)
+                observations += Triple(revision, visibleRevision, platform.runningGlobal)
+            })
+            assertTrue(catalog.reload() is RuntimeCatalogUpdate.Published)
+            assertTrue(observations.isEmpty(), "Startup does not emit a reload notification")
+
+            actions.reload(platform.console, checkOnly = false)
+            assertTrue(observations.isEmpty(), "Async preparation has not run yet")
+            platform.runQueuedAsync()
+
+            assertEquals(listOf(Triple(2L, 2L, true)), observations)
+            assertEquals(2, catalog.catalogRevision)
+        } finally {
+            reader.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `post-commit error does not suppress notification or undo the published revision`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        catalog.reload()
+        val platform = Platform()
+        val notifications = ArrayList<Long>()
+        val actions = actions(
+            platform,
+            catalog = catalog,
+            catalogPublication = RuntimeCatalogPublication {
+                object : PreparedRuntimeCatalogPublication {
+                    override fun commit() = Unit
+                    override fun rollback() = error("Committed catalog must not roll back")
+                    override fun complete() = throw LinkageError("fact completion failed")
+                }
+            },
+            catalogPublished = notifications::add,
+        )
+
+        actions.reload(platform.console, checkOnly = false)
+
+        assertEquals(listOf(2L), notifications)
+        assertEquals(2, catalog.catalogRevision)
+        assertTrue(platform.warnings.any { it.message == "Catalog post-commit listener failed" })
+    }
+
+    @Test
+    fun `notification failure is a warning and later reload notifications continue in order`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        catalog.reload()
+        val platform = Platform()
+        val notifications = ArrayList<Long>()
+        val actions = actions(platform, catalog = catalog, catalogPublished = { revision ->
+            notifications += revision
+            if (revision == 2L) throw LinkageError("event dispatcher failed")
+        })
+
+        actions.reload(platform.console, checkOnly = false)
+        actions.reload(platform.console, checkOnly = false)
+
+        assertEquals(listOf(2L, 3L), notifications)
+        assertEquals(3, catalog.catalogRevision)
+        assertTrue(platform.warnings.any { it.message == "Catalog publication event failed after committing revision 2" })
+        assertEquals(Component.text("Published catalog revision 3 (0 enabled items)", NamedTextColor.GRAY), platform.messages.last())
+    }
+
+    @Test
+    fun `validation and rejected source do not emit publication notifications`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        catalog.reload()
+        val platform = Platform()
+        val notifications = ArrayList<Long>()
+        val actions = actions(platform, catalog = catalog, catalogPublished = notifications::add)
+
+        actions.reload(platform.console, checkOnly = true)
+        Files.writeString(directory.resolve("config.yml"), "schema-version: -1\n")
+        actions.reload(platform.console, checkOnly = false)
+
+        assertTrue(notifications.isEmpty())
+        assertEquals(1, catalog.catalogRevision)
+    }
+
+    @Test
+    fun `superseded queued reload does not announce a revision it never committed`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        catalog.reload()
+        val platform = Platform(runAsyncImmediately = false, runGlobalImmediately = false)
+        val notifications = ArrayList<Long>()
+        val actions = actions(platform, catalog = catalog, catalogPublished = notifications::add)
+
+        actions.reload(platform.console, checkOnly = false)
+        actions.reload(platform.console, checkOnly = false)
+        platform.runQueuedAsync()
+        assertTrue(notifications.isEmpty())
+        platform.runQueuedGlobal()
+
+        assertEquals(listOf(2L), notifications)
+        assertEquals(2, catalog.catalogRevision)
+    }
+
+    @Test
+    fun `retired runtime does not dispatch a queued publication or its event`() {
+        installBundledDomain()
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        catalog.reload()
+        val active = AtomicBoolean(true)
+        val platform = Platform(runAsyncImmediately = false, runGlobalImmediately = false)
+        val notifications = ArrayList<Long>()
+        val actions = actions(platform, catalog = catalog, runtimeActive = active::get, catalogPublished = notifications::add)
+
+        actions.reload(platform.console, checkOnly = false)
+        platform.runQueuedAsync()
+        active.set(false)
+        platform.runQueuedGlobal()
+
+        assertTrue(notifications.isEmpty())
+        assertEquals(1, catalog.catalogRevision)
     }
 
     @Test
@@ -520,6 +657,7 @@ class DefaultItemernessCommandActionsTest {
             defaultValue(method)
         },
         effectiveItemData: EffectiveItemDataResolver = EffectiveItemDataResolver(),
+        catalogPublished: (Long) -> Unit = {},
     ): DefaultItemernessCommandActions = DefaultItemernessCommandActions(
         plugin = platform.plugin,
         scheduler = FoliaScheduler(platform.plugin),
@@ -529,6 +667,7 @@ class DefaultItemernessCommandActionsTest {
         playerRefreshed = playerRefreshed,
         runtimeActive = runtimeActive,
         effectiveItemData = effectiveItemData,
+        catalogPublished = catalogPublished,
     )
 
     private fun installBundledDomain() {
@@ -555,15 +694,28 @@ class DefaultItemernessCommandActionsTest {
         private val runAsyncImmediately: Boolean = true,
         private val runEntityImmediately: Boolean = true,
         private val rejectGlobal: Boolean = false,
+        private val runGlobalImmediately: Boolean = true,
         initialMainHand: ItemStack? = null,
     ) {
         val messages = ArrayList<Component>()
         val globalSubmissions = AtomicInteger()
         val asyncSubmissions = AtomicInteger()
+        val warnings = ArrayList<LogRecord>()
+        var runningGlobal = false
+            private set
         private val queuedAsync = ArrayList<() -> Unit>()
+        private val queuedGlobal = ArrayList<() -> Unit>()
         private val queuedEntity = ArrayList<() -> Unit>()
         private val mainHand = AtomicReference(initialMainHand)
         private val task: ScheduledTask = proxy(ScheduledTask::class.java) { method, _ -> defaultValue(method) }
+        private val logger = Logger.getAnonymousLogger().apply {
+            useParentHandlers = false
+            addHandler(object : Handler() {
+                override fun publish(record: LogRecord) { warnings += record }
+                override fun flush() = Unit
+                override fun close() = Unit
+            })
+        }
 
         val console: ConsoleCommandSender = proxy(ConsoleCommandSender::class.java) { method, arguments ->
             if (method.name == "sendMessage") {
@@ -620,7 +772,17 @@ class DefaultItemernessCommandActionsTest {
                 globalSubmissions.incrementAndGet()
                 if (rejectGlobal) throw IllegalStateException("scheduler rejected")
                 @Suppress("UNCHECKED_CAST")
-                (arguments[1] as Consumer<ScheduledTask>).accept(task)
+                val action = arguments[1] as Consumer<ScheduledTask>
+                val ownedAction = {
+                    val previous = runningGlobal
+                    runningGlobal = true
+                    try {
+                        action.accept(task)
+                    } finally {
+                        runningGlobal = previous
+                    }
+                }
+                if (runGlobalImmediately) ownedAction() else queuedGlobal += ownedAction
                 task
             } else {
                 defaultValue(method)
@@ -648,6 +810,7 @@ class DefaultItemernessCommandActionsTest {
                 "getGlobalRegionScheduler" -> globalScheduler
                 "getAsyncScheduler" -> asyncScheduler
                 "getConsoleSender" -> console
+                "getOnlinePlayers" -> emptyList<Player>()
                 else -> defaultValue(method)
             }
         }
@@ -656,6 +819,7 @@ class DefaultItemernessCommandActionsTest {
             when (method.name) {
                 "getServer" -> server
                 "getName" -> "Itemerness"
+                "getLogger" -> logger
                 "isEnabled" -> true
                 else -> defaultValue(method)
             }
@@ -663,6 +827,10 @@ class DefaultItemernessCommandActionsTest {
 
         fun runQueuedAsync() {
             queuedAsync.toList().also { queuedAsync.clear() }.forEach { it() }
+        }
+
+        fun runQueuedGlobal() {
+            queuedGlobal.toList().also { queuedGlobal.clear() }.forEach { it() }
         }
 
         fun runQueuedEntity() {

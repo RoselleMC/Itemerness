@@ -114,6 +114,98 @@ import org.junit.jupiter.api.Test
 
 class NmsStructuredPayloadProjectorTest {
     @Test
+    fun `bulk recipe packets retain normal projection beyond the inventory item budget`() {
+        val source = bulkRecipeBook(2_000)
+        assertSame(source, outboundProjector().project(source, VIEWER_ID))
+
+        val managed = bulkRecipeBook(1, managedSlot())
+        val mixed = ClientboundRecipeBookAddPacket(source.entries() + managed.entries(), true)
+        val projected = outboundProjector().project(mixed, VIEWER_ID) as ClientboundRecipeBookAddPacket
+        val slot = (projected.entries().last().contents().display() as StonecutterRecipeDisplay)
+            .result() as SlotDisplay.ItemStackSlotDisplay
+        assertProjected(slot.stack().create())
+        assertCanonical(slotStacks((managed.entries().single().contents().display() as StonecutterRecipeDisplay).result()).single())
+    }
+
+    @Test
+    fun `bulk recipe packets remain bounded by total item and entry limits`() {
+        val itemFailure = assertThrows(NmsRecoverableProjectionException::class.java) {
+            outboundProjector().project(bulkRecipeBook(2_731), VIEWER_ID)
+        }
+        assertEquals("Packet item projection exceeds the item limit", itemFailure.message)
+        val entryFailure = assertThrows(NmsRecoverableProjectionException::class.java) {
+            outboundProjector().project(bulkRecipeBook(4_097), VIEWER_ID)
+        }
+        assertEquals("Recipe book packet exceeds the projection entry limit", entryFailure.message)
+    }
+
+    @Test
+    fun `bulk recipe packets share item allowances across a bundle`() {
+        val first = bulkRecipeBook(1_500)
+        val second = bulkRecipeBook(1_500)
+        assertSame(first, outboundProjector().project(first, VIEWER_ID))
+        assertSame(second, outboundProjector().project(second, VIEWER_ID))
+        val failure = assertThrows(NmsRecoverableProjectionException::class.java) {
+            outboundProjector().project(ClientboundBundlePacket(listOf(first, second)), VIEWER_ID)
+        }
+        assertEquals("Packet item projection exceeds the item limit", failure.message)
+    }
+
+    @Test
+    fun `recipe scope does not grant the following inventory packet a larger budget`() {
+        val inventory = net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket(
+            1, 1, List(256) { ItemStack(Items.STONE) }, ItemStack.EMPTY,
+        )
+        val failure = assertThrows(NmsRecoverableProjectionException::class.java) {
+            outboundProjector().project(ClientboundBundlePacket(listOf(bulkRecipeBook(1), inventory)), VIEWER_ID)
+        }
+        assertEquals("Packet item projection exceeds the item limit", failure.message)
+    }
+
+    @Test
+    fun `recipe envelopes retain explicit payload limits and reset scopes after failure`() {
+        val limits = NmsProjectionLimits.DEFAULT.copy(payloadNodes = 5, recipePayloadNodes = 10)
+        val projector = NmsOutboundPacketProjector(NmsItemStackProjector(runtime()), limits = limits)
+        val allowed = bulkRecipeBook(2)
+        assertSame(allowed, projector.project(allowed, VIEWER_ID))
+        val failure = assertThrows(NmsRecoverableProjectionException::class.java) {
+            projector.project(bulkRecipeBook(3), VIEWER_ID)
+        }
+        assertEquals("Structured payload projection exceeds the node limit", failure.message)
+
+        val budget = NmsPayloadProjectionBudget(limits = limits)
+        assertThrows(IllegalStateException::class.java) {
+            budget.withinRecipe<Unit> { error("Interrupted recipe projection") }
+        }
+        assertFalse(budget.inRecipe)
+        repeat(5) { budget.enterPayload(0) }
+        assertThrows(NmsRecoverableProjectionException::class.java) { budget.enterPayload(0) }
+    }
+
+    private fun bulkRecipeBook(
+        count: Int,
+        slot: SlotDisplay = SlotDisplay.ItemStackSlotDisplay(template(ItemStack(Items.STONE).also {
+            it.set(DataComponents.ENCHANTMENTS, net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY)
+            it.set(DataComponents.ITEM_NAME, Component.translatable("block.minecraft.stone"))
+        })),
+    ): ClientboundRecipeBookAddPacket = ClientboundRecipeBookAddPacket(
+        List(count) { index ->
+            ClientboundRecipeBookAddPacket.Entry(
+                RecipeDisplayEntry(
+                    RecipeDisplayId(index),
+                    StonecutterRecipeDisplay(slot, slot, slot),
+                    OptionalInt.empty(),
+                    RecipeBookCategory(),
+                    Optional.empty(),
+                ),
+                false,
+                false,
+            )
+        },
+        true,
+    )
+
+    @Test
     fun `all recipe display and nested slot variants project their item and component leaves`() {
         val leaf = managedSlot()
         val pattern = Holder.direct(

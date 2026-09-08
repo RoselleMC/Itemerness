@@ -45,17 +45,39 @@ prove Windows runtime behavior.
 The integrated header follows AudioHub's platform split: macOS uses an overlay titlebar with
 native traffic lights and hidden system title text. A native unified toolbar lets AppKit choose
 the larger document-window corners and lower traffic lights (including macOS 26), without private
-corner-radius APIs or manual button positioning. The shared header is 52px high. Windows uses an undecorated window with
+corner-radius APIs or manual button positioning. The macOS/browser header is 52px high. Windows uses
+a 32px header with 46px-wide, native-style caption buttons sharing its background, and an undecorated window with
 in-app minimize, maximize/restore, and close controls. Header dragging and double-click zoom use
 Tauri's window API, not CSS app-region behavior. Controls are excluded from drag hit testing.
 Dialogs leave this strip accessible. Close actually closes this editor; it does not hide a daemon.
 Windows Snap Layout hover and a custom native system menu are not implemented.
+Primary navigation follows platform density: Windows uses 48px collapsed / 152px expanded,
+while macOS/browser uses 56px / 160px. Reduced Windows side padding preserves button and label space.
+
+The header omits the product title. Windows provides an application-styled File/Edit/View/Help
+menubar; it collapses to a menu icon when space is limited, with F10 and Alt keyboard access.
+macOS uses only its native menu bar, retaining system clipboard, Services and window commands.
+Both menus share document commands and enabled state with the editor. Settings uses Cmd/Ctrl+Comma,
+new item Cmd/Ctrl+N, connection Cmd/Ctrl+Shift+K, sidebar visibility Cmd/Ctrl+B, and canvas zoom
+Cmd/Ctrl+Plus/Minus/0. Undo/redo buttons are centered in the canvas toolbar and remain available
+globally through Edit and Cmd/Ctrl+Z (redo: Cmd+Shift+Z or Ctrl+Y). Text inputs retain their own
+editing behavior. Save is an application command, since Tauri has no predefined Save menu item.
 
 The center of the titlebar is the plugin connection control, not a search field. It shows the
 selected server and live connection state. Open it to enter an API address and token, cancel an
 attempt, disconnect, inspect platform/plugin/protocol versions and preview capability, or resolve
 a draft conflict. Escape returns focus to the control; clicking elsewhere dismisses the popup.
 Closing the popup does not disconnect or cancel an attempt. Unsubmitted tokens are discarded.
+Connection history groups validated addresses by persistent server UUID, with per-address and
+per-server removal. Selecting history fills the address, clears the token, and checks that the
+next handshake still identifies the selected installation. History never stores credentials.
+
+Unexpected interruptions retry indefinitely with bounded exponential delay. The current draft,
+selection, history and mounted resources remain available while remote writes are suspended.
+Recovery checks the current remote document before resuming CAS saves; divergent edits remain
+conflicts. Explicit disconnect cancels recovery. Manual reconnect mode instead requires a blocking
+Retry/Disconnect decision after each interruption. A changed server identity always requires an
+explicit decision and never receives the previous installation's writes.
 
 The titlebar preferences occupy the free edge opposite system window controls, following AudioHub:
 on macOS/browser, appearance, interface language, then save status at the far right; on Windows,
@@ -63,7 +85,8 @@ save status at the far left, followed by language and appearance. Windows captio
 at the far right. Menus and keyboard order follow the mirrored placement. Interface language uses
 a globe icon, distinct from the translation glyph used for content translations.
 Language and Light/Dark/System choices use application-styled keyboard-accessible menus, not native
-selects. System is the default appearance and tracks system changes; explicit overrides are remembered
+selects. System appearance uses a combined sun/moon icon. Both appearance and interface language
+default to following system changes; explicit overrides are remembered
 locally. Native window appearance follows the selected mode. Minecraft resource-pack pixels are not
 recolored by interface appearance. The save indicator reflects actual synchronization state, provides
 recovery actions for errors/conflicts, and respects reduced-motion preferences.
@@ -117,6 +140,45 @@ The editor still rejects embedded URL credentials, query parameters, fragments, 
 Old empty `editor.url`/`editor.token` settings remain disabled for migration. Configured outbound
 pairings fail with a migration message. Replace the old settings and credentials; the retired
 control plane's in-memory documents are not automatically imported.
+
+## Server Identity And Preferences
+
+Each plugin installation creates a random UUID in `plugins/Itemerness/editor/server-id`.
+It survives restarts, listener address/port changes, and platform changes. Back it up with the
+server data. A damaged identity file stops the API from starting instead of silently replacing
+the identity. When cloning an installation into a distinct server, remove `server-id` and
+`server-metadata.json` from the clone while stopped so it receives a new identity.
+
+The handshake advertises `server.identity.persistent`, `serverId`, `serverName`, and `serverAlias`.
+Settings can change the shared alias through `PUT /api/v2/server` when `server.alias.write` is
+advertised. The request includes `targetServerId`, `expectedAlias`, and `alias`; identity mismatch
+or a concurrent rename returns 409. The alias and UUID are stored together in the server's
+`editor/server-metadata.json`, independently of the authoring draft and runtime catalog.
+An empty alias uses the platform/listener label. UUIDs identify installations, not trusted peers;
+token authentication and TLS remain separate requirements.
+
+After a current validated document loads, the editor restores device-local preferences keyed by
+UUID: pack paths/handles, priority, automatic reload, vanilla version, selected item, preview
+locale/comparison/geometry, and zoom mode/level. Desktop records live in the OS application data
+directory under `server-workspaces-v1`; browser file handles use IndexedDB where supported.
+Remembered mounts are reread, not cached pack snapshots. Missing/inaccessible paths remain visible
+with reload and remove controls. Browsers may require explicit read permission again; reload
+requests it after a user action. Fallback file-input snapshots cannot be restored across sessions.
+Settings can disable or clear this server's local record without altering its alias, files, or
+documents. Interface language, appearance, navigation expansion, auto-save and watch interval
+remain device-wide. Tokens and drafts are never stored in these preference records.
+
+Older plugins without an advertised persistent UUID use temporary mount/preview preferences.
+Changing addresses does not change a remembered server. Reusing an address for another server
+cannot retarget a session: the editor binds document reads/writes to its negotiated identity,
+blocks writes on an identity change, and retains pending edits until explicit disconnect.
+
+Settings has a hierarchical heading directory and separate groups for this device, the remote
+plugin, and local plugin-file tools. Its centered 920px layout keeps the settings body at 680px
+and collapses the directory above the content on narrow windows.
+Other full pages use bounded centered content columns: resource packs 960px,
+translations 1280px, and contextual diagnostics 960px. Narrow windows retain side gutters and
+responsive controls. The editor's working canvas and inspectors still use the available workspace.
 
 ## Protocol And Drafts
 
@@ -224,9 +286,11 @@ includes both language previews and edge controls. Blank-space drag pans at any 
 middle-button drag and Space-drag remain available. Fit-all also recenters the canvas. The lighter
 neutral-green dark-mode checkerboard separates the UI from dark tooltip pixels without recoloring
 the tooltip. These are editor view controls, not changes to Minecraft GUI
-scale or the authoring document. Preview language, comparison, geometry, player context, accuracy,
-and issues belong to the global inspector. Per-item colored status icons in the secondary list
-replace the old canvas verification badge and track the current document/viewer/compiler context.
+scale or the authoring document. The bottom-left preview language menu opens upward. Player context,
+comparison, geometry, accuracy and issues stay in the canvas footer even when content is selected.
+Player context and accuracy open upward popovers; accuracy summarizes the number of server-verified
+aspects, not a percentage of pixel fidelity. Per-item colored status icons in the secondary list
+track the current document/viewer/compiler context.
 The checkerboard is anchored to the primary tooltip's canvas origin, with cells sized in logical
 canvas units: it moves, zooms and scrolls with the preview instead of staying fixed in the viewport.
 
@@ -255,10 +319,25 @@ each edge. Text, line hitboxes, annotations, and canvas anchors share the same c
 renderer's full canvas extent is not the logical text width. Character-frame themes can decorate only
 managed Lore, leaving the name above that inner ornament but still inside the vanilla tooltip body.
 
-Bundled 26.1.2 font metrics require no network download. In an unlocked workspace, mount resource-pack ZIPs or `client.jar` locally, or fetch
-the pinned Mojang assets directly from the editor. Downloads are SHA-1 verified; Mojang bytes are
-not distributed with the application. Browser downloads depend on CDN CORS; local mounting remains
-available. The native downloader accepts only the exact bundled manifest URLs.
+Bundled 26.1.2 font metrics require no network download. The resource-pack page mounts local ZIPs,
+directories, or `client.jar` through native selection or file drops. Custom packs retain their source
+paths and priority, show `pack.png` (with the Minecraft fallback icon), description, format declaration,
+size and load status. Reload never writes to a source or changes authoring history. A failed reload
+keeps the last successful resources visible and reports the source error.
+
+Auto reload is enabled for path-backed mounts by default. Native filesystem events settle for 250ms;
+metadata polling provides a fallback, initially every 1 second, configurable from 250ms to 60 seconds
+in Settings. Only changed content that successfully replaces a mounted pack produces an automatic
+success toast. Import, explicit reload, copy, export and resource self-check also use bounded,
+dismissible notifications; draft autosave remains a quiet titlebar status.
+
+Exactly one vanilla pack stays below all custom packs. Opening the resource page automatically loads
+the selected pinned Minecraft version (1.21.11, 26.1.1, 26.1.2 or 26.2). SHA-1-verified downloads are
+cached in native per-user cache storage; assembled bundles are cached in IndexedDB. Version switches
+discard stale work without replacing a newer selection. Mojang bytes are not shipped with the app,
+and the native downloader accepts only exact bundled manifest URLs. Browser downloads depend on CDN
+CORS. Browsers exposing File System Access handles support reload and polling; file-input snapshots
+remain importable but explicitly disable reload. Local mounts are session-only and clear on disconnect.
 
 ```sh
 pnpm assets:vanilla       # optional local fixture for metrics and Playwright tests

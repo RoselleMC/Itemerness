@@ -4,3 +4,7 @@ export * from "./diagnostics.js";
 export * from "./document.js";
 export * from "./preview.js";
 export * from "./connection.js";
+export * from "./itemKeys.js";
+export * from "./presentationDefaults.js";
+export * from "./catalogTransfer.js";
+export * from "./documentCapabilities.js";

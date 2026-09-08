@@ -1,0 +1,67 @@
+.unsaved-backdrop.new-item-backdrop {
+    z-index: 90;
+    padding: 12px;
+}
+.unsaved-dialog.new-item-dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(480px, 100%);
+    max-height: calc(100dvh - var(--titlebar-height, 52px) - 24px);
+    padding: 16px;
+    gap: 14px;
+}
+.new-item-dialog header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: none;
+}
+.unsaved-dialog.new-item-dialog h2 {
+    margin: 0;
+}
+.new-item-fields {
+    display: grid;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.new-item-dialog .field {
+    min-width: 0;
+    margin: 0;
+}
+.new-item-dialog input,
+.new-item-dialog .ui-select {
+    width: 100%;
+    min-width: 0;
+}
+.new-item-source-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 12px;
+}
+.new-item-source-summary code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.new-item-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    font-size: 12px;
+}
+.new-item-status dd {
+    margin: 0;
+    color: var(--muted);
+}
+.unsaved-dialog.new-item-dialog p {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+.new-item-dialog footer {
+    flex: none;
+}

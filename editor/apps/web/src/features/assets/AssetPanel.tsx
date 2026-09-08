@@ -1,94 +1,80 @@
 import { useRef, useState } from "react";
+import { Tabs } from "@base-ui/react/tabs";
 import { useTranslation } from "react-i18next";
+import { isTauri } from "@tauri-apps/api/core";
+import { Upload, FolderOpen } from "lucide-react";
+import { ResourceDeclarations } from "./ResourceDeclarations.js";
+import { LocalAssetMounts } from "./LocalAssetMounts.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 import {
-    Download,
-    GripVertical,
-    ShieldCheck,
-    Trash2,
-    Upload,
-    ArrowUp,
-    ArrowDown,
-} from "lucide-react";
-import {
-    crossCheckVanillaFonts,
-    type CrossCheckReport,
-} from "@itemerness/mc-assets";
-import { fontLibraryOf, useEditorStore } from "../../state/store.js";
-import { useDragReorder } from "../common/dragReorder.js";
-import { fetchVanillaBundle } from "../../api/vanillaAssets.js";
-import { useConnectionStore } from "../../state/connection.js";
+    browserFileSource,
+    browserDirectorySource,
+    droppedPackSources,
+    pickPackSources,
+} from "../../api/packSources.js";
+import { addPackSources } from "../../state/assetMounts.js";
+import { useEditorStore } from "../../state/store.js";
+import { notify } from "../../state/toasts.js";
 import { describeContext } from "../../state/interface.js";
-import { copyAction } from "../common/contextActions.js";
+import { useServerWorkspaceState } from "../../state/serverWorkspace.js";
+import "./resourceAuthoring.css";
+import "./packManager.css";
 
-const VANILLA_VERSION = "26.1.2";
-
-/**
- * Mounting resource packs.
- *
- * Files are read with `FileReader` and never uploaded: a resource pack is often unreleased work,
- * and the plugin never receives these bytes. The CDN alternative downloads pinned Mojang assets
- * directly to the editor and verifies their hashes before mounting them.
- */
 export function AssetPanel() {
     const { t } = useTranslation();
-    const state = useEditorStore();
-    const client = useConnectionStore((state) => state.client);
-    const current = () =>
-        client !== null &&
-        useConnectionStore.getState().client === client &&
-        useEditorStore.getState().workspaceEpoch === state.workspaceEpoch;
-    const inputRef = useRef<HTMLInputElement | null>(null);
-    const [busy, setBusy] = useState(false);
-    const [reports, setReports] = useState<readonly CrossCheckReport[] | null>(
-        null,
+    const [tab, setTab] = useState("local");
+    const [dragging, setDragging] = useState(false);
+    const input = useRef<HTMLInputElement>(null);
+    const directoryInput = useRef<HTMLInputElement>(null);
+    const epoch = useEditorStore((state) => state.workspaceEpoch);
+    const restoring = useServerWorkspaceState(
+        (s) => s.epoch === epoch && s.status === "loading",
     );
-    const [checking, setChecking] = useState(false);
-    const drag = useDragReorder(
-        state.packs.length,
-        state.movePackTo,
-        t("assets.priority"),
-    );
-
-    async function mountFile(file: File, kind: "vanilla" | "resource-pack") {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        if (current()) state.mountPack(bytes, file.name, kind);
-    }
-
-    async function fetchVanilla() {
-        setBusy(true);
+    const fail = (error: unknown) => {
+        if (epoch !== useEditorStore.getState().workspaceEpoch) return;
+        const detail = error instanceof Error ? error.message : String(error);
+        useEditorStore.setState({ mountError: detail });
+        notify(t("packManager:importFailed"), "error", "pack-import");
+    };
+    const pick = async (directory: boolean) => {
+        if (restoring || !commitInlineEditor()) return;
         try {
-            const bytes = await fetchVanillaBundle();
-            if (current())
-                state.mountPack(bytes, `vanilla-${VANILLA_VERSION}`, "vanilla");
+            const sources = await pickPackSources(directory);
+            if (sources) await addPackSources(sources, epoch);
+            else (directory ? directoryInput : input).current?.click();
         } catch (error) {
-            if (current())
-                useEditorStore.setState({
-                    mountError: (error as Error).message,
-                });
-        } finally {
-            setBusy(false);
+            fail(error);
         }
-    }
-
-    function runSelfCheck() {
-        const library = fontLibraryOf(state.packs);
-        if (!library || !state.artifact) return;
-        setChecking(true);
-        // Deferred a frame so the button can show its busy state before the comparison blocks.
-        setTimeout(() => {
-            setReports(
-                crossCheckVanillaFonts(state.artifact!, (fontId) =>
-                    library.get(fontId),
-                ),
-            );
-            setChecking(false);
-        }, 0);
-    }
-
+    };
     return (
-        <section
-            className="assets"
-            aria-label={t("assets.heading")}
+        <div
+            className="resource-pack-page"
+            data-testid="asset-dropzone"
+            data-dragging={dragging}
+            onDragOver={(event) => {
+                if (event.dataTransfer.types.includes("Files")) {
+                    event.preventDefault();
+                    setDragging(true);
+                }
+            }}
+            onDragLeave={(event) => {
+                if (
+                    !event.currentTarget.contains(
+                        event.relatedTarget as Node | null,
+                    )
+                )
+                    setDragging(false);
+            }}
+            onDrop={(event) => {
+                if (isTauri() || !event.dataTransfer.types.includes("Files"))
+                    return;
+                event.preventDefault();
+                setDragging(false);
+                if (restoring || !commitInlineEditor()) return;
+                void droppedPackSources([...event.dataTransfer.items])
+                    .then((sources) => addPackSources(sources, epoch))
+                    .catch(fail);
+            }}
             onContextMenu={(event) =>
                 describeContext(event, {
                     label: t("assets.heading"),
@@ -97,222 +83,84 @@ export function AssetPanel() {
                             id: "import-assets",
                             label: t("assets.import"),
                             icon: Upload,
-                            run: () => inputRef.current?.click(),
+                            disabled: restoring,
+                            run: () => pick(false),
                         },
                         {
-                            id: "fetch-assets",
-                            label: t("assets.fetchVanilla", {
-                                version: VANILLA_VERSION,
-                            }),
-                            icon: Download,
-                            disabled: busy,
-                            run: fetchVanilla,
-                        },
-                        {
-                            id: "check-assets",
-                            label: t("assets.selfCheck.run"),
-                            icon: ShieldCheck,
-                            disabled:
-                                !state.packs.length ||
-                                !state.artifact ||
-                                checking,
-                            run: runSelfCheck,
+                            id: "import-folder",
+                            label: t("packManager:openDirectory"),
+                            icon: FolderOpen,
+                            disabled: restoring,
+                            run: () => pick(true),
                         },
                     ],
                 })
             }
         >
-            <div
-                className="dropzone"
-                data-testid="asset-dropzone"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                    event.preventDefault();
-                    const file = event.dataTransfer.files[0];
-                    if (file) void mountFile(file, "resource-pack");
+            <input
+                ref={input}
+                type="file"
+                hidden
+                multiple
+                accept=".zip,.jar"
+                data-testid="asset-file-input"
+                aria-label={t("assets.import")}
+                onChange={(event) => {
+                    void addPackSources(
+                        [...(event.target.files ?? [])].map(browserFileSource),
+                        epoch,
+                    ).catch(fail);
+                    event.target.value = "";
+                }}
+            />
+            <input
+                ref={directoryInput}
+                type="file"
+                hidden
+                multiple
+                {...{ webkitdirectory: "" }}
+                data-testid="asset-directory-input"
+                aria-label={t("packManager:openDirectory")}
+                onChange={(event) => {
+                    const files = [...(event.target.files ?? [])];
+                    if (files.length)
+                        void addPackSources(
+                            [browserDirectorySource(files)],
+                            epoch,
+                        ).catch(fail);
+                    event.target.value = "";
+                }}
+            />
+            <Tabs.Root
+                className="asset-page-tabs"
+                value={tab}
+                onValueChange={(value, event) => {
+                    if (!commitInlineEditor()) {
+                        event.cancel();
+                        return;
+                    }
+                    if (value === "local" || value === "runtime") setTab(value);
                 }}
             >
-                <button
-                    type="button"
-                    className="page-command"
-                    onClick={() => inputRef.current?.click()}
-                >
-                    <Upload size={16} aria-hidden="true" />
-                    {t("assets.import")}
-                </button>
-                <span className="small">.zip / .jar</span>
-                <input
-                    ref={inputRef}
-                    type="file"
-                    hidden
-                    aria-label={t("assets.import")}
-                    accept=".zip,.jar"
-                    data-testid="asset-file-input"
-                    onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file)
-                            void mountFile(
-                                file,
-                                file.name.endsWith(".jar")
-                                    ? "vanilla"
-                                    : "resource-pack",
-                            );
-                        event.target.value = "";
-                    }}
-                />
-            </div>
-
-            <button
-                type="button"
-                className="page-command"
-                onClick={() => void fetchVanilla()}
-                disabled={busy}
-                data-testid="fetch-vanilla"
-            >
-                <Download size={16} aria-hidden="true" />
-                {t("assets.fetchVanilla", { version: VANILLA_VERSION })}
-            </button>
-
-            {state.mountError ? (
-                <p className="error" data-testid="mount-error">
-                    {state.mountError}
-                </p>
-            ) : null}
-
-            <h3>{t("assets.mounted")}</h3>
-            {state.packs.length === 0 ? (
-                <p className="muted" data-testid="assets-empty">
-                    {t("assets.empty")}
-                </p>
-            ) : (
-                <ol className="pack-list" data-testid="pack-list">
-                    {state.packs.map((slot, index) => (
-                        <li
-                            key={slot.pack.id}
-                            {...drag.itemProps(index)}
-                            tabIndex={0}
-                            data-testid={`pack-${index}`}
-                            onContextMenu={(event) =>
-                                describeContext(event, {
-                                    label: slot.pack.name,
-                                    items: [
-                                        {
-                                            id: "pack-up",
-                                            label: t("menus.raisePriority"),
-                                            icon: ArrowUp,
-                                            disabled: index === 0,
-                                            run: () =>
-                                                state.movePack(
-                                                    slot.pack.id,
-                                                    -1,
-                                                ),
-                                        },
-                                        {
-                                            id: "pack-down",
-                                            label: t("menus.lowerPriority"),
-                                            icon: ArrowDown,
-                                            disabled:
-                                                index ===
-                                                state.packs.length - 1,
-                                            run: () =>
-                                                state.movePack(slot.pack.id, 1),
-                                        },
-                                        copyAction(
-                                            "copy-pack",
-                                            t("menus.copyId"),
-                                            slot.pack.id,
-                                        ),
-                                        {
-                                            id: "remove-pack",
-                                            label: t("assets.remove"),
-                                            icon: Trash2,
-                                            danger: true,
-                                            separator: true,
-                                            run: () =>
-                                                state.removePack(slot.pack.id),
-                                        },
-                                    ],
-                                })
-                            }
-                        >
-                            <span {...drag.handleProps(index)}>
-                                <GripVertical size={16} aria-hidden="true" />
-                            </span>
-                            <span className="pack-name">{slot.pack.name}</span>
-                            <span className="tag">
-                                {t(`assets.kind.${slot.pack.kind}`)}
-                            </span>
-                            <span className="muted small">
-                                {t("assets.size", { count: slot.entryCount })}
-                            </span>
-                            <span className="pack-actions">
-                                <button
-                                    type="button"
-                                    aria-label={t("assets.remove")}
-                                    data-tooltip={t("assets.remove")}
-                                    onClick={() =>
-                                        state.removePack(slot.pack.id)
-                                    }
-                                >
-                                    <Trash2 size={15} aria-hidden="true" />
-                                </button>
-                            </span>
-                        </li>
-                    ))}
-                </ol>
-            )}
-
-            <h3>{t("assets.selfCheck.heading")}</h3>
-            <button
-                type="button"
-                className="page-command"
-                onClick={runSelfCheck}
-                disabled={
-                    state.packs.length === 0 || !state.artifact || checking
-                }
-                data-testid="run-self-check"
-            >
-                <ShieldCheck size={16} aria-hidden="true" />
-                {checking
-                    ? t("assets.selfCheck.running")
-                    : t("assets.selfCheck.run")}
-            </button>
-            {state.packs.length === 0 ? (
-                <p className="muted small">
-                    {t("assets.selfCheck.unavailable")}
-                </p>
-            ) : null}
-            {reports ? (
-                <table className="self-check" data-testid="self-check-results">
-                    <thead>
-                        <tr>
-                            <th>{t("assets.selfCheck.font")}</th>
-                            <th>{t("assets.selfCheck.compared")}</th>
-                            <th>{t("assets.selfCheck.mismatches")}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {reports.map((report) => (
-                            <tr
-                                key={report.fontId}
-                                className={report.matches ? "pass" : "fail"}
-                            >
-                                <td>{report.fontId}</td>
-                                <td>{report.comparedGlyphs}</td>
-                                <td>
-                                    {report.matches
-                                        ? t("assets.selfCheck.pass", {
-                                              count: report.comparedGlyphs,
-                                          })
-                                        : t("assets.selfCheck.fail", {
-                                              count: report.mismatches.length,
-                                          })}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            ) : null}
-        </section>
+                <Tabs.List aria-label={t("assetAuthoring.pageTabs")}>
+                    <Tabs.Tab value="local" data-testid="asset-tab-local">
+                        {t("assetAuthoring.localMounts")}
+                    </Tabs.Tab>
+                    <Tabs.Tab value="runtime" data-testid="asset-tab-runtime">
+                        {t("assetAuthoring.runtimeDeclarations")}
+                    </Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="local" keepMounted>
+                    <LocalAssetMounts
+                        restoring={restoring}
+                        onImport={() => void pick(false)}
+                        onOpenDirectory={() => void pick(true)}
+                    />
+                </Tabs.Panel>
+                <Tabs.Panel value="runtime" keepMounted>
+                    <ResourceDeclarations />
+                </Tabs.Panel>
+            </Tabs.Root>
+        </div>
     );
 }

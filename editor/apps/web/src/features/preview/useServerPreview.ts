@@ -1,3 +1,4 @@
+import { itemKey, itemLayout, itemTheme } from "@itemerness/protocol";
 import {
     useEffect,
     useMemo,
@@ -44,11 +45,11 @@ export function useServerPreview(
     const snapshotHash = useMemo(() => contentHash(document), [document]);
     const viewerKey = useMemo(() => contentHash(viewer), [viewer]);
     const item = document.items.find(
-        (entry) => `${document.namespace}:${entry.id}` === itemId,
+        (entry) => itemKey(document, entry) === itemId,
     );
     const selectionKey = JSON.stringify([
-        item?.presentation.theme,
-        item?.presentation.layout,
+        item && itemTheme(document, item),
+        item && itemLayout(document, item),
     ]);
     const peerKey = JSON.stringify([
         info?.serverId,
@@ -80,7 +81,7 @@ export function useServerPreview(
         () =>
             Object.fromEntries(
                 document.items.map((item) => {
-                    const id = `${document.namespace}:${item.id}`;
+                    const id = itemKey(document, item);
                     return [
                         id,
                         !enabled || !cache || !supported
@@ -201,7 +202,7 @@ export function useServerPreview(
             for (const item of document.items.slice(0, PREWARM_ITEMS)) {
                 const request = {
                     document,
-                    itemId: `${document.namespace}:${item.id}`,
+                    itemId: itemKey(document, item),
                     viewer,
                     snapshotHash,
                     targetServerId: serverId,

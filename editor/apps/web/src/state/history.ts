@@ -1,13 +1,19 @@
 import type { ProjectDocument } from "@itemerness/protocol";
+import type { AssetSection } from "./assetLibrary.js";
 
 export interface DocumentSnapshot {
     document: ProjectDocument;
     snapshotHash: string;
-    mode: "items" | "themes" | "layouts" | "data";
+    mode: "items" | "themes" | "layouts" | "data" | "formats" | "facts";
     selectedItemId: string | null;
     selectedThemeId: string | null;
     selectedLayoutId: string | null;
-    selectedDataKeyId: string | null;
+    selectedDataKeyUuid: string | null;
+    selectedDataSchemaUuid: string | null;
+    selectedFormatUuid: string | null;
+    selectedViewerFactUuid: string | null;
+    selectedAssetKind: AssetSection;
+    selectedAssetUuid: string | null;
     selectedBlockUuid: string | null;
     viewerLocale: string;
 }
@@ -127,7 +133,12 @@ export function documentSnapshot(state: DocumentSnapshot): DocumentSnapshot {
         selectedItemId,
         selectedThemeId,
         selectedLayoutId,
-        selectedDataKeyId,
+        selectedDataKeyUuid,
+        selectedDataSchemaUuid,
+        selectedFormatUuid,
+        selectedViewerFactUuid,
+        selectedAssetKind,
+        selectedAssetUuid,
         selectedBlockUuid,
         viewerLocale,
     } = state;
@@ -138,7 +149,12 @@ export function documentSnapshot(state: DocumentSnapshot): DocumentSnapshot {
         selectedItemId,
         selectedThemeId,
         selectedLayoutId,
-        selectedDataKeyId,
+        selectedDataKeyUuid,
+        selectedDataSchemaUuid,
+        selectedFormatUuid,
+        selectedViewerFactUuid,
+        selectedAssetKind,
+        selectedAssetUuid,
         selectedBlockUuid,
         viewerLocale,
     };

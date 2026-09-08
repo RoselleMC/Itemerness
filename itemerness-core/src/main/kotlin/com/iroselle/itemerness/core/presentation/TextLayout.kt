@@ -114,7 +114,8 @@ internal class PixelMeasurer(private val catalog: PresentationCatalogSnapshot) {
         }
         if (fontId != null) {
             glyphsByFontAndCodePoint[fontId to codePoint]?.let {
-                return Metric(it.advancePixels, it.visualBounds, 0.0, true)
+                val hasInk = it.visualBounds.right > it.visualBounds.left && it.visualBounds.bottom > it.visualBounds.top
+                return Metric(it.advancePixels, it.visualBounds, 0.0, hasInk)
             }
         }
         val visited = HashSet<ItemKey>()

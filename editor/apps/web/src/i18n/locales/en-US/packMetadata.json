@@ -1,0 +1,7 @@
+{
+    "included": "Declared format {{range}} includes preview baseline Minecraft {{version}} ({{format}}).",
+    "outside": "Declared format {{range}} does not include preview baseline Minecraft {{version}} ({{format}}).",
+    "unknown": "Unknown format declaration. Preview baseline: Minecraft {{version}} ({{format}}).",
+    "source": "Source: {{source}}",
+    "notice": "Metadata only, not client compatibility verification. Local preview remains available."
+}

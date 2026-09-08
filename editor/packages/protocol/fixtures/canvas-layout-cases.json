@@ -1,0 +1,342 @@
+[
+    { "name": "baseline", "changes": [] },
+    {
+        "name": "line-height-twenty",
+        "changes": [{ "path": ["layouts", 2, "wrapping", "canvas-body", "lineHeightPixels"], "value": 20 }]
+    },
+    {
+        "name": "body-x",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "x"], "value": 22 }
+        ]
+    },
+    {
+        "name": "body-y",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "y"], "value": 46 }
+        ]
+    },
+    {
+        "name": "body-width",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "width"], "value": 80 }
+        ]
+    },
+    {
+        "name": "policy-width",
+        "changes": [
+            {
+                "path": [
+                    "layouts",
+                    2,
+                    "wrapping",
+                    "canvas-body",
+                    "widthPixels"
+                ],
+                "value": 80
+            }
+        ]
+    },
+    {
+        "name": "policy-line-height",
+        "changes": [
+            {
+                "path": [
+                    "layouts",
+                    2,
+                    "wrapping",
+                    "canvas-body",
+                    "lineHeightPixels"
+                ],
+                "value": 11
+            }
+        ]
+    },
+    {
+        "name": "continuation-indent",
+        "changes": [
+            {
+                "path": [
+                    "layouts",
+                    2,
+                    "wrapping",
+                    "canvas-body",
+                    "continuationIndentPixels"
+                ],
+                "value": 8
+            }
+        ]
+    },
+    {
+        "name": "body-height-overflow",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "height"], "value": 1 }
+        ]
+    },
+    {
+        "name": "anchor-error-overrides-policy",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "width"], "value": 20 },
+            {
+                "path": ["layouts", 2, "anchors", "body", "overflow"],
+                "value": "ERROR"
+            }
+        ]
+    },
+    {
+        "name": "policy-error-does-not-override-anchor",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "body", "width"], "value": 20 },
+            {
+                "path": ["layouts", 2, "wrapping", "canvas-body", "overflow"],
+                "value": "ERROR"
+            }
+        ]
+    },
+    {
+        "name": "explicit-paragraphs",
+        "changes": [
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "item.survey-codex.description"
+                ],
+                "value": "First paragraph\nSecond paragraph"
+            }
+        ]
+    },
+    {
+        "name": "joined-paragraphs",
+        "changes": [
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "item.survey-codex.description"
+                ],
+                "value": "First paragraph\nSecond paragraph"
+            },
+            {
+                "path": [
+                    "layouts",
+                    2,
+                    "wrapping",
+                    "canvas-body",
+                    "preserveExplicitLines"
+                ],
+                "value": false
+            }
+        ]
+    },
+    {
+        "name": "shared-anchor-capacity",
+        "changes": [
+            {
+                "path": ["items", 2, "presentation", "blocks", 0, "anchor"],
+                "value": "body"
+            },
+            {
+                "path": ["items", 2, "presentation", "blocks", 1, "anchor"],
+                "value": "body"
+            }
+        ]
+    },
+    {
+        "name": "shared-baseline",
+        "changes": [
+            { "path": ["layouts", 2, "anchors", "region", "y"], "value": 16 }
+        ]
+    },
+    {
+        "name": "layer-top-right",
+        "changes": [
+            {
+                "path": ["themes", 4, "canvas", "layers", 2, "xPixels"],
+                "value": -20
+            }
+        ]
+    },
+    {
+        "name": "layer-decoration-overhang",
+        "changes": [
+            {
+                "path": ["themes", 4, "styles", "frame"],
+                "value": {
+                    "color": null,
+                    "bold": false,
+                    "italic": false,
+                    "underlined": true,
+                    "strikethrough": false
+                }
+            }
+        ]
+    },
+    {
+        "name": "unnormalized-origin",
+        "changes": [
+            {
+                "path": ["themes", 4, "canvas", "normalizeVisualOrigin"],
+                "value": false
+            }
+        ]
+    },
+    {
+        "name": "component-budget",
+        "changes": [
+            {
+                "path": ["themes", 4, "canvas", "maximumEmittedComponents"],
+                "value": 3
+            }
+        ]
+    },
+    {
+        "name": "italic-overhang",
+        "changes": [
+            {
+                "path": ["themes", 4, "styles", "description", "italic"],
+                "value": true
+            }
+        ]
+    },
+    {
+        "name": "name-atomic-ellipsis",
+        "changes": [
+            {
+                "path": ["locales", 0, "messages", "item.survey-codex.name"],
+                "value": "A very long survey codex display name that exceeds the maximum permitted width"
+            }
+        ]
+    },
+    {
+        "name": "field-label-atomic-wrapping",
+        "changes": [
+            {
+                "path": ["layouts", 2, "anchors", "region", "width"],
+                "value": 38
+            },
+            {
+                "path": ["layouts", 2, "anchors", "region", "height"],
+                "value": 30
+            }
+        ]
+    },
+    {
+        "name": "value-bold-icons-remain-plain",
+        "changes": [
+            { "path": ["themes", 4, "styles", "value", "bold"], "value": true }
+        ]
+    },
+    {
+        "name": "field-style-override",
+        "changes": [
+            {
+                "path": ["items", 2, "presentation", "blocks", 1, "style"],
+                "value": "description"
+            }
+        ]
+    },
+    {
+        "name": "conditional-child-anchor",
+        "changes": [
+            {
+                "path": ["items", 2, "presentation", "blocks"],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000051",
+                        "type": "conditional",
+                        "style": "value",
+                        "anchor": "subtitle",
+                        "condition": {
+                            "operator": "EXISTS",
+                            "left": { "kind": "data", "key": "example:region" },
+                            "right": null
+                        },
+                        "thenBlocks": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000053",
+                                "type": "description",
+                                "message": "item.survey-codex.description",
+                                "style": "description",
+                                "anchor": "body",
+                                "wrapping": "canvas-body"
+                            }
+                        ],
+                        "otherwiseBlocks": []
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "name": "repeat-logical-rows",
+        "changes": [
+            {
+                "path": ["items", 2, "presentation", "blocks"],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000051",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": "icon.socket",
+                            "format": null
+                        },
+                        "style": null,
+                        "anchor": "body",
+                        "missingPolicy": "ERROR"
+                    }
+                ]
+            },
+            {
+                "path": ["items", 2, "previewData"],
+                "value": [
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:fire-gem"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]

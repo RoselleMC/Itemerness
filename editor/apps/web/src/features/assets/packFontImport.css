@@ -1,0 +1,35 @@
+.pack-font-import {
+    border-block: 1px solid var(--line);
+    padding-block: 16px;
+    margin-block: 16px;
+    max-width: 720px;
+}
+.pack-font-import > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.pack-font-import > header h3 {
+    margin: 0;
+}
+.pack-font-import .ui-select {
+    width: 100%;
+    max-width: 460px;
+}
+.pack-font-import p,
+.pack-font-conflicts code {
+    overflow-wrap: anywhere;
+}
+.pack-font-conflicts {
+    color: var(--warn);
+    font-size: 12px;
+    margin-block: 12px;
+}
+.pack-font-conflicts ul {
+    max-height: 160px;
+    overflow: auto;
+}
+.pack-font-import .asset-texture-preview {
+    max-width: 360px;
+}

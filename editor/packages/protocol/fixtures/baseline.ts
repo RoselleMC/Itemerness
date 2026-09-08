@@ -13,7 +13,7 @@ import type {
     ViewerFactNode,
 } from "../src/document.js";
 import {
-    PROJECT_DOCUMENT_SCHEMA_VERSION,
+    LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION,
     projectDocumentSchema,
 } from "../src/document.js";
 import type { DataValue } from "../src/common.js";
@@ -1378,7 +1378,7 @@ const items: ItemNode[] = [
 ];
 
 const raw = {
-    schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
+    schemaVersion: LEGACY_PROJECT_DOCUMENT_SCHEMA_VERSION,
     documentId: "00000000-0000-4000-8000-0000000000ff",
     namespace: "itemerness",
     defaultLocale: "en_us",

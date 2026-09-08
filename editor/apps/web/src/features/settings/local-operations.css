@@ -1,0 +1,192 @@
+.settings-section.local-operations {
+    max-width: 620px;
+    padding-top: 20px;
+}
+.local-heading,
+.local-toolbar,
+.local-command,
+.local-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.local-heading {
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+.local-heading h3 {
+    margin: 0;
+}
+.local-toolbar {
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.local-command,
+.local-icon {
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg-raised);
+    color: var(--text);
+}
+.local-command {
+    padding: 4px 9px;
+}
+.local-icon {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 30px;
+}
+.local-state,
+.local-file-name,
+.local-notice {
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+.local-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+.local-fields > h4,
+.local-fields > .settings-row,
+.local-fields > .local-list,
+.local-fields > .local-grant,
+.local-fields > .local-colors,
+.local-fields > .local-field-wide,
+.local-fields > .local-command {
+    grid-column: 1 / -1;
+}
+.local-fields h4 {
+    font-size: 13px;
+    margin: 12px 0 0;
+}
+.local-field {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    font-size: 12px;
+}
+.local-field input,
+.local-field textarea {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font: inherit;
+}
+.local-field textarea {
+    resize: vertical;
+}
+.local-list,
+.local-actions,
+.local-colors,
+.local-grant {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+}
+.local-list legend,
+.local-actions legend,
+.local-colors legend,
+.local-grant legend {
+    padding: 0;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+.local-list {
+    display: grid;
+    gap: 8px;
+}
+.local-list-row .local-field {
+    flex: 1;
+}
+.local-list-row > .local-icon {
+    align-self: end;
+}
+.local-list > .local-command {
+    justify-self: start;
+}
+.local-grant {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+    display: grid;
+    gap: 12px;
+}
+.local-grant-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -32px;
+}
+.local-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.local-actions label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.local-colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.local-colors legend {
+    float: left;
+    width: 100%;
+}
+.local-colors button {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+.local-colors button[aria-pressed="true"] {
+    outline-color: var(--text);
+}
+.local-diagnostics {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+    margin: 18px 0 0;
+    font-size: 12px;
+}
+.local-diagnostics li {
+    display: grid;
+    gap: 3px;
+    overflow-wrap: anywhere;
+}
+.local-error {
+    color: var(--error);
+}
+.local-warning {
+    color: var(--warn);
+}
+.local-operations button:disabled,
+.local-operations input:disabled {
+    opacity: 0.5;
+}
+@media (max-width: 620px) {
+    .local-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .local-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

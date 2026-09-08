@@ -3,7 +3,7 @@ import type {
     FontMetricsArtifact,
     Glyph,
 } from "@itemerness/mc-assets";
-import { EMPTY_BOUNDS } from "@itemerness/mc-assets";
+import { EMPTY_BOUNDS, EXPECTED_CLIENT_VERSION } from "@itemerness/mc-assets";
 import type {
     FontNode,
     GlyphNode,
@@ -33,6 +33,9 @@ export interface ResolvedGlyph extends Glyph {
     readonly sourceFontId: string;
     /** True when only metrics are known and no pixels are available to draw. */
     readonly rasterMissing: boolean;
+    /** Version evidence is attached only when this resolution used vanilla metrics. */
+    readonly metricsClientVersion?: string;
+    readonly metricsRevisionMatches?: boolean;
 }
 
 export interface PresentationFontsOptions {
@@ -43,6 +46,8 @@ export interface PresentationFontsOptions {
     readonly fonts: readonly FontNode[];
     readonly glyphs: readonly GlyphNode[];
     readonly spacing: SpacingNode | null;
+    /** Global YAML measurement policy. Generated glyph metrics retain their precise overrides. */
+    readonly boldExtraAdvancePixels?: number;
 }
 
 const MAX_FALLBACK_DEPTH = 16;
@@ -139,6 +144,10 @@ export class PresentationFonts {
         }
 
         let current = fontId;
+        let fallbackEvidence: Pick<
+            ResolvedGlyph,
+            "metricsClientVersion" | "metricsRevisionMatches"
+        > = {};
         const visited = new Set<string>();
         for (
             let depth = 0;
@@ -152,20 +161,27 @@ export class PresentationFonts {
                 `${current}\u0000${codePoint}`,
             );
             if (declared) {
+                const hasInk =
+                    declared.visualBounds.right > declared.visualBounds.left &&
+                    declared.visualBounds.bottom > declared.visualBounds.top;
                 const packGlyph =
                     this.options.library?.get(current).glyphs.get(codePoint) ??
                     null;
                 return {
                     codePoint,
                     advancePixels: declared.advancePixels,
+                    // PixelMeasurer bypasses font metrics only for the originally requested font.
                     boldExtraAdvancePixels:
-                        packGlyph?.boldExtraAdvancePixels ?? 1,
-                    hasInk: true,
+                        current === fontId
+                            ? 0
+                            : (this.options.boldExtraAdvancePixels ?? 1),
+                    hasInk,
                     bounds: declared.visualBounds,
                     raster: packGlyph?.raster ?? null,
                     providerKind: "declared",
                     sourceFontId: current,
-                    rasterMissing: packGlyph?.raster == null,
+                    rasterMissing: hasInk && packGlyph?.raster == null,
+                    ...fallbackEvidence,
                 };
             }
 
@@ -173,16 +189,46 @@ export class PresentationFonts {
                 ?.get(current)
                 .glyphs.get(codePoint);
             if (packGlyph) {
+                const declaration = this.fontsById.get(current);
                 return {
                     ...packGlyph,
                     sourceFontId: current,
                     rasterMissing: packGlyph.raster === null,
+                    ...(packGlyph.vanillaMetrics
+                        ? {
+                              metricsClientVersion: EXPECTED_CLIENT_VERSION,
+                              metricsRevisionMatches:
+                                  !declaration?.metrics.startsWith(
+                                      "builtin:",
+                                  ) ||
+                                  this.options.artifact?.tablesByRevision.get(
+                                      this.builtinRevision(declaration.metrics),
+                                  )?.fontId === current,
+                          }
+                        : {}),
+                    ...(fallbackEvidence.metricsClientVersion
+                        ? {
+                              metricsClientVersion:
+                                  fallbackEvidence.metricsClientVersion,
+                          }
+                        : {}),
+                    ...(fallbackEvidence.metricsRevisionMatches === false
+                        ? {
+                              metricsRevisionMatches: false,
+                          }
+                        : {}),
                 };
             }
 
             const table = this.artifactTable(current);
             const artifactGlyph = this.artifactGlyph(current, codePoint);
-            if (artifactGlyph) return artifactGlyph;
+            if (artifactGlyph)
+                return {
+                    ...artifactGlyph,
+                    ...(fallbackEvidence.metricsRevisionMatches === false
+                        ? { metricsRevisionMatches: false }
+                        : {}),
+                };
 
             const declaration = this.fontsById.get(current);
             // Order copied from PixelMeasurer.metric: an explicit fallback font wins over any
@@ -192,6 +238,19 @@ export class PresentationFonts {
             const fallbackFont =
                 declaration?.fallback ?? table?.fallback ?? null;
             if (fallbackFont !== null) {
+                if (declaration?.fallback == null && table?.fallback != null) {
+                    fallbackEvidence = {
+                        metricsClientVersion:
+                            this.options.artifact!.clientVersion,
+                        metricsRevisionMatches:
+                            fallbackEvidence.metricsRevisionMatches !== false &&
+                            (!declaration ||
+                                (table.fontId === current &&
+                                    this.builtinRevision(
+                                        declaration.metrics,
+                                    ) === table.metricsRevision)),
+                    };
+                }
                 current = fallbackFont;
                 continue;
             }
@@ -214,6 +273,13 @@ export class PresentationFonts {
                     providerKind: "metrics-artifact",
                     sourceFontId: table.fontId,
                     rasterMissing: true,
+                    metricsClientVersion: this.options.artifact!.clientVersion,
+                    metricsRevisionMatches:
+                        fallbackEvidence.metricsRevisionMatches !== false &&
+                        (!declaration ||
+                            (table.fontId === current &&
+                                this.builtinRevision(declaration.metrics) ===
+                                    table.metricsRevision)),
                 };
             }
             if (!declaration) break;
@@ -222,7 +288,8 @@ export class PresentationFonts {
                 return {
                     codePoint,
                     advancePixels: declaration.fallbackAdvancePixels,
-                    boldExtraAdvancePixels: 1,
+                    boldExtraAdvancePixels:
+                        this.options.boldExtraAdvancePixels ?? 1,
                     hasInk: ink,
                     bounds: ink
                         ? {
@@ -239,6 +306,7 @@ export class PresentationFonts {
                     providerKind: "declared",
                     sourceFontId: current,
                     rasterMissing: true,
+                    ...fallbackEvidence,
                 };
             }
             break;
@@ -253,10 +321,17 @@ export class PresentationFonts {
         const declaration = this.fontsById.get(fontId);
         const byRevision = declaration?.metrics.startsWith("builtin:")
             ? artifact.tablesByRevision.get(
-                  declaration.metrics.slice("builtin:".length),
+                  this.builtinRevision(declaration.metrics),
               )
             : undefined;
         return byRevision ?? artifact.tablesByFont.get(fontId) ?? null;
+    }
+
+    private builtinRevision(revision: string): string {
+        return revision === "builtin:minecraft-default" ||
+            revision === "builtin:minecraft-uniform"
+            ? `${revision}-${this.options.artifact?.clientVersion ?? EXPECTED_CLIENT_VERSION}`
+            : revision;
     }
 
     /** Vanilla metrics from the shipped artifact, including its own fallback pointer. */
@@ -285,6 +360,13 @@ export class PresentationFonts {
             providerKind: "metrics-artifact",
             sourceFontId: table.fontId,
             rasterMissing: true,
+            metricsClientVersion: this.options.artifact!.clientVersion,
+            metricsRevisionMatches:
+                !this.fontsById.has(fontId) ||
+                (table.fontId === fontId &&
+                    this.builtinRevision(
+                        this.fontsById.get(fontId)!.metrics,
+                    ) === table.metricsRevision),
         };
     }
 }

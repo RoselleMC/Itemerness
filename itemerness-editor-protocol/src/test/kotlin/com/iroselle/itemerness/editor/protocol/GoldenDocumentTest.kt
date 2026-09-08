@@ -167,7 +167,7 @@ class GoldenDocumentTest {
 
     @Test
     fun `rejects a future document schema version`() {
-        val tampered = documentJson.replaceFirst("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+        val tampered = documentJson.replaceFirst("\"schemaVersion\": 1", "\"schemaVersion\": 3")
         assertThrows(JsonException::class.java) { ProjectDocumentCodec.decode(tampered, builtinMetrics) }
     }
 

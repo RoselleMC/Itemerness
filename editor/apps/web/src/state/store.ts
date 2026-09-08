@@ -1,7 +1,13 @@
+import { itemKey } from "@itemerness/protocol";
 import { create } from "zustand";
 import { clampZoom } from "./zoom.js";
 import { locateBlock } from "./blocks.js";
 import { DocumentHistory, documentSnapshot } from "./history.js";
+import {
+    createItemDocument,
+    type ItemCreationOptions,
+} from "./itemCreation.js";
+import type { AssetSection } from "./assetLibrary.js";
 import {
     FontLibrary,
     PackStack,
@@ -33,7 +39,8 @@ export interface AssetSlot {
 }
 
 /** Which library the shell is editing. Every mode keeps the list | preview | inspector shape. */
-export type EditorMode = "items" | "themes" | "layouts" | "data";
+export type EditorMode =
+    "items" | "themes" | "layouts" | "data" | "formats" | "facts";
 
 /**
  * Whether the previewed player counts as having accepted the server resource pack.
@@ -61,7 +68,12 @@ interface EditorState {
     selectedItemId: string | null;
     selectedThemeId: string | null;
     selectedLayoutId: string | null;
-    selectedDataKeyId: string | null;
+    selectedDataKeyUuid: string | null;
+    selectedDataSchemaUuid: string | null;
+    selectedFormatUuid: string | null;
+    selectedViewerFactUuid: string | null;
+    selectedAssetKind: AssetSection;
+    selectedAssetUuid: string | null;
     /** Selected content UUID; '__name' keeps global settings. Never stored in the document. */
     selectedBlockUuid: string | null;
     packSimulation: PackSimulation;
@@ -86,7 +98,11 @@ interface EditorState {
     selectItem(itemId: string | null): void;
     selectTheme(themeId: string): void;
     selectLayout(layoutId: string): void;
-    selectDataKey(dataKeyId: string): void;
+    selectDataKey(dataKeyUuid: string): void;
+    selectDataSchema(schemaUuid: string): void;
+    selectFormat(uuid: string | null): void;
+    selectViewerFact(uuid: string | null): void;
+    selectAsset(kind: AssetSection, uuid?: string | null): void;
     selectBlock(blockUuid: string | null): void;
     setPackSimulation(simulation: PackSimulation): void;
     setAssetProfileOverride(assetProfile: string | null): void;
@@ -106,8 +122,8 @@ interface EditorState {
             item: ProjectDocument["items"][number],
         ) => ProjectDocument["items"][number],
     ): void;
-    /** Creates a minimal valid item and selects it. Returns the new item id. */
-    addItem(defaultName: string): string;
+    /** Creates one definition from explicit settings or configured project defaults. */
+    addItem(defaultName: string, options?: ItemCreationOptions): string;
     removeItem(uuid: string): void;
     updateTheme(
         uuid: string,
@@ -134,6 +150,7 @@ interface EditorState {
         ) => ProjectDocument["dataSchemas"][number]["keys"][number],
     ): void;
     movePackTo(from: number, to: number): void;
+    setMountedPack(pack: MountedPack, replaceId?: string): void;
     mountPack(
         bytes: Uint8Array,
         name: string,
@@ -208,7 +225,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectedItemId: null,
         selectedThemeId: null,
         selectedLayoutId: null,
-        selectedDataKeyId: null,
+        selectedDataKeyUuid: null,
+        selectedDataSchemaUuid: null,
+        selectedFormatUuid: null,
+        selectedViewerFactUuid: null,
+        selectedAssetKind: "fonts",
+        selectedAssetUuid: null,
         selectedBlockUuid: null,
         packSimulation: "auto",
         assetProfileOverride: null,
@@ -228,9 +250,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
             history.clear();
             set((state) => {
                 const itemIds = new Set(
-                    document.items.map(
-                        (item) => `${document.namespace}:${item.id}`,
-                    ),
+                    document.items.map((item) => itemKey(document, item)),
                 );
                 const themeIds = new Set(
                     document.themes.map((theme) => theme.id),
@@ -238,16 +258,16 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 const layoutIds = new Set(
                     document.layouts.map((layout) => layout.id),
                 );
-                const dataKeyIds = new Set(
+                const dataKeyUuids = new Set(
                     document.dataSchemas.flatMap((schema) =>
-                        schema.keys.map((key) => key.id),
+                        schema.keys.map((key) => key.uuid),
                     ),
                 );
                 const selectedItemId =
                     state.selectedItemId && itemIds.has(state.selectedItemId)
                         ? state.selectedItemId
                         : document.items[0]
-                          ? `${document.namespace}:${document.items[0].id}`
+                          ? itemKey(document, document.items[0])
                           : null;
                 const selectedThemeId =
                     state.selectedThemeId && themeIds.has(state.selectedThemeId)
@@ -267,12 +287,41 @@ export const useEditorStore = create<EditorState>((set, get) => {
                         layoutIds.has(state.selectedLayoutId)
                             ? state.selectedLayoutId
                             : (document.layouts[0]?.id ?? null),
-                    selectedDataKeyId:
-                        state.selectedDataKeyId &&
-                        dataKeyIds.has(state.selectedDataKeyId)
-                            ? state.selectedDataKeyId
-                            : (document.dataSchemas[0]?.keys[0]?.id ?? null),
+                    selectedDataKeyUuid:
+                        state.selectedDataKeyUuid &&
+                        dataKeyUuids.has(state.selectedDataKeyUuid)
+                            ? state.selectedDataKeyUuid
+                            : (document.dataSchemas.flatMap(
+                                  (schema) => schema.keys,
+                              )[0]?.uuid ?? null),
+                    selectedDataSchemaUuid: document.dataSchemas.some(
+                        (schema) =>
+                            schema.uuid === state.selectedDataSchemaUuid,
+                    )
+                        ? state.selectedDataSchemaUuid
+                        : (document.dataSchemas[0]?.uuid ?? null),
                     selectedBlockUuid: null,
+                    selectedFormatUuid: document.formats.some(
+                        (format) => format.uuid === state.selectedFormatUuid,
+                    )
+                        ? state.selectedFormatUuid
+                        : (document.formats[0]?.uuid ?? null),
+                    selectedViewerFactUuid: document.viewerFacts.some(
+                        (fact) => fact.uuid === state.selectedViewerFactUuid,
+                    )
+                        ? state.selectedViewerFactUuid
+                        : (document.viewerFacts[0]?.uuid ?? null),
+                    selectedAssetUuid:
+                        state.selectedAssetKind === "spacing" ||
+                        state.selectedAssetKind === "measurement"
+                            ? null
+                            : document[state.selectedAssetKind].some(
+                                    (entry) =>
+                                        entry.uuid === state.selectedAssetUuid,
+                                )
+                              ? state.selectedAssetUuid
+                              : (document[state.selectedAssetKind][0]?.uuid ??
+                                null),
                     assetProfileOverride:
                         state.assetProfileOverride &&
                         document.assetProfiles.some(
@@ -297,11 +346,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
             if (document === current.document) return;
             const snapshotHash = contentHash(document);
             if (snapshotHash === current.snapshotHash) return;
-            const item = document.items.find(
+            const selectedUuid = current.document.items.find(
                 (entry) =>
-                    `${document.namespace}:${entry.id}` ===
-                    current.selectedItemId,
+                    itemKey(current.document, entry) === current.selectedItemId,
+            )?.uuid;
+            const item = document.items.find(
+                (entry) => entry.uuid === selectedUuid,
             );
+            const selectedItemId = item ? itemKey(document, item) : null;
             const selectedBlockUuid =
                 current.selectedBlockUuid &&
                 current.selectedBlockUuid !== "__name" &&
@@ -317,12 +369,38 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 ...current,
                 document,
                 snapshotHash,
+                selectedItemId,
                 selectedBlockUuid,
+                selectedFormatUuid: document.formats.some(
+                    (format) => format.uuid === current.selectedFormatUuid,
+                )
+                    ? current.selectedFormatUuid
+                    : (document.formats[0]?.uuid ?? null),
+                selectedViewerFactUuid: document.viewerFacts.some(
+                    (fact) => fact.uuid === current.selectedViewerFactUuid,
+                )
+                    ? current.selectedViewerFactUuid
+                    : (document.viewerFacts[0]?.uuid ?? null),
+                selectedAssetUuid:
+                    current.selectedAssetKind === "spacing" ||
+                    current.selectedAssetKind === "measurement"
+                        ? null
+                        : document[current.selectedAssetKind].some(
+                                (entry) =>
+                                    entry.uuid === current.selectedAssetUuid,
+                            )
+                          ? current.selectedAssetUuid
+                          : (document[current.selectedAssetKind][0]?.uuid ??
+                            null),
             };
             set({
                 document,
                 snapshotHash,
+                selectedItemId,
                 selectedBlockUuid,
+                selectedFormatUuid: next.selectedFormatUuid,
+                selectedViewerFactUuid: next.selectedViewerFactUuid,
+                selectedAssetUuid: next.selectedAssetUuid,
                 persistenceDocument: history.transaction
                     ? current.persistenceDocument
                     : document,
@@ -353,8 +431,37 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectLayout(selectedLayoutId) {
             set({ selectedLayoutId });
         },
-        selectDataKey(selectedDataKeyId) {
-            set({ selectedDataKeyId });
+        selectDataKey(selectedDataKeyUuid) {
+            set((state) => ({
+                selectedDataKeyUuid,
+                selectedDataSchemaUuid:
+                    state.document.dataSchemas.find((schema) =>
+                        schema.keys.some(
+                            (key) => key.uuid === selectedDataKeyUuid,
+                        ),
+                    )?.uuid ?? null,
+            }));
+        },
+        selectDataSchema(selectedDataSchemaUuid) {
+            set({ selectedDataSchemaUuid, selectedDataKeyUuid: null });
+        },
+        selectFormat(selectedFormatUuid) {
+            set({ selectedFormatUuid, selectedBlockUuid: null });
+        },
+        selectViewerFact(selectedViewerFactUuid) {
+            set({ selectedViewerFactUuid, selectedBlockUuid: null });
+        },
+        selectAsset(selectedAssetKind, uuid) {
+            set({
+                selectedAssetKind,
+                selectedAssetUuid:
+                    uuid ??
+                    (selectedAssetKind === "spacing" ||
+                    selectedAssetKind === "measurement"
+                        ? null
+                        : (get().document[selectedAssetKind][0]?.uuid ?? null)),
+                selectedBlockUuid: null,
+            });
         },
         setPackSimulation(packSimulation) {
             set({ packSimulation });
@@ -406,86 +513,27 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 ),
             }));
         },
-        addItem(defaultName) {
-            const current = get().document;
-            let counter = 1;
-            while (
-                current.items.some((item) => item.id === `new-item-${counter}`)
-            )
-                counter += 1;
-            const id = `new-item-${counter}`;
-            const nameKey = `item.${id}.name`;
-            const textKey = `item.${id}.text.1`;
-            // Borrow the schema references of an existing item so the new one compiles immediately;
-            // an item that fails validation on creation is a terrible first impression.
-            const schemas = current.items[0]?.definition.instance.schemas ?? [];
-            const layout = current.layouts[0]?.id ?? "itemerness:plain";
-            const theme =
-                current.themes.find((entry) => !entry.requiresResourcePack)
-                    ?.id ??
-                current.themes[0]?.id ??
-                "itemerness:default";
-            get().updateDocument((draft) => ({
-                ...draft,
-                locales: draft.locales.map((entry) =>
-                    entry.locale === draft.defaultLocale
-                        ? {
-                              ...entry,
-                              messages: {
-                                  ...entry.messages,
-                                  [nameKey]: defaultName,
-                                  [textKey]: "…",
-                              },
-                          }
-                        : entry,
-                ),
-                items: [
-                    ...draft.items,
-                    {
-                        uuid: crypto.randomUUID(),
-                        id,
-                        enabled: false,
-                        definition: {
-                            material: "minecraft:paper",
-                            baseComponents: [],
-                            contentComponent: null,
-                            contents: [],
-                            definitionData: [],
-                            instance: {
-                                mode: "FUNGIBLE",
-                                idGenerator: null,
-                                schemas: [...schemas],
-                                defaults: [],
-                                generators: [],
-                            },
-                        },
-                        presentation: {
-                            layout,
-                            theme,
-                            nameMessage: nameKey,
-                            blocks: [
-                                {
-                                    uuid: crypto.randomUUID(),
-                                    type: "description",
-                                    message: textKey,
-                                    style: "description",
-                                    anchor: null,
-                                    wrapping: "body",
-                                },
-                            ],
-                        },
-                        previewData: [],
-                    },
-                ],
-            }));
+        addItem(defaultName, options) {
+            const document = createItemDocument(
+                get().document,
+                defaultName,
+                options,
+            );
+            const id = document.items.at(-1)!.id;
+            const transaction = get().beginTransaction();
+            get().updateDocument(() => document);
             set({
-                selectedItemId: `${get().document.namespace}:${id}`,
+                selectedItemId: itemKey(get().document, id),
                 selectedBlockUuid: null,
             });
+            get().commitTransaction(transaction);
             return id;
         },
         removeItem(uuid) {
-            const document = get().document;
+            const current = get();
+            const document = current.document;
+            const removed = document.items.find((item) => item.uuid === uuid);
+            if (!removed) return;
             const remaining = document.items.filter(
                 (item) => item.uuid !== uuid,
             );
@@ -493,13 +541,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 ...draft,
                 items: draft.items.filter((item) => item.uuid !== uuid),
             }));
-            const first = remaining[0];
-            set({
-                selectedItemId: first
-                    ? `${document.namespace}:${first.id}`
-                    : null,
-                selectedBlockUuid: null,
-            });
+            if (current.selectedItemId === itemKey(document, removed)) {
+                const first = remaining[0];
+                set({
+                    selectedItemId: first ? itemKey(document, first) : null,
+                    selectedBlockUuid: null,
+                });
+            }
         },
         updateTheme(uuid, mutate) {
             get().updateDocument((draft) => ({
@@ -525,13 +573,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 ),
             }));
         },
-        updateDataKey(id, mutate) {
+        updateDataKey(uuid, mutate) {
             get().updateDocument((draft) => ({
                 ...draft,
                 dataSchemas: draft.dataSchemas.map((schema) => ({
                     ...schema,
                     keys: schema.keys.map((key) =>
-                        key.id === id ? mutate(key) : key,
+                        key.uuid === uuid ? mutate(key) : key,
                     ),
                 })),
             }));
@@ -543,7 +591,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
                     from < 0 ||
                     from >= state.packs.length ||
                     to < 0 ||
-                    to >= state.packs.length
+                    to >= state.packs.length ||
+                    state.packs[from]?.pack.kind === "vanilla" ||
+                    state.packs[to]?.pack.kind === "vanilla"
                 )
                     return state;
                 const packs = [...state.packs];
@@ -552,19 +602,38 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 return { packs };
             });
         },
+        setMountedPack(pack, replaceId) {
+            set((state) => {
+                const slot = { pack, entryCount: pack.list("").length };
+                const custom = state.packs.filter(
+                    (entry) => entry.pack.kind !== "vanilla",
+                );
+                const vanilla = state.packs.filter(
+                    (entry) => entry.pack.kind === "vanilla",
+                );
+                if (pack.kind === "vanilla")
+                    return { packs: [...custom, slot], mountError: null };
+                const position = custom.findIndex(
+                    (entry) =>
+                        entry.pack.id === replaceId ||
+                        entry.pack.id === pack.id,
+                );
+                const others = custom.filter(
+                    (entry) =>
+                        entry.pack.id !== replaceId &&
+                        entry.pack.id !== pack.id,
+                );
+                others.splice(position < 0 ? 0 : position, 0, slot);
+                return {
+                    packs: [...others, ...vanilla.slice(-1)],
+                    mountError: null,
+                };
+            });
+        },
         mountPack(bytes, name, kind = "resource-pack") {
             try {
                 const pack = mountArchive(bytes, { name, kind });
-                const entryCount = pack.list("").length;
-                set((state) => ({
-                    packs: [
-                        { pack, entryCount },
-                        ...state.packs.filter(
-                            (slot) => slot.pack.id !== pack.id,
-                        ),
-                    ],
-                    mountError: null,
-                }));
+                get().setMountedPack(pack);
             } catch (error) {
                 set({ mountError: (error as Error).message });
             }
@@ -584,7 +653,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
                     index < 0 ||
                     target === index ||
                     target < 0 ||
-                    target >= state.packs.length
+                    target >= state.packs.length ||
+                    state.packs[index]?.pack.kind === "vanilla" ||
+                    state.packs[target]?.pack.kind === "vanilla"
                 )
                     return state;
                 const packs = [...state.packs];
@@ -614,13 +685,22 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 selectedItemId: null,
                 selectedThemeId: null,
                 selectedLayoutId: null,
-                selectedDataKeyId: null,
+                selectedDataKeyUuid: null,
+                selectedDataSchemaUuid: null,
+                selectedFormatUuid: null,
+                selectedViewerFactUuid: null,
+                selectedAssetKind: "fonts",
+                selectedAssetUuid: null,
                 selectedBlockUuid: null,
                 packs: [],
                 packSimulation: "auto",
                 assetProfileOverride: null,
                 managesVanillaTooltipLines: false,
                 viewerLocale: document.defaultLocale,
+                guiScale: 3,
+                zoomMode: "fit",
+                annotations: false,
+                compareLocales: false,
                 themeOverride: null,
                 mountError: null,
                 diagnostics: [],
@@ -660,6 +740,8 @@ export function presentationFontsOf(state: {
         fonts: state.document.fonts,
         glyphs: state.document.glyphs,
         spacing: state.document.spacing,
+        boldExtraAdvancePixels:
+            state.document.measurement?.boldExtraAdvancePixels,
     });
 }
 

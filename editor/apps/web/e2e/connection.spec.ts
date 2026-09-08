@@ -279,20 +279,20 @@ test("connection popup handles keyboard dismissal without storing unsubmitted to
     ).not.toContain(TEST_TOKEN);
 });
 
-test("an incompatible plugin restart clears the current workspace even with the popup closed", async ({
+test("an incompatible plugin restart retains the current workspace while retrying without writes", async ({
     page,
 }) => {
     await mockPlugin(page, namedDocument("Before restart"));
     await page.goto("/?lang=en-US");
     await enterWorkspace(page);
     await page.route(`${API_URL}/api/handshake`, (route) =>
-        route.fulfill({ json: { ...HANDSHAKE, documentSchemas: [2] } }),
+        route.fulfill({ json: { ...HANDSHAKE, documentSchemas: [999] } }),
     );
-    await locked(page);
     await expect(page.getByTestId("connection-summary")).toHaveText(
         "Incompatible",
     );
-    await expect(page.locator("body")).not.toContainText("Before restart");
+    await expect(page.getByTestId("name-input")).toHaveValue("Before restart");
+    await expect(page.getByTestId("connection-trigger")).toHaveAttribute("data-state", "reconnecting");
 });
 
 test("deleting the server document locks and clears the workspace without seeding it again", async ({
@@ -414,6 +414,7 @@ test("an asset import from a disconnected session cannot populate a new workspac
     );
     await page.getByTestId("open-assets").click();
     await expect(page.getByTestId("assets-empty")).toBeVisible();
-    await expect(page.getByTestId("pack-list")).toHaveCount(0);
+    await expect(page.getByTestId("pack-0")).toHaveCount(0);
+    await expect(page.getByTestId("vanilla-pack")).toHaveCount(1);
     await expect(page.getByTestId("mount-error")).toHaveCount(0);
 });

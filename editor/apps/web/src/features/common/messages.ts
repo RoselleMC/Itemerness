@@ -1,4 +1,65 @@
-import type { ProjectDocument } from "@itemerness/protocol";
+import type { PresentationBlock, ProjectDocument } from "@itemerness/protocol";
+
+/** Declared messages plus every static message reference checked by the production compiler. */
+export function collectDocumentMessageKeys(
+    document: ProjectDocument,
+): string[] {
+    return [
+        ...new Set([
+            ...document.locales.flatMap((locale) =>
+                Object.keys(locale.messages),
+            ),
+            ...collectReferencedMessageKeys(document),
+        ]),
+    ].sort();
+}
+
+export function collectReferencedMessageKeys(
+    document: ProjectDocument,
+): string[] {
+    const keys = new Set<string>();
+    const collectBlocks = (blocks: readonly PresentationBlock[]) => {
+        for (const block of blocks) {
+            switch (block.type) {
+                case "field":
+                    keys.add(block.labelMessage);
+                    break;
+                case "description":
+                    keys.add(block.message);
+                    break;
+                case "repeat":
+                    keys.add(block.template.labelMessage);
+                    keys.add(block.template.missingMessage);
+                    break;
+                case "conditional":
+                    collectBlocks(block.thenBlocks);
+                    collectBlocks(block.otherwiseBlocks);
+                    break;
+            }
+        }
+    };
+    for (const item of document.items) {
+        keys.add(item.presentation.nameMessage);
+        collectBlocks(item.presentation.blocks);
+    }
+    for (const format of document.formats) {
+        switch (format.kind) {
+            case "decimal":
+                if (format.suffixMessage !== null)
+                    keys.add(format.suffixMessage);
+                break;
+            case "boolean":
+                keys.add(format.trueMessage);
+                keys.add(format.falseMessage);
+                break;
+            case "list":
+                keys.add(format.separatorMessage);
+                break;
+            // Namespaced-key patterns depend on runtime values and are not literal message keys.
+        }
+    }
+    return [...keys].sort();
+}
 
 /**
  * Message resolution for the editing surface.
@@ -26,16 +87,25 @@ export function resolveMessage(
     key: string,
 ): ResolvedMessage {
     const seen = new Set<string>();
-    let current: string | null = locale;
+    const requestedExists = document.locales.some(
+        (entry) => entry.locale === locale,
+    );
+    // Unknown locales start from the default chain; known locales only append the default entry.
+    let current: string | null = requestedExists
+        ? locale
+        : document.defaultLocale;
     while (current && !seen.has(current)) {
         seen.add(current);
         const node = document.locales.find((entry) => entry.locale === current);
         if (!node) break;
-        const text = node.messages[key];
-        if (text !== undefined) {
+        if (Object.hasOwn(node.messages, key)) {
             return {
-                text,
-                source: current === locale ? "own" : "fallback",
+                text: node.messages[key]!,
+                source: !requestedExists
+                    ? "default"
+                    : current === locale
+                      ? "own"
+                      : "fallback",
                 sourceLocale: current,
             };
         }
@@ -44,10 +114,13 @@ export function resolveMessage(
     const fallbackNode = document.locales.find(
         (entry) => entry.locale === document.defaultLocale,
     );
-    const text = fallbackNode?.messages[key];
-    if (text !== undefined && !seen.has(document.defaultLocale)) {
+    if (
+        fallbackNode &&
+        Object.hasOwn(fallbackNode.messages, key) &&
+        !seen.has(document.defaultLocale)
+    ) {
         return {
-            text,
+            text: fallbackNode.messages[key]!,
             source: "default",
             sourceLocale: document.defaultLocale,
         };

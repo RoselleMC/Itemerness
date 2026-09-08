@@ -1,22 +1,35 @@
 {
+    "unknown": "Configuration validation failed ({{code}}).",
+    "openObject": "Open object",
     "locale": {
         "fallback_used": "\"{{key}}\" has no {{locale}} translation; showing {{fallback}}.",
         "missing_message": "\"{{key}}\" is not translated in any language."
     },
     "data": { "missing": "No value for data key {{key}}." },
+    "format": {
+        "invalid_value": "The value cannot be formatted: {{detail}}",
+        "unsupported_local": "This format needs a server preview: {{detail}}"
+    },
     "document": {
         "decode_failed": "The project document could not be decoded: {{detail}}",
         "snapshot_mismatch": "The preview snapshot hash does not match the submitted document.",
         "invalid": "The project document did not pass validation.",
         "catalog_invalid": "The item catalog did not pass validation. See {{diagnosticCount}} diagnostic entries.",
-        "preview_data_invalid": "Preview data for {{item}} is invalid: {{detail}}"
+        "preview_data_invalid": "Preview data for {{item}} is invalid: {{detail}}",
+        "runtime_budgets_mismatch": "This draft's rendering limits differ from the plugin's fixed runtime limits."
     },
     "item": { "unknown": "Item {{item}} is not in this project." },
     "theme": {
         "no_safe_theme": "No theme in the fallback chain from {{requested}} can be displayed."
     },
     "layout": { "unknown": "Layout {{layout}} is not declared." },
+    "catalog": {
+        "export_lossy": "Export would change the configuration at {{path}}.",
+        "source_invalid": "The YAML configuration could not be loaded: {{detail}}",
+        "export_invalid": "The exported YAML could not be loaded: {{detail}}"
+    },
     "assets": {
+        "metadata_missing": "Asset {{asset}} needs its source texture and dimensions before export.",
         "font_texture_missing": "Font texture {{texture}} is not in any mounted pack.",
         "font_texture_invalid": "Font texture {{texture}} could not be read: {{detail}}",
         "font_hex_missing": "Unihex archive {{file}} is not in any mounted pack.",

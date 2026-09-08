@@ -199,8 +199,16 @@ export interface PreviewFontEvidence {
     readonly rasterComplete: boolean;
     /** A mounted font provider supplied at least one displayed advance. */
     readonly mountedMetricsUsed: boolean;
+    readonly declaredMetricsUsed: boolean;
     /** A mounted font provider supplied at least one displayed glyph raster. */
     readonly mountedRasterUsed: boolean;
+    readonly metricsVersionMismatch: boolean;
+    readonly metricsRevisionMismatch: boolean;
+}
+
+export interface PreviewMetricsContext {
+    readonly serverClientVersion?: string | null;
+    readonly measurementClientVersion?: string | null;
 }
 
 const MOUNTED_METRIC_PROVIDERS = new Set(["bitmap", "space", "unihex"]);
@@ -210,13 +218,17 @@ export function previewFontEvidence(
     lines: readonly PreviewLine[],
     fonts: PresentationFonts,
     library: FontLibrary | null = null,
+    context: PreviewMetricsContext = {},
 ): PreviewFontEvidence {
     if (lines.length === 0) {
         return {
             metricsComplete: false,
             rasterComplete: false,
             mountedMetricsUsed: false,
+            declaredMetricsUsed: false,
             mountedRasterUsed: false,
+            metricsVersionMismatch: false,
+            metricsRevisionMismatch: false,
         };
     }
 
@@ -224,7 +236,14 @@ export function previewFontEvidence(
     let metricsComplete = true;
     let rasterComplete = true;
     let mountedMetricsUsed = false;
+    let declaredMetricsUsed = false;
     let mountedRasterUsed = false;
+    let metricsVersionMismatch = false;
+    let metricsRevisionMismatch = false;
+    const expectedVersions = [
+        context.serverClientVersion,
+        context.measurementClientVersion,
+    ].filter((version): version is string => !!version && version !== "server");
     for (const line of lines) {
         line.runs.forEach((run) => {
             if (run.style.font !== null) requestedFonts.add(run.style.font);
@@ -241,7 +260,18 @@ export function previewFontEvidence(
             if (MOUNTED_METRIC_PROVIDERS.has(placed.glyph.providerKind)) {
                 mountedMetricsUsed = true;
             }
+            if (placed.glyph.providerKind === "declared")
+                declaredMetricsUsed = true;
             if (placed.glyph.raster !== null) mountedRasterUsed = true;
+            if (
+                placed.glyph.metricsClientVersion &&
+                expectedVersions.some(
+                    (version) => version !== placed.glyph.metricsClientVersion,
+                )
+            )
+                metricsVersionMismatch = true;
+            if (placed.glyph.metricsRevisionMatches === false)
+                metricsRevisionMismatch = true;
         }
     }
 
@@ -261,7 +291,10 @@ export function previewFontEvidence(
         metricsComplete,
         rasterComplete,
         mountedMetricsUsed,
+        declaredMetricsUsed,
         mountedRasterUsed,
+        metricsVersionMismatch,
+        metricsRevisionMismatch,
     };
 }
 

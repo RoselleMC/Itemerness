@@ -1,0 +1,115 @@
+.preview-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 42px;
+    padding: 5px 10px;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    flex: none;
+    container-type: inline-size;
+}
+.preview-footer-view,
+.preview-footer-status {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+}
+.preview-footer-view {
+    flex-wrap: wrap;
+    max-width: 100%;
+}
+.preview-footer-status {
+    margin-left: auto;
+}
+.preview-footer-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 4px 7px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+.preview-footer-button > svg {
+    flex: none;
+}
+.preview-footer-button[aria-pressed="true"],
+.preview-footer-button[data-popup-open] {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--accent-dim);
+}
+.preview-footer .ui-select {
+    width: 96px;
+    min-height: 30px;
+    font-size: 11px;
+    background: transparent;
+}
+.fidelity-summary {
+    min-width: 28px;
+    font-variant-numeric: tabular-nums;
+}
+.preview-footer-popup {
+    width: 380px;
+    max-height: min(560px, var(--available-height));
+    padding: 14px;
+}
+.preview-popup-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.preview-popup-heading h2 {
+    margin: 0;
+    font-size: 13px;
+}
+.preview-footer-popup .persona-body {
+    position: static;
+    width: auto;
+    border: 0;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+}
+.footer-fidelity ul {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+}
+.footer-fidelity li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+}
+.footer-fidelity li p {
+    grid-column: 1 / -1;
+    margin: 0;
+    line-height: 1.5;
+}
+@container (max-width: 600px) {
+    .footer-control-label {
+        display: none;
+    }
+}
+@container (max-width: 310px) {
+    .preview-footer .ui-select {
+        width: 76px;
+    }
+    .preview-footer-button {
+        padding-inline: 5px;
+    }
+}

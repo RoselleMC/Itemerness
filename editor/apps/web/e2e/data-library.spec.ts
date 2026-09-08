@@ -1,0 +1,58 @@
+import { expect, test } from "@playwright/test";
+import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
+import { enterWorkspace, mockPlugin } from "./fixtures/plugin.js";
+
+test("empty schema creation, key creation and confirmed deletion share document history", async ({ page }) => {
+    const plugin = await mockPlugin(page);
+    await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
+    await page.getByTestId("mode-data").click();
+    await page.getByTestId("add-data-schema").click();
+    const id = page.getByTestId("data-schema-id");
+    await expect(id).toHaveValue("itemerness:new-schema");
+    await id.fill("example:custom");
+    await id.press("Enter");
+    const version = page.getByTestId("data-schema-version");
+    await version.fill("2147483647");
+    await version.press("Enter");
+    await page.getByTestId("schema-add-key").click();
+    const key = page.getByTestId("data-key-id");
+    await key.fill("example:custom-value");
+    await key.press("Enter");
+    await expect.poll(() => plugin.writes.at(-1)?.document.dataSchemas.find((entry) => entry.id === "example:custom")?.keys[0]?.id).toBe("example:custom-value");
+    await page.getByTestId("duplicate-key").click();
+    await expect(key).toHaveValue("example:custom-value-copy");
+    await page.getByTestId("delete-key").click();
+    await page.getByTestId("confirm-cancel").click();
+    await expect(key).toHaveValue("example:custom-value-copy");
+    await page.getByTestId("delete-key").click();
+    await page.getByTestId("confirm-accept").click();
+    await expect(id).toHaveValue("example:custom");
+    await page.getByTestId("undo").click();
+    await expect(key).toHaveValue("example:custom-value-copy");
+    await expect.poll(() => plugin.writes.at(-1)?.document.dataSchemas.find((entry) => entry.id === "example:custom")?.keys.length).toBe(2);
+});
+
+test("renaming a bound schema and key updates references while blocking unsafe deletion", async ({ page }, info) => {
+    const plugin = await mockPlugin(page);
+    const schema = baselineDocument.dataSchemas[0]!;
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
+    await page.getByTestId("mode-data").click();
+    await page.getByTestId(`schema-${schema.uuid}`).click();
+    await expect(page.getByTestId("delete-schema")).toBeDisabled();
+    const id = page.getByTestId("data-schema-id");
+    await id.fill("example:shared");
+    await id.press("Enter");
+    await expect.poll(() => plugin.writes.at(-1)?.document.items.every((item) => item.definition.instance.schemas[0]?.id === "example:shared")).toBe(true);
+    await page.getByTestId("datakey-charges").click();
+    await expect(page.getByTestId("delete-key")).toBeDisabled();
+    await page.getByTestId("data-key-id").fill("example:uses");
+    await page.getByTestId("data-key-id").press("Enter");
+    await expect.poll(() => plugin.writes.at(-1)?.document.items.find((item) => item.id === "travel-token")?.previewData.some((entry) => entry.key === "example:uses")).toBe(true);
+    await page.getByTestId("undo").click();
+    await expect(page.getByTestId("data-key-id")).toHaveValue("example:charges");
+    expect(await page.locator(".inspector").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath("data-library-narrow.png") });
+});

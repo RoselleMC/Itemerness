@@ -1,3 +1,4 @@
+import { itemKey } from "@itemerness/protocol";
 import {
     useEffect,
     useLayoutEffect,
@@ -11,16 +12,19 @@ import {
     ListTree,
     ArrowUpToLine,
     ArrowDownToLine,
-    ListPlus,
-    TextCursorInput,
-    GitBranch,
+    Plus,
+    ArrowLeft,
 } from "lucide-react";
 import type { PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
-import { insertContent } from "../../state/contentActions.js";
+import type {
+    ContentBranch,
+    ContentInsertionTarget,
+} from "../../state/blocks.js";
 import { resolveMessage } from "../common/messages.js";
-import { describeContext } from "../../state/interface.js";
-import { contentActions } from "../common/contextActions.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
+import { describeContext, runMenuAction } from "../../state/interface.js";
+import { contentActions, insertActions } from "../common/contextActions.js";
 
 export function ContentMenu({
     outlineOnly = false,
@@ -34,6 +38,10 @@ export function ContentMenu({
     const { t } = useTranslation();
     const state = useEditorStore();
     const [open, setOpen] = useState(false);
+    const [branchTarget, setBranchTarget] = useState<Exclude<
+        ContentInsertionTarget,
+        string
+    > | null>(null);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const popup = useRef<HTMLDivElement>(null);
@@ -53,7 +61,7 @@ export function ContentMenu({
                     ),
                 ),
                 top: Math.max(
-                    8,
+                    56,
                     Math.min(
                         rect.bottom + 6,
                         window.innerHeight - menu.offsetHeight - 8,
@@ -68,18 +76,25 @@ export function ContentMenu({
             window.removeEventListener("resize", update);
             window.removeEventListener("scroll", update, true);
         };
-    }, [open]);
+    }, [open, branchTarget]);
     const item = state.document.items.find(
         (entry) =>
-            `${state.document.namespace}:${entry.id}` === state.selectedItemId,
+            itemKey(state.document, entry) === state.selectedItemId,
     );
-    const keys = state.document.dataSchemas
-        .flatMap((schema) => schema.keys)
-        .filter((key) => key.presentationReadable);
     const close = () => {
         setOpen(false);
+        setBranchTarget(null);
         trigger.current?.focus();
     };
+    useEffect(() => {
+        setOpen(false);
+        setBranchTarget(null);
+    }, [
+        state.workspaceEpoch,
+        state.selectedItemId,
+        state.mode,
+        state.snapshotHash,
+    ]);
     useEffect(() => {
         if (!open) return;
         popup.current
@@ -95,19 +110,17 @@ export function ContentMenu({
         };
         document.addEventListener("pointerdown", dismiss, true);
         return () => document.removeEventListener("pointerdown", dismiss, true);
-    }, [open]);
+    }, [open, branchTarget]);
     if (!item) return null;
 
-    const add = (kind: "field" | "description" | "conditional") => {
-        if (anchorUuid)
-            insertContent(
-                kind,
-                anchorUuid,
-                position,
-                t("inspector.content.newTextDefault"),
-            );
-        close();
-    };
+    const branchName = (branch: ContentBranch) =>
+        t(
+            `inspector.content.${branch === "thenBlocks" ? "then" : "otherwise"}`,
+        );
+    const insertionTarget = branchTarget ?? anchorUuid;
+    const additions = insertionTarget
+        ? insertActions(insertionTarget, position, t)
+        : [];
     const outline = (
         blocks: readonly PresentationBlock[],
         depth = 0,
@@ -133,7 +146,10 @@ export function ContentMenu({
                         style={{ paddingLeft: 10 + Math.min(depth, 4) * 12 }}
                         data-testid={`select-content-${block.uuid}`}
                         onContextMenu={(event) => {
-                            state.selectBlock(block.uuid);
+                            if (!commitInlineEditor()) {
+                                event.preventDefault();
+                                return;
+                            }
                             describeContext(event, {
                                 label,
                                 items: contentActions(block.uuid, t),
@@ -141,18 +157,48 @@ export function ContentMenu({
                             });
                         }}
                         onClick={() => {
+                            if (!commitInlineEditor()) return;
                             state.selectBlock(block.uuid);
                             close();
                         }}
                     >
                         {label}
                     </button>
-                    {block.type === "conditional" && (
-                        <>
-                            {outline(block.thenBlocks, depth + 1)}
-                            {outline(block.otherwiseBlocks, depth + 1)}
-                        </>
-                    )}
+                    {block.type === "conditional" &&
+                        (["thenBlocks", "otherwiseBlocks"] as const).map(
+                            (branch) => (
+                                <div key={branch}>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="content-outline-row"
+                                        style={{
+                                            paddingLeft:
+                                                10 +
+                                                Math.min(depth + 1, 4) * 12,
+                                        }}
+                                        aria-label={t(
+                                            "inspector.content.addToBranch",
+                                            { branch: branchName(branch) },
+                                        )}
+                                        data-testid={`add-branch-${block.uuid}-${branch}`}
+                                        onClick={() =>
+                                            setBranchTarget({
+                                                parentUuid: block.uuid,
+                                                branch,
+                                            })
+                                        }
+                                    >
+                                        <Plus size={14} />
+                                        {branchName(branch)}
+                                        <span className="dim small">
+                                            {block[branch].length}
+                                        </span>
+                                    </button>
+                                    {outline(block[branch], depth + 2)}
+                                </div>
+                            ),
+                        )}
                 </div>
             );
         });
@@ -166,7 +212,8 @@ export function ContentMenu({
                 if (event.key === "Escape" && open) {
                     event.preventDefault();
                     event.stopPropagation();
-                    close();
+                    if (branchTarget) setBranchTarget(null);
+                    else close();
                 }
                 if (
                     !["ArrowDown", "ArrowUp", "Home", "End"].includes(
@@ -235,48 +282,51 @@ export function ContentMenu({
                         style={popupPosition}
                         aria-label={t("inspector.content.heading")}
                     >
-                        {!outlineOnly && (
+                        {(!outlineOnly || branchTarget) && (
                             <>
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    data-testid="add-field-row"
-                                    disabled={!keys.length}
-                                    onClick={() => add("field")}
-                                >
-                                    <ListPlus size={16} />
-                                    {t("inspector.content.addField")}
-                                </button>
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    data-testid="add-text-row"
-                                    onClick={() => add("description")}
-                                >
-                                    <TextCursorInput size={16} />
-                                    {t("inspector.content.addText")}
-                                </button>
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    data-testid="add-conditional-row"
-                                    disabled={
-                                        !state.document.viewerFacts.length
-                                    }
-                                    onClick={() => add("conditional")}
-                                >
-                                    <GitBranch size={16} />
-                                    {t("inspector.content.conditional")}
-                                </button>
+                                {branchTarget && (
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => setBranchTarget(null)}
+                                        aria-label={t(
+                                            "inspector.content.backToOutline",
+                                        )}
+                                        data-testid="back-to-outline"
+                                    >
+                                        <ArrowLeft size={16} />
+                                        {branchName(branchTarget.branch)}
+                                    </button>
+                                )}
+                                {additions.map((action) => {
+                                    const Icon = action.icon;
+                                    return (
+                                        <button
+                                            key={action.id}
+                                            type="button"
+                                            role="menuitem"
+                                            data-testid={`${action.id === "add-condition" ? "add-conditional" : action.id}-row`}
+                                            disabled={action.disabled}
+                                            onClick={() => {
+                                                runMenuAction(action);
+                                                close();
+                                            }}
+                                        >
+                                            {Icon && <Icon size={16} />}
+                                            {action.label}
+                                        </button>
+                                    );
+                                })}
                             </>
                         )}
-                        {outlineOnly && (
+                        {outlineOnly && !branchTarget && (
                             <div className="content-outline">
                                 <button
                                     type="button"
                                     role="menuitem"
                                     data-testid="select-content-name"
                                     onClick={() => {
+                                        if (!commitInlineEditor()) return;
                                         state.selectBlock("__name");
                                         close();
                                     }}

@@ -11,6 +11,9 @@ import com.iroselle.itemerness.core.presentation.GlyphMetricSource
  * plugin module to decode a document.
  */
 fun interface BuiltinFontMetrics {
+    /** Exact client version represented by this provider, when versioned metrics are available. */
+    val clientVersion: String? get() = null
+
     /** Returns the table for a `builtin:<revision>` selector, or null when the revision is unknown. */
     fun table(metricsRevision: String): BuiltinFontTable?
 

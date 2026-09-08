@@ -37,12 +37,15 @@ export function ConnectionCenter({
             ? "incompatible"
             : connection.status;
     const label =
-        connection.info?.serverId ??
+        connection.info?.serverAlias ||
+        connection.info?.serverName ||
+        connection.info?.serverId ||
         (connection.address
             ? endpointLabel(connection.address)
             : t("connection.chooseServer"));
     const StateIcon =
-        connection.status === "connecting"
+        connection.status === "connecting" ||
+        connection.status === "reconnecting"
             ? LoaderCircle
             : connection.status === "error"
               ? CircleAlert
@@ -58,7 +61,9 @@ export function ConnectionCenter({
                 !root.current?.contains(event.target) &&
                 !(
                     event.target instanceof Element &&
-                    event.target.closest("[data-ui-popup]")
+                    event.target.closest(
+                        "[data-ui-popup],[data-application-menu]",
+                    )
                 )
             )
                 setOpen(false);
@@ -127,7 +132,9 @@ export function ConnectionCenter({
                     !event.currentTarget.contains(event.relatedTarget) &&
                     !(
                         event.relatedTarget instanceof Element &&
-                        event.relatedTarget.closest("[data-ui-popup]")
+                        event.relatedTarget.closest(
+                            "[data-ui-popup],[data-application-menu]",
+                        )
                     )
                 )
                     setOpen(false);
@@ -155,7 +162,8 @@ export function ConnectionCenter({
                 <StateIcon
                     size={15}
                     className={
-                        connection.status === "connecting"
+                        connection.status === "connecting" ||
+                        connection.status === "reconnecting"
                             ? "connection-spinner"
                             : undefined
                     }

@@ -8,6 +8,8 @@ out/
 *.log
 *.log.gz
 .DS_Store
+__pycache__/
+*.pyc
 
 # Local agent instructions and working documentation at any directory depth
 AGENTS.md

@@ -1,6 +1,6 @@
 import { useRef, type ComponentProps } from "react";
 import { Select } from "@base-ui/react/select";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { describeContext } from "../../state/interface.js";
 import { copyAction } from "./contextActions.js";
 import { useTranslation } from "react-i18next";
@@ -16,12 +16,15 @@ export function SelectField({
     onValueChange,
     options,
     label,
+    side = "bottom",
     ...props
 }: {
     value: string;
     onValueChange: (value: string) => void;
     options: readonly SelectChoice[];
     label: string;
+    side?: "top" | "bottom";
+    "data-testid"?: string;
 } & Omit<ComponentProps<"button">, "value" | "onChange" | "children">) {
     const trigger = useRef<HTMLButtonElement>(null);
     const { t } = useTranslation();
@@ -72,11 +75,16 @@ export function SelectField({
             >
                 <Select.Value className="ui-select-value" />
                 <Select.Icon>
-                    <ChevronDown size={14} />
+                    {side === "top" ? (
+                        <ChevronUp size={14} />
+                    ) : (
+                        <ChevronDown size={14} />
+                    )}
                 </Select.Icon>
             </Select.Trigger>
             <Select.Portal>
                 <Select.Positioner
+                    side={side}
                     className="ui-positioner"
                     sideOffset={5}
                     alignItemWithTrigger={false}
@@ -110,6 +118,11 @@ export function SelectField({
                                                 disabled={option.disabled}
                                                 className="ui-option"
                                                 data-option-value={option.value}
+                                                data-testid={
+                                                    props["data-testid"]
+                                                        ? `${props["data-testid"]}-option-${option.value}`
+                                                        : undefined
+                                                }
                                             >
                                                 <Select.ItemText>
                                                     {option.label}

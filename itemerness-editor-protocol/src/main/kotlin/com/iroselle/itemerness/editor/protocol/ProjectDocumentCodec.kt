@@ -11,6 +11,7 @@ import com.iroselle.itemerness.api.ListDataValue
 import com.iroselle.itemerness.api.LongDataValue
 import com.iroselle.itemerness.api.NamespacedKeyDataValue
 import com.iroselle.itemerness.api.StringDataValue
+import com.iroselle.itemerness.api.UuidDataValue
 import com.iroselle.itemerness.core.catalog.BaseItemComponentSource
 import com.iroselle.itemerness.core.catalog.CatalogSource
 import com.iroselle.itemerness.core.catalog.CompoundFieldSource
@@ -84,51 +85,109 @@ import java.util.UUID
  * editor publishes content that looks approved and renders differently.
  */
 object ProjectDocumentCodec {
-    const val SUPPORTED_SCHEMA_VERSION: Int = 1
+    const val SUPPORTED_SCHEMA_VERSION: Int = 2
+    val SUPPORTED_SCHEMA_VERSIONS: List<Int> = java.util.List.of(1, SUPPORTED_SCHEMA_VERSION)
 
     class Decoded(
+        val schemaVersion: Int,
         val documentId: String,
         val namespace: String,
         val presentation: PresentationSource,
         val catalog: CatalogSource,
         val budgets: PresentationBudgets,
         val defaultLocale: String,
+        val defaultLayout: String?,
+        val defaultTheme: String?,
         /** Editor-only preview values, keyed by item id. Never part of the published catalog. */
         previewData: Map<String, List<DataAssignmentSource>>,
         /** Editor-only viewer fact values used when previewing. */
         previewFacts: Map<String, ItemDataValue>,
+        dataKeyIntegrations: Map<ItemKey, DocumentDataKeyIntegration>,
+        val measurementClientVersion: String? = null,
     ) {
         val previewData: Map<String, List<DataAssignmentSource>> =
             java.util.Collections.unmodifiableMap(LinkedHashMap(previewData))
         val previewFacts: Map<String, ItemDataValue> =
             java.util.Collections.unmodifiableMap(LinkedHashMap(previewFacts))
+        val dataKeyIntegrations: Map<ItemKey, DocumentDataKeyIntegration> =
+            java.util.Collections.unmodifiableMap(LinkedHashMap(dataKeyIntegrations))
     }
 
     fun decode(json: String, builtinFontMetrics: BuiltinFontMetrics = BuiltinFontMetrics.NONE): Decoded =
         decode(JsonObject.parse(json, "document"), builtinFontMetrics)
 
-    fun decode(root: JsonObject, builtinFontMetrics: BuiltinFontMetrics): Decoded {
+    fun decode(root: JsonObject, builtinFontMetrics: BuiltinFontMetrics): Decoded =
+        decodeChecked("document") { decodeDocument(root, builtinFontMetrics) }
+
+    private fun decodeDocument(root: JsonObject, builtinFontMetrics: BuiltinFontMetrics): Decoded {
         root.rejectUnknown(
-            "schemaVersion", "documentId", "namespace", "defaultLocale", "budgets", "formats", "locales",
+            "schemaVersion", "documentId", "namespace", "defaultLocale", "defaultLayout", "defaultTheme", "budgets", "formats", "locales",
             "fonts", "glyphs", "bitmaps", "assetProfiles", "resourcePackBindings", "tooltipStyles", "spacing",
-            "viewerFacts", "layouts", "themes", "dataSchemas", "items", "accessPolicies", "extensions",
+            "viewerFacts", "layouts", "themes", "dataSchemas", "items", "accessPolicies", "measurement", "extensions",
         )
+        if (root.optionalArray("accessPolicies").orEmpty().isNotEmpty()) {
+            throw JsonException("document.accessPolicies has no runtime policy mapping and must remain empty")
+        }
         val schemaVersion = root.requiredInt("schemaVersion")
-        if (schemaVersion != SUPPORTED_SCHEMA_VERSION) {
+        if (schemaVersion !in SUPPORTED_SCHEMA_VERSIONS) {
             throw JsonException("Unsupported document schema version $schemaVersion")
         }
         val namespace = root.requiredString("namespace")
+        ItemKey(namespace, "validation")
         val defaultLocale = root.requiredString("defaultLocale")
+        fun defaultReference(field: String, library: String): String? {
+            if (schemaVersion == 1 && root.raw(field) != null) {
+                throw JsonException("document.$field requires document schema 2")
+            }
+            return root.optionalString(field)?.also { id ->
+                ItemKey.parse(id)
+                if (root.optionalObjects(library).none { it.requiredString("id") == id }) {
+                    throw JsonException("document.$field must reference a declared $library entry")
+                }
+            }
+        }
+        val defaultLayout = defaultReference("defaultLayout", "layouts")
+        val defaultTheme = defaultReference("defaultTheme", "themes")
+        var measurementClientVersion: String? = null
+        val boldExtraAdvancePixels = if (schemaVersion == 1) {
+            if (root.raw("measurement") != null) {
+                throw JsonException("document.measurement requires document schema 2")
+            }
+            1.0
+        } else {
+            val measurement = root.requiredObject("measurement").rejectUnknown("boldExtraAdvancePixels", "clientVersion", "missingGlyph")
+            measurement.optionalString("clientVersion")?.let {
+                if (it !in setOf("server", "1.21.11", "26.1.1", "26.1.2", "26.2")) {
+                    throw JsonException("document.measurement.clientVersion must be server or a supported Minecraft client version")
+                }
+                measurementClientVersion = it
+            }
+            measurement.optionalString("missingGlyph")?.let {
+                if (it != "error") throw JsonException("document.measurement.missingGlyph must be error")
+            }
+            measurement.requiredDouble("boldExtraAdvancePixels").also {
+                if (!it.isFinite() || it !in 0.0..4096.0) {
+                    throw JsonException("document.measurement.boldExtraAdvancePixels must be between 0 and 4096")
+                }
+            }
+        }
 
         val glyphs = root.optionalObjects("glyphs").map(::glyph)
-        val explicitMetrics = glyphs.groupBy(GlyphSource::font).mapValues { (_, values) ->
-            values.associate { it.codePoint to GlyphMetricSource(it.advancePixels, it.visualBounds) }
+        val explicitMetrics = glyphs.groupBy(GlyphSource::font).mapValues { (font, values) ->
+            val metrics = LinkedHashMap<Int, GlyphMetricSource>()
+            values.forEach { glyph ->
+                if (metrics.put(glyph.codePoint, GlyphMetricSource(glyph.advancePixels, glyph.visualBounds,
+                        hasInk = glyph.visualBounds.right > glyph.visualBounds.left && glyph.visualBounds.bottom > glyph.visualBounds.top)) != null) {
+                    throw JsonException("Font $font assigns U+${glyph.codePoint.toString(16)} more than once")
+                }
+            }
+            metrics
         }
 
         val presentation = PresentationSource(
             formats = root.optionalObjects("formats").map(::format),
             locales = root.optionalObjects("locales").map(::locale),
-            fonts = root.optionalObjects("fonts").map { font(it, explicitMetrics, builtinFontMetrics) },
+            fonts = root.optionalObjects("fonts").map { font(it, explicitMetrics, builtinFontMetrics, boldExtraAdvancePixels) },
             glyphs = glyphs,
             bitmaps = root.optionalObjects("bitmaps").map(::bitmap),
             assetProfiles = root.optionalObjects("assetProfiles").map(::assetProfile),
@@ -136,41 +195,57 @@ object ProjectDocumentCodec {
             resourcePackBindings = root.optionalObjects("resourcePackBindings").map(::resourcePackBinding),
             layouts = root.optionalObjects("layouts").map(::layout),
             themes = root.optionalObjects("themes").map(::theme),
-            items = root.optionalObjects("items").map { itemPresentation(it, namespace) },
+            items = root.optionalObjects("items").map { itemPresentation(it, namespace, schemaVersion, defaultLayout, defaultTheme) },
             spacing = root.optionalObject("spacing")?.let(::spacing),
             tooltipStyles = root.optionalObjects("tooltipStyles").map { it.requiredString("id") },
         )
 
+        val integrations = LinkedHashMap<ItemKey, DocumentDataKeyIntegration>()
         val catalog = CatalogSource(
-            schemas = root.optionalObjects("dataSchemas").map(::dataSchema),
-            items = root.optionalObjects("items").map { itemDefinition(it, namespace) },
+            schemas = root.optionalObjects("dataSchemas").map { dataSchema(it, schemaVersion, integrations) },
+            items = root.optionalObjects("items").map { itemDefinition(it, namespace, schemaVersion) },
         )
 
         val previewData = LinkedHashMap<String, List<DataAssignmentSource>>()
         for (item in root.optionalObjects("items")) {
-            val id = "$namespace:${item.requiredString("id")}"
+            val id = itemKey(item, namespace, schemaVersion)
+            if (previewData.containsKey(id)) throw JsonException("Duplicate item key $id")
             previewData[id] = item.optionalObjects("previewData").map(::assignment)
         }
         val previewFacts = LinkedHashMap<String, ItemDataValue>()
         for (fact in root.optionalObjects("viewerFacts")) {
-            val value = fact.optionalObject("previewValue")?.let(::itemDataValue)
-                ?: fact.optionalObject("defaultValue")?.let(::itemDataValue)
-            if (value != null) previewFacts[fact.requiredString("id")] = value
+            val type = enum<ViewerFactType>(fact.requiredString("type"))
+            val id = fact.requiredString("id")
+            val value = fact.optionalObject("previewValue")?.let { viewerFactValue(type, it, "$id.previewValue") }
+                ?: fact.optionalObject("defaultValue")?.let { viewerFactValue(type, it, "$id.defaultValue") }
+            if (value != null) previewFacts[id] = value
         }
 
         return Decoded(
+            schemaVersion = schemaVersion,
             documentId = root.requiredString("documentId"),
             namespace = namespace,
             presentation = presentation,
             catalog = catalog,
             budgets = budgets(root.optionalObject("budgets")),
             defaultLocale = defaultLocale,
+            defaultLayout = defaultLayout,
+            defaultTheme = defaultTheme,
             previewData = previewData,
             previewFacts = previewFacts,
+            dataKeyIntegrations = integrations,
+            measurementClientVersion = measurementClientVersion,
         )
     }
 
     // --- shared values ---------------------------------------------------------------------
+
+    private inline fun <T> decodeChecked(path: String, decode: () -> T): T =
+        try {
+            decode()
+        } catch (exception: IllegalArgumentException) {
+            throw JsonException("Invalid value at $path: ${exception.message ?: "value is outside the supported range"}", exception)
+        }
 
     private fun budgets(node: JsonObject?): PresentationBudgets {
         if (node == null) return PresentationBudgets()
@@ -180,18 +255,20 @@ object ProjectDocumentCodec {
             "maximumEmittedGlyphs",
         )
         val defaults = PresentationBudgets()
-        return PresentationBudgets(
-            maximumWidthPixels = node.optionalInt("maximumWidthPixels") ?: defaults.maximumWidthPixels,
-            maximumHeightPixels = node.optionalInt("maximumHeightPixels") ?: defaults.maximumHeightPixels,
-            maximumLines = node.optionalInt("maximumLines") ?: defaults.maximumLines,
-            maximumRuns = node.optionalInt("maximumRuns") ?: defaults.maximumRuns,
-            maximumTextCodePoints = node.optionalInt("maximumTextCodePoints") ?: defaults.maximumTextCodePoints,
-            maximumBlocksPerItem = node.optionalInt("maximumBlocksPerItem") ?: defaults.maximumBlocksPerItem,
-            maximumBlockDepth = node.optionalInt("maximumBlockDepth") ?: defaults.maximumBlockDepth,
-            maximumRepeatElements = node.optionalInt("maximumRepeatElements") ?: defaults.maximumRepeatElements,
-            maximumCanvasLayers = node.optionalInt("maximumCanvasLayers") ?: defaults.maximumCanvasLayers,
-            maximumEmittedGlyphs = node.optionalInt("maximumEmittedGlyphs") ?: defaults.maximumEmittedGlyphs,
-        )
+        return decodeChecked("document.budgets") {
+            PresentationBudgets(
+                maximumWidthPixels = node.optionalInt("maximumWidthPixels") ?: defaults.maximumWidthPixels,
+                maximumHeightPixels = node.optionalInt("maximumHeightPixels") ?: defaults.maximumHeightPixels,
+                maximumLines = node.optionalInt("maximumLines") ?: defaults.maximumLines,
+                maximumRuns = node.optionalInt("maximumRuns") ?: defaults.maximumRuns,
+                maximumTextCodePoints = node.optionalInt("maximumTextCodePoints") ?: defaults.maximumTextCodePoints,
+                maximumBlocksPerItem = node.optionalInt("maximumBlocksPerItem") ?: defaults.maximumBlocksPerItem,
+                maximumBlockDepth = node.optionalInt("maximumBlockDepth") ?: defaults.maximumBlockDepth,
+                maximumRepeatElements = node.optionalInt("maximumRepeatElements") ?: defaults.maximumRepeatElements,
+                maximumCanvasLayers = node.optionalInt("maximumCanvasLayers") ?: defaults.maximumCanvasLayers,
+                maximumEmittedGlyphs = node.optionalInt("maximumEmittedGlyphs") ?: defaults.maximumEmittedGlyphs,
+            )
+        }
     }
 
     private fun bounds(node: JsonObject): VisualBoundsSource {
@@ -207,13 +284,17 @@ object ProjectDocumentCodec {
     /** The tagged data-value union shared by defaults, literals, and preview values. */
     private fun sourceDataValue(node: JsonObject): SourceDataValue =
         when (val kind = node.requiredString("kind")) {
-            "null" -> SourceDataValue.NullValue
-            "boolean" -> SourceDataValue.BooleanValue(node.requiredBoolean("value"))
-            "integer" -> SourceDataValue.IntegerValue(node.requiredLongString("value"))
-            "decimal" -> SourceDataValue.DecimalValue(node.requiredDecimalString("value"))
-            "string" -> SourceDataValue.StringValue(node.requiredString("value"))
-            "list" -> SourceDataValue.ListValue(node.requiredObjects("values").map(::sourceDataValue))
+            "null" -> {
+                node.rejectUnknown("kind")
+                SourceDataValue.NullValue
+            }
+            "boolean" -> SourceDataValue.BooleanValue(node.rejectUnknown("kind", "value").requiredBoolean("value"))
+            "integer" -> SourceDataValue.IntegerValue(node.rejectUnknown("kind", "value").requiredLongString("value"))
+            "decimal" -> SourceDataValue.DecimalValue(node.rejectUnknown("kind", "value").requiredDecimalString("value"))
+            "string" -> SourceDataValue.StringValue(node.rejectUnknown("kind", "value").requiredString("value"))
+            "list" -> SourceDataValue.ListValue(node.rejectUnknown("kind", "values").requiredObjects("values").map(::sourceDataValue))
             "compound" -> {
+                node.rejectUnknown("kind", "entries")
                 val entries = node.requiredObject("entries")
                 SourceDataValue.CompoundValue(
                     entries.keys.associateWith { key -> sourceDataValue(entries.requiredObject(key)) },
@@ -223,41 +304,50 @@ object ProjectDocumentCodec {
             else -> throw JsonException("Unknown data value kind \"$kind\"")
         }
 
-    private fun itemDataValue(node: JsonObject): ItemDataValue? =
-        when (val kind = node.requiredString("kind")) {
-            "null" -> null
-            "boolean" -> BooleanDataValue(node.requiredBoolean("value"))
-            "integer" -> {
-                val value = node.requiredLongString("value")
-                if (value in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-                    IntegerDataValue(value.toInt())
+    private fun literalValue(source: SourceDataValue): ItemDataValue =
+        when (source) {
+            SourceDataValue.NullValue -> throw JsonException("A condition literal must not contain null values")
+            is SourceDataValue.BooleanValue -> BooleanDataValue(source.value)
+            is SourceDataValue.IntegerValue -> {
+                if (source.value in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+                    IntegerDataValue(source.value.toInt())
                 } else {
-                    LongDataValue(value)
+                    LongDataValue(source.value)
                 }
             }
-
-            "decimal" -> DecimalDataValue(node.requiredDecimalString("value").toDouble())
-            "string" -> {
-                val text = node.requiredString("value")
-                // A namespaced key is spelled as a string in the document; the runtime type is
-                // decided by the data key's declared type, so both readings are produced here and
-                // the caller's schema picks. Preview values keep the more specific one when it
-                // parses, which is what a condition against a namespaced key needs.
-                runCatching { NamespacedKeyDataValue(ItemKey.parse(text)) }.getOrElse { StringDataValue(text) }
-            }
-
-            "list" -> ListDataValue(node.requiredObjects("values").mapNotNull(::itemDataValue))
-            "compound" -> {
-                val entries = node.requiredObject("entries")
-                CompoundDataValue(
-                    entries.keys.mapNotNull { key ->
-                        itemDataValue(entries.requiredObject(key))?.let { key to it }
-                    }.toMap(),
-                )
-            }
-
-            else -> throw JsonException("Unknown data value kind \"$kind\"")
+            is SourceDataValue.DecimalValue -> decodeChecked("condition.literal") { DecimalDataValue(source.value.toDouble()) }
+            is SourceDataValue.StringValue -> StringDataValue(source.value)
+            is SourceDataValue.ListValue -> ListDataValue(source.values.map(::literalValue))
+            is SourceDataValue.CompoundValue -> CompoundDataValue(source.entries.mapValues { (_, value) -> literalValue(value) })
         }
+
+    private fun viewerFactValue(type: ViewerFactType, node: JsonObject, path: String): ItemDataValue? {
+        val source = sourceDataValue(node)
+        if (source == SourceDataValue.NullValue) return null
+        fun mismatch(): Nothing = throw JsonException("Expected $type data at viewer-facts.$path")
+        fun text(): String = (source as? SourceDataValue.StringValue)?.value ?: mismatch()
+        return decodeChecked("viewer-facts.$path") {
+            when (type) {
+                ViewerFactType.LOCALE, ViewerFactType.STRING -> StringDataValue(text())
+                ViewerFactType.BOOLEAN -> BooleanDataValue((source as? SourceDataValue.BooleanValue)?.value ?: mismatch())
+                ViewerFactType.INTEGER -> {
+                    val value = (source as? SourceDataValue.IntegerValue)?.value ?: mismatch()
+                    if (value !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) mismatch()
+                    IntegerDataValue(value.toInt())
+                }
+                ViewerFactType.LONG -> LongDataValue((source as? SourceDataValue.IntegerValue)?.value ?: mismatch())
+                ViewerFactType.DECIMAL -> DecimalDataValue(
+                    when (source) {
+                        is SourceDataValue.IntegerValue -> source.value.toDouble()
+                        is SourceDataValue.DecimalValue -> source.value.toDouble()
+                        else -> mismatch()
+                    },
+                )
+                ViewerFactType.UUID -> UuidDataValue(UUID.fromString(text()))
+                ViewerFactType.NAMESPACED_KEY -> NamespacedKeyDataValue(ItemKey.parse(text()))
+            }
+        }
+    }
 
     private fun assignment(node: JsonObject): DataAssignmentSource {
         node.rejectUnknown("key", "value")
@@ -356,10 +446,17 @@ object ProjectDocumentCodec {
         node: JsonObject,
         explicitMetrics: Map<String, Map<Int, GlyphMetricSource>>,
         builtin: BuiltinFontMetrics,
+        boldExtraAdvancePixels: Double,
     ): FontSource {
         node.rejectUnknown("uuid", "extensions", "id", "metrics", "fallback", "fallbackAdvancePixels", "advances")
         val id = node.requiredString("id")
         val metrics = node.requiredString("metrics")
+        node.optionalObject("advances")?.let { range ->
+            range.rejectUnknown("minimum", "maximum")
+            if (range.requiredInt("minimum") >= range.requiredInt("maximum")) {
+                throw JsonException("fonts.$id.advances.maximum must exceed minimum")
+            }
+        }
         val declared = explicitMetrics[id].orEmpty()
 
         if (metrics.startsWith("builtin:")) {
@@ -368,7 +465,7 @@ object ProjectDocumentCodec {
             if (table.fontId != id) {
                 throw JsonException("Builtin metrics $metrics belong to ${table.fontId}, not $id")
             }
-            if (node.optionalString("fallback") != null) {
+            if (node.optionalString("fallback") != null || node.optionalDouble("fallbackAdvancePixels") != null) {
                 throw JsonException("Builtin metrics $metrics define their own exact fallback policy")
             }
             if (declared.isNotEmpty()) {
@@ -380,6 +477,7 @@ object ProjectDocumentCodec {
                 glyphs = table.glyphs,
                 fallback = table.fallback,
                 fallbackGlyph = table.fallbackGlyph,
+                boldExtraAdvancePixels = boldExtraAdvancePixels,
             )
         }
 
@@ -389,6 +487,7 @@ object ProjectDocumentCodec {
             glyphs = declared,
             fallback = node.optionalString("fallback"),
             fallbackAdvancePixels = node.optionalDouble("fallbackAdvancePixels"),
+            boldExtraAdvancePixels = boldExtraAdvancePixels,
         )
     }
 
@@ -475,11 +574,13 @@ object ProjectDocumentCodec {
         node.rejectUnknown(
             "uuid", "extensions", "id", "type", "providers", "defaultValue", "nullable", "cacheKey", "previewValue",
         )
+        val id = node.requiredString("id")
+        val type = enum<ViewerFactType>(node.requiredString("type"))
         return ViewerFactSource(
-            id = node.requiredString("id"),
-            type = enum<ViewerFactType>(node.requiredString("type")),
+            id = id,
+            type = type,
             providers = node.optionalStrings("providers"),
-            defaultValue = node.optionalObject("defaultValue")?.let(::itemDataValue),
+            defaultValue = node.optionalObject("defaultValue")?.let { viewerFactValue(type, it, "$id.defaultValue") },
             nullable = node.optionalBoolean("nullable", false),
             cacheKey = node.optionalBoolean("cacheKey", true),
         )
@@ -562,8 +663,8 @@ object ProjectDocumentCodec {
     }
 
     private fun frameRow(node: JsonObject): FrameRowSource {
-        node.rejectUnknown("left", "fill", "right")
-        return FrameRowSource(node.requiredString("left"), node.requiredString("fill"), node.requiredString("right"))
+        node.rejectUnknown("left", "fill", "right", "center", "kern")
+        return FrameRowSource(node.requiredString("left"), node.requiredString("fill"), node.requiredString("right"), node.optionalString("center"), node.optionalString("kern"))
     }
 
     private fun theme(node: JsonObject): ThemeSource {
@@ -574,9 +675,10 @@ object ProjectDocumentCodec {
         )
         val fonts = node.requiredObject("fonts")
         val styles = node.optionalObject("styles")
+        val renderer = enum<ThemeRenderer>(node.requiredString("renderer"))
         return ThemeSource(
             id = node.requiredString("id"),
-            renderer = enum<ThemeRenderer>(node.requiredString("renderer")),
+            renderer = renderer,
             requiresResourcePack = node.requiredBoolean("requiresResourcePack"),
             requiredCapabilities = node.optionalStrings("requiredCapabilities"),
             vanillaTooltipLines = enum<VanillaTooltipLinePolicy>(node.requiredString("vanillaTooltipLines")),
@@ -618,11 +720,11 @@ object ProjectDocumentCodec {
                     maximumLines = it.requiredInt("maximumLines"),
                     fallbackBidirectionalText = it.optionalBoolean("fallbackBidirectionalText", true),
                 )
-            },
+            }?.takeIf { renderer == ThemeRenderer.VANILLA_CHARACTER_FRAME },
             segmentedFrame = node.optionalObject("segmentedFrame")?.let {
                 it.rejectUnknown(
                     "minimumWidthPixels", "maximumWidthPixels", "leftPaddingPixels", "rightPaddingPixels",
-                    "top", "body", "connector", "bottom",
+                    "top", "body", "connector", "bottom", "includeName",
                 )
                 SegmentedFrameSource(
                     minimumWidthPixels = it.requiredInt("minimumWidthPixels"),
@@ -633,9 +735,10 @@ object ProjectDocumentCodec {
                     body = frameRow(it.requiredObject("body")),
                     connector = it.optionalObject("connector")?.let(::frameRow),
                     bottom = frameRow(it.requiredObject("bottom")),
+                    includeName = it.optionalBoolean("includeName", false),
                 )
-            },
-            canvas = node.optionalObject("canvas")?.let(::canvasTheme),
+            }?.takeIf { renderer == ThemeRenderer.SEGMENTED_FRAME },
+            canvas = node.optionalObject("canvas")?.let(::canvasTheme)?.takeIf { renderer == ThemeRenderer.BITMAP_CANVAS },
             requireExactFontMetrics = node.optionalBoolean("requireExactFontMetrics", false),
         )
     }
@@ -679,8 +782,7 @@ object ProjectDocumentCodec {
             "fact" -> ValueReferenceSource.Fact(node.requiredString("key"))
             "literal" ->
                 ValueReferenceSource.Literal(
-                    itemDataValue(node.requiredObject("value"))
-                        ?: throw JsonException("A literal condition operand must not be null"),
+                    literalValue(sourceDataValue(node.requiredObject("value"))),
                 )
 
             else -> throw JsonException("Unknown value reference kind \"$kind\"")
@@ -778,13 +880,27 @@ object ProjectDocumentCodec {
         }
     }
 
-    private fun itemPresentation(node: JsonObject, namespace: String): ItemPresentationSource {
+    private fun itemKey(node: JsonObject, namespace: String, schemaVersion: Int): String {
+        val id = node.requiredString("id")
+        if (schemaVersion == 1 && (id.length > 200 || !id.matches(Regex("[a-z0-9_./-]+")))) {
+            throw JsonException("Document schema 1 requires an item path of at most 200 characters")
+        }
+        return ItemKey.parse(if (':' in id) id else "$namespace:$id").toString()
+    }
+
+    private fun itemPresentation(
+        node: JsonObject, namespace: String, schemaVersion: Int, defaultLayout: String?, defaultTheme: String?,
+    ): ItemPresentationSource {
         val presentation = node.requiredObject("presentation")
         presentation.rejectUnknown("layout", "theme", "nameMessage", "blocks")
         return ItemPresentationSource(
-            id = "$namespace:${node.requiredString("id")}",
-            layout = presentation.requiredString("layout"),
-            theme = presentation.requiredString("theme"),
+            id = itemKey(node, namespace, schemaVersion),
+            layout = if (schemaVersion == 1) presentation.requiredString("layout") else
+                presentation.optionalString("layout") ?: defaultLayout
+                    ?: throw JsonException("Inherited item layout requires document.defaultLayout"),
+            theme = if (schemaVersion == 1) presentation.requiredString("theme") else
+                presentation.optionalString("theme") ?: defaultTheme
+                    ?: throw JsonException("Inherited item theme requires document.defaultTheme"),
             nameMessage = presentation.requiredString("nameMessage"),
             blocks = presentation.requiredObjects("blocks").map(::block),
             enabled = node.requiredBoolean("enabled"),
@@ -793,19 +909,36 @@ object ProjectDocumentCodec {
 
     // --- catalog ---------------------------------------------------------------------------
 
-    private fun dataSchema(node: JsonObject): DataSchemaSource {
+    private fun dataSchema(
+        node: JsonObject,
+        schemaVersion: Int,
+        integrations: MutableMap<ItemKey, DocumentDataKeyIntegration>,
+    ): DataSchemaSource {
         node.rejectUnknown("uuid", "extensions", "id", "version", "keys")
         return DataSchemaSource(
             id = node.requiredString("id"),
             version = node.requiredInt("version"),
-            keys = node.requiredObjects("keys").map(::dataKey),
+            keys = node.requiredObjects("keys").map { key ->
+                dataKey(key).also { source ->
+                    if (schemaVersion == 1) {
+                        if (key.raw("integration") != null) {
+                            throw JsonException("Data key ${source.id}.integration requires document schema 2")
+                        }
+                    } else {
+                        val integration = DocumentDataKeyIntegration.decode(key.requiredObject("integration"), source)
+                        if (integrations.put(ItemKey.parse(source.id), integration) != null) {
+                            throw JsonException("Data key ${source.id} has more than one integration policy, which YAML does not support")
+                        }
+                    }
+                }
+            },
         )
     }
 
     private fun dataKey(node: JsonObject): DataKeySource {
         node.rejectUnknown(
             "uuid", "extensions", "id", "type", "scope", "nullable", "defaultValue", "affectsStacking",
-            "presentationReadable", "constraints",
+            "presentationReadable", "constraints", "integration",
         )
         val constraints = node.optionalObject("constraints")
         constraints?.rejectUnknown(
@@ -837,7 +970,7 @@ object ProjectDocumentCodec {
         )
     }
 
-    private fun itemDefinition(node: JsonObject, namespace: String): ItemDefinitionSource {
+    private fun itemDefinition(node: JsonObject, namespace: String, schemaVersion: Int): ItemDefinitionSource {
         node.rejectUnknown("uuid", "extensions", "id", "enabled", "definition", "presentation", "previewData")
         val definition = node.requiredObject("definition")
         definition.rejectUnknown(
@@ -847,7 +980,7 @@ object ProjectDocumentCodec {
         instance.rejectUnknown("mode", "idGenerator", "schemas", "defaults", "generators")
 
         return ItemDefinitionSource(
-            id = "$namespace:${node.requiredString("id")}",
+            id = itemKey(node, namespace, schemaVersion),
             enabled = node.requiredBoolean("enabled"),
             material = definition.requiredString("material"),
             instance = ItemInstanceSource(

@@ -18,10 +18,15 @@ import io.papermc.paper.datacomponent.item.Consumable
 import io.papermc.paper.datacomponent.item.CustomModelData
 import io.papermc.paper.datacomponent.item.FoodProperties
 import io.papermc.paper.datacomponent.item.ItemContainerContents
+import io.papermc.paper.datacomponent.item.ItemAttributeModifiers
+import io.papermc.paper.datacomponent.item.ItemEnchantments
 import io.papermc.paper.datacomponent.item.UseCooldown
 import io.papermc.paper.datacomponent.item.consumable.ItemUseAnimation
+import io.papermc.paper.registry.RegistryAccess
+import io.papermc.paper.registry.RegistryKey
 import net.kyori.adventure.key.Key
 import org.bukkit.Color
+import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemRarity
 import org.bukkit.inventory.ItemStack
 
@@ -141,6 +146,20 @@ internal object PaperBukkitItemComponentWriter : BukkitItemComponentWriter {
                 is BaseItemComponent.ItemModel -> stack.setData(DataComponentTypes.ITEM_MODEL, component.value.adventureKey())
                 is BaseItemComponent.Rarity -> stack.setData(DataComponentTypes.RARITY, component.value.bukkitValue())
                 is BaseItemComponent.RepairCost -> stack.setData(DataComponentTypes.REPAIR_COST, component.value)
+                BaseItemComponent.EmptyAttributeModifiers -> stack.setData(
+                    DataComponentTypes.ATTRIBUTE_MODIFIERS,
+                    ItemAttributeModifiers.itemAttributes(),
+                )
+                is BaseItemComponent.EnchantmentLevels -> {
+                    val registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT)
+                    val enchantments = ItemEnchantments.itemEnchantments(component.levels.mapKeys { (key, _) ->
+                        requireNotNull(registry.get(NamespacedKey(key.namespace, key.value))) { "Unknown enchantment $key" }
+                    })
+                    when (component) {
+                        is BaseItemComponent.Enchantments -> stack.setData(DataComponentTypes.ENCHANTMENTS, enchantments)
+                        is BaseItemComponent.StoredEnchantments -> stack.setData(DataComponentTypes.STORED_ENCHANTMENTS, enchantments)
+                    }
+                }
                 is BaseItemComponent.CustomModelData -> stack.setData(
                     DataComponentTypes.CUSTOM_MODEL_DATA,
                     CustomModelData.customModelData()

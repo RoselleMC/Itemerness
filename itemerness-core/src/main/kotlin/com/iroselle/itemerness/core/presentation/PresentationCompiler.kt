@@ -743,8 +743,25 @@ class PresentationCompiler(
         validateNonNegative(frame.leftPaddingPixels, "$path.frame.left-padding", diagnostics)
         validateNonNegative(frame.rightPaddingPixels, "$path.frame.right-padding", diagnostics)
         listOfNotNull(frame.top, frame.body, frame.connector, frame.bottom).forEachIndexed { rowIndex, row ->
-            listOf(row.left, row.fill, row.right).forEach { glyph ->
-                if (glyph !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.frame.rows[$rowIndex]", "Unknown glyph $glyph")
+            val rowPath = "$path.frame.rows[$rowIndex]"
+            listOfNotNull(row.left, row.fill, row.right, row.center, row.kern).forEach { glyph ->
+                if (glyph !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, rowPath, "Unknown glyph $glyph")
+            }
+            if (frame.includeName || row.center != null || row.kern != null) {
+                val kern = row.kern?.let(glyphs::get)
+                if (kern != null) {
+                    if (kern.advancePixels >= 0 || kern.visualBounds.right > kern.visualBounds.left || kern.visualBounds.bottom > kern.visualBounds.top) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$rowPath.kern", "A frame kern must have negative advance and no visual ink")
+                    }
+                    listOfNotNull(row.left, row.fill, row.right, row.center).mapNotNull(glyphs::get).forEach { piece ->
+                        if (piece.font != kern.font) diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$rowPath.kern", "Frame pieces and their kern must share a font")
+                    }
+                }
+                listOfNotNull(row.left, row.fill, row.right, row.center).mapNotNull(glyphs::get).forEach { piece ->
+                    if (piece.advancePixels + (kern?.advancePixels ?: 0.0) <= 0) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, rowPath, "Frame pieces must have positive net advance")
+                    }
+                }
             }
         }
         if (spacing == null) {

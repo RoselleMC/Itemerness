@@ -71,20 +71,38 @@ interface AssembleState {
     metricsIncomplete: boolean;
 }
 
+const vanillaGlyphs = new WeakMap<Glyph, Glyph>();
+
 /** First-wins insertion, matching `put_first` in the metrics generator. */
 function putFirst(
     target: Map<number, Glyph>,
     source: ReadonlyMap<number, Glyph>,
+    vanillaMetrics: boolean,
 ): void {
     for (const [codePoint, glyph] of source) {
-        if (!target.has(codePoint)) target.set(codePoint, glyph);
+        if (target.has(codePoint)) continue;
+        if (!vanillaMetrics) {
+            target.set(codePoint, glyph);
+            continue;
+        }
+        let sourced = vanillaGlyphs.get(glyph);
+        if (!sourced) {
+            sourced = { ...glyph, vanillaMetrics: true };
+            vanillaGlyphs.set(glyph, sourced);
+        }
+        target.set(codePoint, sourced);
     }
+}
+
+interface FontDefinition {
+    readonly providers: readonly FontProvider[];
+    readonly vanilla: boolean;
 }
 
 function readDefinition(
     stack: PackStack,
     fontId: string,
-): readonly FontProvider[] | null {
+): FontDefinition | null {
     let cache = definitions.get(stack);
     if (!cache) {
         cache = new Map();
@@ -96,22 +114,25 @@ function readDefinition(
         namespace: location.namespace,
         path: `font/${location.path}.json`,
     });
-    const bytes = stack.read(path);
-    if (!bytes) {
+    const source = stack.resolve(path);
+    if (!source) {
         cache.set(fontId, null);
         return null;
     }
-    const result = parseFontDefinition(
-        JSON.parse(new TextDecoder().decode(bytes)),
-        path,
-    );
+    const result: FontDefinition = {
+        providers: parseFontDefinition(
+            JSON.parse(new TextDecoder().decode(source.bytes)),
+            path,
+        ),
+        vanilla: source.pack.kind === "vanilla",
+    };
     cache.set(fontId, result);
     return result;
 }
 
 const definitions = new WeakMap<
     PackStack,
-    Map<string, readonly FontProvider[] | null>
+    Map<string, FontDefinition | null>
 >();
 const providerGlyphs = new WeakMap<
     Uint8Array,
@@ -142,6 +163,7 @@ function visitProvider(
     provider: FontProvider,
     options: FontOptions,
     state: AssembleState,
+    vanillaDefinition: boolean,
 ): void {
     if (!providerEnabled(provider, options)) return;
 
@@ -160,15 +182,15 @@ function visitProvider(
                     providerKind: "space",
                 });
             }
-            putFirst(state.glyphs, glyphs);
+            putFirst(state.glyphs, glyphs, vanillaDefinition);
             return;
         }
         case "bitmap": {
             const location = parseLocation(provider.file);
             const path = assetPath(location, "textures/");
             state.providerTrace.push(`bitmap ${locationToString(location)}`);
-            const bytes = stack.read(path);
-            if (!bytes) {
+            const source = stack.resolve(path);
+            if (!source) {
                 state.metricsIncomplete = true;
                 state.diagnostics.push(
                     diagnostic(
@@ -184,13 +206,14 @@ function visitProvider(
             try {
                 putFirst(
                     state.glyphs,
-                    cachedGlyphs(bytes, provider, () =>
+                    cachedGlyphs(source.bytes, provider, () =>
                         bitmapProviderGlyphs(
                             provider,
-                            decodeImage(bytes, path),
+                            decodeImage(source.bytes, path),
                             path,
                         ),
                     ),
+                    source.pack.kind === "vanilla",
                 );
             } catch (error) {
                 state.metricsIncomplete = true;
@@ -211,8 +234,8 @@ function visitProvider(
             const location = parseLocation(provider.hexFile);
             const path = assetPath(location);
             state.providerTrace.push(`unihex ${locationToString(location)}`);
-            const bytes = stack.read(path);
-            if (!bytes) {
+            const source = stack.resolve(path);
+            if (!source) {
                 state.metricsIncomplete = true;
                 state.diagnostics.push(
                     diagnostic(
@@ -226,8 +249,8 @@ function visitProvider(
             try {
                 putFirst(
                     state.glyphs,
-                    cachedGlyphs(bytes, provider, () => {
-                        const sources = parseUnihexArchive(bytes, path);
+                    cachedGlyphs(source.bytes, provider, () => {
+                        const sources = parseUnihexArchive(source.bytes, path);
                         const glyphs = new Map<number, Glyph>();
                         for (const [codePoint, source] of sources) {
                             const crop = applySizeOverrides(
@@ -242,6 +265,7 @@ function visitProvider(
                         }
                         return glyphs;
                     }),
+                    source.pack.kind === "vanilla",
                 );
             } catch (error) {
                 state.metricsIncomplete = true;
@@ -264,7 +288,7 @@ function visitProvider(
             if (state.visitedFonts.has(referencedId)) return;
             state.visitedFonts.add(referencedId);
             state.providerTrace.push(`reference ${referencedId}`);
-            let providers: readonly FontProvider[] | null;
+            let providers: FontDefinition | null;
             try {
                 providers = readDefinition(stack, referencedId);
             } catch (error) {
@@ -294,8 +318,8 @@ function visitProvider(
                 );
                 return;
             }
-            for (const nested of providers)
-                visitProvider(stack, nested, options, state);
+            for (const nested of providers.providers)
+                visitProvider(stack, nested, options, state, providers.vanilla);
             return;
         }
         case "ttf": {
@@ -342,7 +366,7 @@ export function assembleFont(
         metricsIncomplete: false,
     };
 
-    let providers: readonly FontProvider[] | null;
+    let providers: FontDefinition | null;
     try {
         providers = readDefinition(stack, fontId);
     } catch (error) {
@@ -380,8 +404,8 @@ export function assembleFont(
         };
     }
 
-    for (const provider of providers)
-        visitProvider(stack, provider, options, state);
+    for (const provider of providers.providers)
+        visitProvider(stack, provider, options, state, providers.vanilla);
 
     return {
         fontId,

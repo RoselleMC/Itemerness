@@ -1,49 +1,27 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
-import type { DataTypeNode, DataValue } from "@itemerness/protocol";
+import { Plus, Trash2 } from "lucide-react";
+import { namespacedIdSchema, type DataKeyNode } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
-import { humanizePath, resolveMessage } from "../common/messages.js";
-import { describeContext } from "../../state/interface.js";
+import { resolveMessage } from "../common/messages.js";
+import { describeContext, runMenuAction } from "../../state/interface.js";
+import { dataKeyActions } from "../common/dataLibraryActions.js";
+import { renameDataKey } from "../../state/dataLibrary.js";
+import { DataSchemaInspector } from "./DataSchemaInspector.js";
+import { DataIntegrationEditor } from "./DataIntegrationEditor.js";
+import { DataTypeEditor } from "../common/DataTypeEditor.js";
+import { DataValueEditor } from "../common/DataValueEditor.js";
+import { BufferedInput } from "../common/BufferedInput.js";
+import { SelectField } from "../common/SelectField.js";
+import { initialDataValue, valueKindForType } from "../common/typedValues.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 import {
-    copyAction,
-    relatedItems,
-    blockUses,
-} from "../common/contextActions.js";
-
-/**
- * Data key editing, scoped to what content editors actually decide: the human label every item
- * shows for the key, and its default value. Type, scope, and constraints define what plugins wrote
- * into the schema — shown for understanding, folded as read-only, because changing them is an API
- * migration and not a wording tweak.
- */
-
-function typeText(node: DataTypeNode): string {
-    switch (node.kind) {
-        case "list":
-            return `list<${typeText(node.element)}>`;
-        case "compound":
-            return "compound";
-        case "namespacedKey":
-            return "key";
-        default:
-            return node.kind;
-    }
-}
-
-function scalarToText(value: DataValue | null): string | null {
-    if (!value) return null;
-    switch (value.kind) {
-        case "integer":
-        case "decimal":
-            return value.value;
-        case "string":
-            return value.value;
-        case "boolean":
-            return String(value.value);
-        default:
-            return null;
-    }
-}
+    applicableConstraints,
+    constraintLimits,
+    dataKeyReferences,
+    validOptionalConstraint,
+} from "./dataKeyEditing.js";
+import "./dataEditor.css";
 
 export function DataInspector({
     previewSettings,
@@ -53,181 +31,385 @@ export function DataInspector({
     const { t } = useTranslation();
     const store = useEditorStore();
     const doc = store.document;
-    const dataKey = doc.dataSchemas
-        .flatMap((schema) => schema.keys)
-        .find((key) => key.id === store.selectedDataKeyId);
-
-    if (!dataKey) {
-        return (
-            <aside className="inspector">
-                <p className="muted">{t("stage.noItem")}</p>
-            </aside>
-        );
-    }
-
-    const path = dataKey.id.split(":").pop() ?? dataKey.id;
-    const labelKey = `data.${path}.label`;
-    const label = resolveMessage(doc, store.viewerLocale, labelKey);
-    const usedBy = doc.items.filter((item) =>
-        item.presentation.blocks.some(
-            (block) => "data" in block && block.data === dataKey.id,
-        ),
+    const schema = doc.dataSchemas.find((entry) =>
+        entry.keys.some((key) => key.uuid === store.selectedDataKeyUuid),
     );
-    const defaultText = scalarToText(dataKey.defaultValue);
-
-    const commitDefault = (raw: string) => {
-        const current = dataKey.defaultValue;
-        if (!current) return;
-        let next: DataValue | null = null;
-        if (current.kind === "integer" && /^-?\d+$/.test(raw))
-            next = { kind: "integer", value: raw };
-        if (current.kind === "decimal" && /^-?\d+(\.\d+)?$/.test(raw))
-            next = { kind: "decimal", value: raw };
-        if (current.kind === "string") next = { kind: "string", value: raw };
-        if (current.kind === "boolean")
-            next = { kind: "boolean", value: raw === "true" };
-        if (!next) return;
-        store.updateDataKey(dataKey.id, (key) => ({
-            ...key,
-            defaultValue: next,
-        }));
+    const dataKey = schema?.keys.find(
+        (key) => key.uuid === store.selectedDataKeyUuid,
+    );
+    if (!dataKey || !schema)
+        return <DataSchemaInspector previewSettings={previewSettings} />;
+    const references = dataKeyReferences(doc, dataKey.uuid);
+    const patch = (changes: Partial<DataKeyNode>) =>
+        store.updateDataKey(dataKey.uuid, (key) => ({ ...key, ...changes }));
+    const applicable = applicableConstraints(dataKey.type.kind);
+    const constraint = (
+        key: "minimum" | "maximum" | keyof typeof constraintLimits,
+    ) => {
+        const value = dataKey.constraints[key];
+        if (!applicable.has(key) && value === null) return null;
+        const maximum =
+            key === "minimum" || key === "maximum"
+                ? undefined
+                : constraintLimits[key];
+        return (
+            <div className="data-constraint" key={key}>
+                <span className="field-label">
+                    {t(`dataEditing.constraints.${key}`)}
+                </span>
+                <BufferedInput
+                    value={value === null ? "" : String(value)}
+                    owner={`${dataKey.uuid}-${key}`}
+                    label={t(`dataEditing.constraints.${key}`)}
+                    testId={`data-constraint-${key}`}
+                    inputMode="decimal"
+                    validate={(raw) =>
+                        validOptionalConstraint(raw, maximum)
+                            ? null
+                            : t(
+                                  maximum === undefined
+                                      ? "dataEditing.invalidNumber"
+                                      : "dataEditing.invalidLimit",
+                                  { maximum },
+                              )
+                    }
+                    onCommit={(raw) =>
+                        patch({
+                            constraints: {
+                                ...dataKey.constraints,
+                                [key]:
+                                    raw === ""
+                                        ? null
+                                        : maximum === undefined
+                                          ? raw
+                                          : Number(raw),
+                            },
+                        })
+                    }
+                />
+                {!applicable.has(key) && (
+                    <span className="error small">
+                        {t("dataEditing.incompatibleConstraint")}
+                    </span>
+                )}
+            </div>
+        );
     };
-
     return (
         <aside
             className="inspector"
             aria-label={t("inspector.data.heading")}
+            key={dataKey.uuid}
             onContextMenu={(event) =>
                 describeContext(event, {
                     label: dataKey.id,
-                    items: [
-                        copyAction("copy-id", t("menus.copyId"), dataKey.id),
-                        relatedItems(
-                            doc.items.filter((item) =>
-                                item.presentation.blocks.some((block) =>
-                                    blockUses(block, dataKey.id),
-                                ),
-                            ),
-                            t,
-                        ),
-                    ],
+                    items: dataKeyActions(dataKey.uuid, t),
                 })
             }
         >
             <section>
-                <h3>{t("inspector.data.heading")}</h3>
-                <p className="library-title">
-                    {label.source === "missing"
-                        ? humanizePath(path)
-                        : label.text}
-                    <span className="tag">{typeText(dataKey.type)}</span>
-                    <span className="tag">
-                        {dataKey.scope === "INSTANCE"
-                            ? t("inspector.data.instance")
-                            : t("inspector.data.definition")}
-                    </span>
-                </p>
-                <p className="muted small">
-                    {t("inspector.layout.usedBy", { count: usedBy.length })}
-                </p>
-            </section>
-
-            <section>
-                <h3>{t("inspector.data.label")}</h3>
-                <input
-                    value={label.source === "own" ? label.text : ""}
-                    placeholder={
-                        label.source === "missing"
-                            ? humanizePath(path)
-                            : label.text
+                <header className="content-inspector-header">
+                    <h3>{t("inspector.data.heading")}</h3>
+                    <div className="content-inspector-actions">
+                        {dataKeyActions(dataKey.uuid, t)
+                            .filter(
+                                (action) =>
+                                    action.id === "duplicate-key" ||
+                                    action.id === "delete-key",
+                            )
+                            .map((action) => (
+                                <button
+                                    key={action.id}
+                                    type="button"
+                                    className="icon-button"
+                                    disabled={action.disabled}
+                                    aria-label={action.label}
+                                    data-tooltip={
+                                        action.disabled
+                                            ? t("dataLibrary.inUse")
+                                            : action.label
+                                    }
+                                    data-testid={action.id}
+                                    onClick={() => runMenuAction(action)}
+                                >
+                                    {action.icon && <action.icon size={16} />}
+                                </button>
+                            ))}
+                    </div>
+                </header>
+                <BufferedInput
+                    value={dataKey.id}
+                    label={t("dataLibrary.keyId")}
+                    testId="data-key-id"
+                    owner={dataKey.uuid}
+                    validate={(id) =>
+                        !namespacedIdSchema.safeParse(id).success
+                            ? t("dataLibrary.invalidId")
+                            : doc.dataSchemas.some((entry) =>
+                                    entry.keys.some(
+                                        (key) =>
+                                            key.uuid !== dataKey.uuid &&
+                                            key.id === id,
+                                    ),
+                                )
+                              ? t("dataLibrary.duplicateIdentity")
+                              : null
                     }
-                    onChange={(event) =>
-                        store.setMessage(
-                            store.viewerLocale,
-                            labelKey,
-                            event.target.value,
+                    onCommit={(id) =>
+                        store.updateDocument((document) =>
+                            renameDataKey(document, dataKey.uuid, id),
                         )
                     }
-                    data-testid="data-label-input"
                 />
-                <p className="muted small">
-                    {label.source === "own"
-                        ? t("inspector.name.editingIn", {
-                              locale: store.viewerLocale,
-                          })
-                        : t("inspector.name.inherited", {
-                              locale: label.sourceLocale ?? doc.defaultLocale,
-                          })}
+                <p className="muted small data-key-id">
+                    {schema.id} @ {schema.version}
                 </p>
-                <p className="muted small">{t("inspector.data.labelHint")}</p>
+                <p className="muted small" data-testid="data-used-by">
+                    {t("inspector.layout.usedBy", {
+                        count: references.items.length,
+                    })}
+                </p>
             </section>
-
-            {defaultText !== null ? (
+            {references.labels.length > 0 && (
                 <section>
-                    <h3>{t("inspector.data.defaultValue")}</h3>
-                    {dataKey.defaultValue?.kind === "boolean" ? (
-                        <label className="toggle-row">
-                            <input
-                                type="checkbox"
-                                checked={dataKey.defaultValue.value}
-                                onChange={(event) =>
-                                    commitDefault(String(event.target.checked))
-                                }
-                            />
-                            {t("inspector.data.defaultValue")}
-                        </label>
-                    ) : (
-                        <input
-                            value={defaultText}
-                            onChange={(event) =>
-                                commitDefault(event.target.value)
-                            }
-                            data-testid="data-default-input"
-                        />
-                    )}
-                    <p className="muted small">
-                        {t("inspector.data.defaultHint")}
-                    </p>
+                    <h3>{t("inspector.data.label")}</h3>
+                    {references.labels.map((messageKey, index) => {
+                        const label = resolveMessage(
+                            doc,
+                            store.viewerLocale,
+                            messageKey,
+                        );
+                        return (
+                            <div className="data-label-field" key={messageKey}>
+                                <label>
+                                    <span className="field-label data-key-id">
+                                        {messageKey}
+                                    </span>
+                                    <input
+                                        value={
+                                            label.source === "own"
+                                                ? label.text
+                                                : ""
+                                        }
+                                        placeholder={
+                                            label.source === "missing"
+                                                ? t("locales.missing")
+                                                : label.text
+                                        }
+                                        data-testid={
+                                            index === 0
+                                                ? "data-label-input"
+                                                : `data-label-input-${index}`
+                                        }
+                                        onChange={(event) =>
+                                            store.setMessage(
+                                                store.viewerLocale,
+                                                messageKey,
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+                                {label.source !== "own" &&
+                                    label.sourceLocale && (
+                                        <span className="muted small">
+                                            {t("locales.inheritedFrom", {
+                                                locale: label.sourceLocale,
+                                            })}
+                                        </span>
+                                    )}
+                            </div>
+                        );
+                    })}
                 </section>
-            ) : null}
-
-            <details className="advanced">
-                <summary>{t("inspector.advanced.heading")}</summary>
-                <dl>
-                    <dt>ID</dt>
-                    <dd>
-                        <code>{dataKey.id}</code>
-                    </dd>
-                    <dt>{t("inspector.data.affectsStacking")}</dt>
-                    <dd>{String(dataKey.affectsStacking)}</dd>
-                    <dt>{t("inspector.data.presentationReadable")}</dt>
-                    <dd>{String(dataKey.presentationReadable)}</dd>
-                    {dataKey.constraints.minimum !== null ||
-                    dataKey.constraints.maximum !== null ? (
-                        <>
-                            <dt>{t("inspector.data.range")}</dt>
-                            <dd>
-                                {dataKey.constraints.minimum ?? "−∞"} …{" "}
-                                {dataKey.constraints.maximum ?? "+∞"}
-                            </dd>
-                        </>
-                    ) : null}
-                    {dataKey.constraints.allowedValues.length > 0 ? (
-                        <>
-                            <dt>{t("inspector.data.allowed")}</dt>
-                            <dd>
-                                {dataKey.constraints.allowedValues
-                                    .map(
-                                        (value) =>
-                                            scalarToText(value) ?? value.kind,
-                                    )
-                                    .map((value) => value.split(":").pop())
-                                    .join(", ")}
-                            </dd>
-                        </>
-                    ) : null}
-                </dl>
-            </details>
+            )}
+            <section>
+                <DataTypeEditor
+                    type={dataKey.type}
+                    label={t("dataEditing.type")}
+                    testId="data-type"
+                    onChange={(type) => patch({ type })}
+                />
+                <label className="field-label">{t("dataEditing.scope")}</label>
+                <SelectField
+                    value={dataKey.scope}
+                    label={t("dataEditing.scope")}
+                    data-testid="data-scope"
+                    options={[
+                        {
+                            value: "DEFINITION",
+                            label: t("inspector.data.definition"),
+                        },
+                        {
+                            value: "INSTANCE",
+                            label: t("inspector.data.instance"),
+                        },
+                    ]}
+                    onValueChange={(scope) => {
+                        if (commitInlineEditor())
+                            patch({ scope: scope as DataKeyNode["scope"] });
+                    }}
+                />
+                {(
+                    [
+                        "nullable",
+                        "affectsStacking",
+                        "presentationReadable",
+                    ] as const
+                ).map((key) => (
+                    <label className="toggle-row" key={key}>
+                        <input
+                            type="checkbox"
+                            checked={dataKey[key]}
+                            data-testid={`data-${key}`}
+                            onChange={(event) =>
+                                patch({ [key]: event.target.checked })
+                            }
+                        />
+                        {t(
+                            key === "nullable"
+                                ? "dataEditing.nullable"
+                                : `inspector.data.${key}`,
+                        )}
+                    </label>
+                ))}
+            </section>
+            <section>
+                <div className="data-editor-row">
+                    <h3>{t("inspector.data.defaultValue")}</h3>
+                    <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={t(
+                            dataKey.defaultValue === null
+                                ? "dataEditing.setDefault"
+                                : "dataEditing.clearDefault",
+                        )}
+                        data-tooltip={t(
+                            dataKey.defaultValue === null
+                                ? "dataEditing.setDefault"
+                                : "dataEditing.clearDefault",
+                        )}
+                        data-testid="data-default-toggle"
+                        onClick={() => {
+                            if (commitInlineEditor())
+                                patch({
+                                    defaultValue:
+                                        dataKey.defaultValue === null
+                                            ? initialDataValue(
+                                                  valueKindForType(
+                                                      dataKey.type,
+                                                  ),
+                                                  dataKey.type,
+                                              )
+                                            : null,
+                                });
+                        }}
+                    >
+                        {dataKey.defaultValue === null ? (
+                            <Plus size={16} />
+                        ) : (
+                            <Trash2 size={16} />
+                        )}
+                    </button>
+                </div>
+                {dataKey.defaultValue === null ? (
+                    <span className="muted small">
+                        {t("dataEditing.noDefault")}
+                    </span>
+                ) : (
+                    <DataValueEditor
+                        value={dataKey.defaultValue}
+                        type={dataKey.type}
+                        nullable={dataKey.nullable}
+                        label={t("inspector.data.defaultValue")}
+                        testId="data-default"
+                        onChange={(defaultValue) => patch({ defaultValue })}
+                    />
+                )}
+            </section>
+            <section>
+                <h3>{t("dataEditing.constraintsHeading")}</h3>
+                <div className="data-constraints">
+                    {constraint("minimum")}
+                    {constraint("maximum")}
+                    {Object.keys(constraintLimits).map((key) =>
+                        constraint(key as keyof typeof constraintLimits),
+                    )}
+                </div>
+                <div className="data-editor-row">
+                    <h4>{t("inspector.data.allowed")}</h4>
+                    <button
+                        type="button"
+                        className="icon-button"
+                        aria-label={t("dataEditing.addAllowed")}
+                        data-tooltip={t("dataEditing.addAllowed")}
+                        data-testid="data-add-allowed"
+                        onClick={() => {
+                            if (commitInlineEditor())
+                                patch({
+                                    constraints: {
+                                        ...dataKey.constraints,
+                                        allowedValues: [
+                                            ...dataKey.constraints
+                                                .allowedValues,
+                                            initialDataValue(
+                                                valueKindForType(dataKey.type),
+                                                dataKey.type,
+                                            ),
+                                        ],
+                                    },
+                                });
+                        }}
+                    >
+                        <Plus size={16} />
+                    </button>
+                </div>
+                {dataKey.constraints.allowedValues.map((value, index) => (
+                    <div className="data-allowed-entry" key={index}>
+                        <DataValueEditor
+                            value={value}
+                            type={dataKey.type}
+                            nullable={false}
+                            label={t("values.entry", { index: index + 1 })}
+                            testId={`data-allowed-${index}`}
+                            onChange={(next) =>
+                                patch({
+                                    constraints: {
+                                        ...dataKey.constraints,
+                                        allowedValues:
+                                            dataKey.constraints.allowedValues.map(
+                                                (old, i) =>
+                                                    i === index ? next : old,
+                                            ),
+                                    },
+                                })
+                            }
+                        />
+                        <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={t("values.remove")}
+                            data-tooltip={t("values.remove")}
+                            onClick={() => {
+                                if (commitInlineEditor())
+                                    patch({
+                                        constraints: {
+                                            ...dataKey.constraints,
+                                            allowedValues:
+                                                dataKey.constraints.allowedValues.filter(
+                                                    (_, i) => i !== index,
+                                                ),
+                                        },
+                                    });
+                            }}
+                        >
+                            <Trash2 size={15} />
+                        </button>
+                    </div>
+                ))}
+            </section>
+            <DataIntegrationEditor document={doc} dataKey={dataKey} />
             {previewSettings}
         </aside>
     );

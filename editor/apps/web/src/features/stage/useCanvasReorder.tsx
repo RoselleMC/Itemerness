@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import type { PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { locateBlock, moveBlockTree } from "../../state/blocks.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
 
 interface Ghost {
     bitmap: HTMLCanvasElement;
@@ -84,6 +85,7 @@ export function useCanvasReorder(
     };
     const begin = (event: ReactPointerEvent, uuid: string) => {
         if (event.button !== 0 || uuid === "__name" || event.detail > 1) return;
+        if (!commitInlineEditor()) return;
         const item = currentItem();
         if (!item || !locateBlock(item.presentation.blocks, uuid)) return;
         event.stopPropagation();

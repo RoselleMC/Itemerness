@@ -29,6 +29,18 @@ async function nativeWindow(page: Page, platform: "macos" | "windows") {
             runtime.isTauri = true;
             runtime.captionCalls = calls;
             runtime.themeRequests = themes;
+            runtime.setWindowFocused = (focused: boolean) => {
+                for (const [id, listener] of listeners)
+                    if (
+                        listener.event ===
+                        (focused ? "tauri://focus" : "tauri://blur")
+                    )
+                        callbacks.get(listener.handler)?.({
+                            event: listener.event,
+                            id,
+                            payload: focused,
+                        });
+            };
             runtime.__TAURI_INTERNALS__ = {
                 metadata: { currentWindow: { label: "main" } },
                 transformCallback: (callback: (event: unknown) => void) => {
@@ -149,7 +161,7 @@ test("browser preview shares the titlebar without fake native controls", async (
     await enterWorkspace(page);
     await expect(
         page.getByRole("heading", { name: "Itemerness", exact: true }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
     await expect(page.getByTestId("window-controls")).toHaveCount(0);
     await page.getByTestId("mode-themes").click();
     await expect(page.getByTestId("mode-themes")).toHaveAttribute(
@@ -253,10 +265,13 @@ test("macOS reserves native traffic lights and keeps dragging after editing", as
 }) => {
     await nativeWindow(page, "macos");
     await expect(page.getByTestId("window-controls")).toHaveCount(0);
-    const heading = await page
-        .getByRole("heading", { name: "Itemerness", exact: true })
-        .boundingBox();
-    expect(heading!.x).toBeGreaterThanOrEqual(100);
+    await expect(page.locator(".titlebar h1")).toHaveCount(0);
+    await expect(page.getByRole("menubar")).toHaveCount(0);
+    expect(
+        await page
+            .locator(".titlebar-lead")
+            .evaluate((element) => getComputedStyle(element).paddingLeft),
+    ).toBe("100px");
     await page.getByTestId("name-input").fill("Selected text");
     await page
         .getByTestId("titlebar-drag-area")
@@ -317,7 +332,7 @@ test("Windows caption buttons invoke controls without dragging and remain usable
     await page.getByTestId("open-assets").click();
     await expect(page.getByTestId("connection-popup")).toHaveCount(0);
     const toolsPage = await page.getByTestId("workspace-page").boundingBox();
-    expect(toolsPage!.y).toBeGreaterThanOrEqual(52);
+    expect(toolsPage!.y).toBe(32);
     await expect(page.locator(".overlay-backdrop")).toHaveCount(0);
     await page.getByTestId("window-close").click();
     await expect.poll(() => calls(page)).toContain("plugin:window|close");
@@ -353,8 +368,8 @@ test("window controls and text fit at the minimum desktop size", async ({
             toolsRight: document
                 .querySelector(".titlebar-tools")!
                 .getBoundingClientRect().right,
-            brandRight: document
-                .querySelector(".titlebar-brand")!
+            menuRight: document
+                .querySelector(".application-menubar")!
                 .getBoundingClientRect().right,
             pageWidth: document.documentElement.scrollWidth,
             canvasLeft: document
@@ -368,7 +383,7 @@ test("window controls and text fit at the minimum desktop size", async ({
     expect(layout.titlebarBottom).toBe(layout.appTop);
     expect(layout.appBottom).toBe(640);
     expect(layout.controlsRight).toBe(900);
-    expect(layout.brandRight).toBeLessThanOrEqual(layout.connectionLeft);
+    expect(layout.menuRight).toBeLessThanOrEqual(layout.connectionLeft);
     expect(layout.toolsRight).toBeLessThanOrEqual(layout.connectionLeft);
     expect(layout.pageWidth).toBe(900);
     expect(layout.canvasLeft).toBeGreaterThanOrEqual(layout.stageLeft);
@@ -377,6 +392,179 @@ test("window controls and text fit at the minimum desktop size", async ({
         fullPage: true,
     });
 });
+
+for (const theme of ["light", "dark"] as const) {
+    test(`Windows ${theme} caption matches the header in active and inactive windows`, async ({
+        page,
+    }, testInfo) => {
+        await nativeWindow(page, "windows");
+        await page.getByTestId("appearance").click();
+        await page.getByTestId(`appearance-${theme}`).click();
+        const header = page.getByTestId("titlebar");
+        const captions = page.getByTestId("window-controls");
+        for (const width of [900, 1440]) {
+            await page.setViewportSize({ width, height: 800 });
+            await expect(header).toHaveCSS("height", "32px");
+            await expect(captions).toHaveCSS(
+                "background-color",
+                await header.evaluate(
+                    (element) => getComputedStyle(element).backgroundColor,
+                ),
+            );
+            for (const id of [
+                "window-minimize",
+                "window-maximize",
+                "window-close",
+            ]) {
+                const button = page.getByTestId(id);
+                await expect(button).toHaveCSS("width", "46px");
+                await expect(button).toHaveCSS("height", "32px");
+                await expect(button).toHaveCSS(
+                    "background-color",
+                    "rgba(0, 0, 0, 0)",
+                );
+                const stroke = await button
+                    .locator("svg")
+                    .evaluate(
+                        (element) =>
+                            (Number.parseFloat(
+                                getComputedStyle(element).strokeWidth,
+                            ) *
+                                element.getBoundingClientRect().width) /
+                            24,
+                    );
+                expect(stroke).toBeCloseTo(1);
+            }
+            for (const id of [
+                "connection-trigger",
+                "document-sync-status",
+                "ui-language",
+                "appearance",
+            ]) {
+                const bounds = (await page.getByTestId(id).boundingBox())!;
+                expect(bounds.y).toBe(2);
+                expect(bounds.height).toBe(28);
+            }
+            for (const focused of [true, false]) {
+                await page.evaluate(
+                    (value) =>
+                        (
+                            window as unknown as {
+                                setWindowFocused(value: boolean): void;
+                            }
+                        ).setWindowFocused(value),
+                    focused,
+                );
+                await expect(header).toHaveAttribute(
+                    "data-focused",
+                    String(focused),
+                );
+                await expect(captions).toHaveCSS("opacity", "1");
+                await expect(captions).toHaveCSS(
+                    "background-color",
+                    await header.evaluate(
+                        (element) => getComputedStyle(element).backgroundColor,
+                    ),
+                );
+                await page.screenshot({
+                    path: testInfo.outputPath(
+                        `caption-${theme}-${width}-${focused}.png`,
+                    ),
+                });
+            }
+        }
+        const minimize = page.getByTestId("window-minimize");
+        await minimize.hover();
+        await expect(minimize).toHaveCSS(
+            "background-color",
+            theme === "light"
+                ? "rgba(0, 0, 0, 0.1)"
+                : "rgba(255, 255, 255, 0.1)",
+        );
+        const close = page.getByTestId("window-close");
+        await close.hover();
+        await expect(close).toHaveCSS("background-color", "rgb(196, 43, 28)");
+        await expect(close).toHaveCSS("color", "rgb(255, 255, 255)");
+        await page.mouse.down();
+        await expect(close).toHaveCSS("background-color", "rgb(169, 37, 25)");
+        await page.mouse.move(500, 200);
+        await page.mouse.up();
+        expect(await calls(page)).not.toContain("plugin:window|close");
+    });
+}
+
+for (const platform of ["macos", "windows"] as const) {
+    test(`${platform} navigation density preserves targets and expanded labels`, async ({
+        page,
+    }, testInfo) => {
+        await nativeWindow(page, platform);
+        for (const width of [900, 1440]) {
+            await page.setViewportSize({ width, height: 800 });
+            const nav = page.getByTestId("primary-navigation");
+            await expect(nav).toHaveCSS(
+                "width",
+                platform === "windows" ? "48px" : "56px",
+            );
+            const item = page.getByTestId("mode-items");
+            const before = (await item.locator("svg").boundingBox())!;
+            expect((await item.boundingBox())!.width).toBe(41);
+            expect((await item.boundingBox())!.height).toBe(40);
+            const indicator = await item.evaluate(
+                (element) =>
+                    element.getBoundingClientRect().x +
+                    Number.parseFloat(
+                        getComputedStyle(element, "::before").left,
+                    ),
+            );
+            expect(indicator).toBe(0);
+            await item.hover();
+            const tooltip = page.getByRole("tooltip", {
+                name: "Items",
+                exact: true,
+            });
+            await expect(tooltip).toBeVisible();
+            expect((await tooltip.boundingBox())!.x).toBeGreaterThan(
+                (await nav.boundingBox())!.width,
+            );
+            await page.getByTestId("toggle-navigation").click();
+            await expect(nav).toHaveCSS(
+                "width",
+                platform === "windows" ? "152px" : "160px",
+            );
+            expect((await item.boundingBox())!.width).toBe(145);
+            expect(
+                Math.abs(
+                    (await item.locator("svg").boundingBox())!.x - before.x,
+                ),
+            ).toBeLessThanOrEqual(0.5);
+            for (const label of await nav
+                .locator(".primary-navigation-label")
+                .all()) {
+                const bounds = (await label.boundingBox())!;
+                expect(bounds.x + bounds.width).toBeLessThan(
+                    (await nav.boundingBox())!.width,
+                );
+                expect(
+                    await label.evaluate(
+                        (element) => element.scrollWidth <= element.clientWidth,
+                    ),
+                ).toBe(true);
+            }
+            await page.getByTestId("open-settings").click();
+            expect(
+                (await page.getByTestId("workspace-page").boundingBox())!.x,
+            ).toBe((await nav.boundingBox())!.width);
+            await page.screenshot({
+                path: testInfo.outputPath(
+                    `navigation-density-${platform}-${width}.png`,
+                ),
+            });
+            await page.getByTestId("mode-items").click();
+            await page.getByTestId("toggle-navigation").focus();
+            await page.keyboard.press("Space");
+        }
+    });
+}
 
 test("Windows caption buttons remain clickable over field and context popups", async ({
     page,
@@ -458,12 +646,10 @@ test("diagnostics remain in the preview and settings opens a full page", async (
     await expect(
         page.getByRole("heading", { name: "Settings", exact: true }),
     ).toBeVisible();
-    await expect(
-        page
-            .getByTestId("workspace-page")
-            .locator("input:visible,select:visible,textarea:visible"),
-    ).toHaveCount(1);
     await expect(page.getByTestId("auto-save-toggle")).toBeChecked();
+    await expect(page.getByTestId("project-settings")).toBeVisible();
+    await expect(page.getByTestId("project-default-locale")).toBeVisible();
+    await expect(page.getByTestId("catalog-read")).toBeVisible();
     await page.getByTestId("open-translations").click();
     await expect(page.getByTestId("diagnostics-list")).toHaveCount(0);
     await expect(

@@ -1,3 +1,4 @@
+import { itemKey } from "@itemerness/protocol";
 import type { TFunction } from "i18next";
 import {
     ArrowDown,
@@ -13,26 +14,54 @@ import {
     TextCursorInput,
     ArrowDownToLine,
     ArrowUpToLine,
+    Braces,
+    Repeat2,
+    Package,
 } from "lucide-react";
 import type { ItemNode, PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
-import { deleteItem, duplicateItem } from "../../state/itemActions.js";
+import {
+    deleteItem,
+    duplicateItem,
+    openItemCreation,
+} from "../../state/itemActions.js";
 import {
     deleteSelectedContent,
     duplicateSelectedContent,
     moveSelectedContent,
     insertContent,
+    canInsertContent,
+    type ContentKind,
 } from "../../state/contentActions.js";
-import { locateBlock } from "../../state/blocks.js";
+import {
+    locateBlock,
+    type ContentInsertionTarget,
+} from "../../state/blocks.js";
 import type { MenuAction } from "../../state/interface.js";
 import { writeClipboard } from "./clipboard.js";
 import { resolveMessage } from "./messages.js";
+import i18next from "i18next";
+import { notify } from "../../state/toasts.js";
 
 export const copyAction = (
     id: string,
     label: string,
     text: string,
-): MenuAction => ({ id, label, icon: Copy, run: () => writeClipboard(text) });
+): MenuAction => ({
+    id,
+    label,
+    icon: Copy,
+    run: async () => {
+        const epoch = useEditorStore.getState().workspaceEpoch;
+        await writeClipboard(text);
+        if (epoch === useEditorStore.getState().workspaceEpoch)
+            notify(
+                String(i18next.t("packManager:copied")),
+                "success",
+                "clipboard",
+            );
+    },
+});
 export function itemActions(uuid: string, t: TFunction): MenuAction[] {
     const state = useEditorStore.getState(),
         item = state.document.items.find((entry) => entry.uuid === uuid);
@@ -44,7 +73,7 @@ export function itemActions(uuid: string, t: TFunction): MenuAction[] {
             icon: Pencil,
             run: () => {
                 state.setMode("items");
-                state.selectItem(`${state.document.namespace}:${item.id}`);
+                state.selectItem(itemKey(state.document, item));
             },
         },
         {
@@ -56,7 +85,7 @@ export function itemActions(uuid: string, t: TFunction): MenuAction[] {
         copyAction(
             "copy-item-id",
             t("menus.copyId"),
-            `${state.document.namespace}:${item.id}`,
+            itemKey(state.document, item),
         ),
         {
             id: "item-enabled",
@@ -81,12 +110,17 @@ export function itemActions(uuid: string, t: TFunction): MenuAction[] {
     ];
 }
 export function insertActions(
-    anchor: string,
+    anchor: ContentInsertionTarget,
     position: "before" | "after",
     t: TFunction,
 ): MenuAction[] {
     const state = useEditorStore.getState();
-    const add = (kind: "field" | "description" | "conditional") =>
+    const item = state.document.items.find(
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
+    );
+    const available = (kind: ContentKind) =>
+        item !== undefined && canInsertContent(state.document, item, kind);
+    const add = (kind: ContentKind) =>
         insertContent(
             kind,
             anchor,
@@ -98,9 +132,7 @@ export function insertActions(
             id: "add-field",
             label: t("inspector.content.addField"),
             icon: ListPlus,
-            disabled: !state.document.dataSchemas.some((schema) =>
-                schema.keys.some((key) => key.presentationReadable),
-            ),
+            disabled: !available("field"),
             run: () => add("field"),
         },
         {
@@ -110,19 +142,39 @@ export function insertActions(
             run: () => add("description"),
         },
         {
+            id: "add-value",
+            label: t("inspector.content.addValue"),
+            icon: Braces,
+            disabled: !available("text"),
+            run: () => add("text"),
+        },
+        {
             id: "add-condition",
             label: t("inspector.content.conditional"),
             icon: GitBranch,
-            disabled: !state.document.viewerFacts.length,
+            disabled: !available("conditional"),
             run: () => add("conditional"),
+        },
+        {
+            id: "add-repeat",
+            label: t("inspector.content.addRepeat"),
+            icon: Repeat2,
+            disabled: !available("repeat"),
+            run: () => add("repeat"),
+        },
+        {
+            id: "add-nested",
+            label: t("inspector.content.addNested"),
+            icon: Package,
+            disabled: !available("nestedItemList"),
+            run: () => add("nestedItemList"),
         },
     ];
 }
 export function contentActions(uuid: string, t: TFunction): MenuAction[] {
     const state = useEditorStore.getState();
     const item = state.document.items.find(
-        (entry) =>
-            `${state.document.namespace}:${entry.id}` === state.selectedItemId,
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
     );
     const found = item ? locateBlock(item.presentation.blocks, uuid) : null;
     const select = () => state.selectBlock(uuid);
@@ -153,6 +205,22 @@ export function contentActions(uuid: string, t: TFunction): MenuAction[] {
             icon: ArrowDownToLine,
             children: insertActions(uuid, "after", t),
         },
+        ...(found?.block.type === "conditional"
+            ? (["thenBlocks", "otherwiseBlocks"] as const).map((branch) => ({
+                  id: `insert-${branch}`,
+                  label: t("inspector.content.addToBranch", {
+                      branch: t(
+                          `inspector.content.${branch === "thenBlocks" ? "then" : "otherwise"}`,
+                      ),
+                  }),
+                  icon: GitBranch,
+                  children: insertActions(
+                      { parentUuid: uuid, branch },
+                      "after",
+                      t,
+                  ),
+              }))
+            : []),
         ...(found
             ? [
                   {
@@ -216,7 +284,7 @@ export function relatedItems(items: ItemNode[], t: TFunction): MenuAction {
             ).text,
             run: () => {
                 state.setMode("items");
-                state.selectItem(`${state.document.namespace}:${item.id}`);
+                state.selectItem(itemKey(state.document, item));
             },
         })),
     };
@@ -238,9 +306,6 @@ export function newItemAction(t: TFunction): MenuAction {
         id: "new-item",
         label: t("sidebar.addItem"),
         icon: Plus,
-        run: () => {
-            useEditorStore.getState().setMode("items");
-            useEditorStore.getState().addItem(t("sidebar.newItemName"));
-        },
+        run: openItemCreation,
     };
 }

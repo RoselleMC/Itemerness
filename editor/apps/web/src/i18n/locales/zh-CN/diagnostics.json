@@ -1,22 +1,35 @@
 {
+    "unknown": "配置未通过校验（{{code}}）。",
+    "openObject": "打开对象",
     "locale": {
         "fallback_used": "“{{key}}”没有 {{locale}} 翻译，显示的是 {{fallback}}。",
         "missing_message": "“{{key}}”在任何语言中都没有翻译。"
     },
     "data": { "missing": "数据键 {{key}} 没有取值。" },
+    "format": {
+        "invalid_value": "无法格式化此值：{{detail}}",
+        "unsupported_local": "此格式需要服务端预览：{{detail}}"
+    },
     "document": {
         "decode_failed": "项目文档无法解析：{{detail}}",
         "snapshot_mismatch": "预览快照摘要与提交的文档不一致。",
         "invalid": "项目文档未通过校验。",
         "catalog_invalid": "物品目录未通过校验（{{diagnosticCount}} 个问题）。",
-        "preview_data_invalid": "物品 {{item}} 的预览数据无效：{{detail}}"
+        "preview_data_invalid": "物品 {{item}} 的预览数据无效：{{detail}}",
+        "runtime_budgets_mismatch": "草稿的渲染限制与插件固定的运行限制不一致。"
     },
     "item": { "unknown": "物品 {{item}} 不在本项目中。" },
     "theme": {
         "no_safe_theme": "从 {{requested}} 起的回退链中没有可展示的主题。"
     },
     "layout": { "unknown": "布局 {{layout}} 未声明。" },
+    "catalog": {
+        "export_lossy": "导出会改变 {{path}} 的配置。",
+        "source_invalid": "无法加载 YAML 配置：{{detail}}",
+        "export_invalid": "导出的 YAML 无法加载：{{detail}}"
+    },
     "assets": {
+        "metadata_missing": "资源 {{asset}} 需要补全源纹理及尺寸才能导出。",
         "font_texture_missing": "任何已挂载的包中都没有字体纹理 {{texture}}。",
         "font_texture_invalid": "字体纹理 {{texture}} 无法读取：{{detail}}",
         "font_hex_missing": "任何已挂载的包中都没有 unihex 归档 {{file}}。",

@@ -7,6 +7,10 @@ export interface BlockLocation {
     index: number;
 }
 
+export type ContentBranch = "thenBlocks" | "otherwiseBlocks";
+export type ContentInsertionTarget =
+    string | { parentUuid: string; branch: ContentBranch };
+
 export function locateBlock(
     blocks: readonly PresentationBlock[],
     uuid: string,
@@ -84,10 +88,22 @@ export function moveBlockTree(
 
 export function insertBlockTree(
     blocks: readonly PresentationBlock[],
-    anchor: string | null,
+    anchor: ContentInsertionTarget | null,
     addition: PresentationBlock,
     position: "before" | "after" = "after",
 ): PresentationBlock[] {
+    if (anchor && typeof anchor !== "string") {
+        const parent = locateBlock(blocks, anchor.parentUuid)?.block;
+        if (parent?.type !== "conditional") return [...blocks];
+        return editBlockTree(blocks, anchor.parentUuid, (block) =>
+            block.type === "conditional"
+                ? {
+                      ...block,
+                      [anchor.branch]: [...block[anchor.branch], addition],
+                  }
+                : block,
+        );
+    }
     if (anchor === "__name") return [addition, ...blocks];
     if (!anchor || !locateBlock(blocks, anchor)) return [...blocks];
     return blocks.flatMap((block) =>

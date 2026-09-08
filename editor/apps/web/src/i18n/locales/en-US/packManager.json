@@ -1,0 +1,56 @@
+{
+    "empty": "No custom resource packs mounted",
+    "openDirectory": "Open resource pack folder",
+    "importFailed": "Resource pack could not be opened",
+    "mountLimit": "The 64 resource pack limit has been reached",
+    "reload": "Reload resource pack",
+    "autoReload": "Auto reload",
+    "copyPath": "Copy source path",
+    "snapshotNotice": "This browser supplied a file snapshot. Reopen the file to update it.",
+    "lastGood": "Previous valid content is still active",
+    "watchFallback": "File events unavailable; interval checks remain active",
+    "updated": "Loaded {{time}}",
+    "vanilla": "Minecraft default resources",
+    "basePriority": "Base resources · Lowest priority",
+    "version": "Minecraft version",
+    "retryVanilla": "Load or retry default resources",
+    "previewVersionWarning": "Exact preview metrics remain pinned to Minecraft {{version}}.",
+    "status": {
+        "loading": "Loading",
+        "ready": "Loaded",
+        "error": "Reload failed"
+    },
+    "source": {
+        "archive": "Archive",
+        "directory": "Folder",
+        "snapshot": "File snapshot"
+    },
+    "format": {
+        "included": "Compatible format declaration",
+        "outside": "Format differs from preview baseline",
+        "unknown": "Unknown format declaration"
+    },
+    "vanillaStatus": {
+        "idle": "Not loaded",
+        "cache": "Checking local cache",
+        "download": "Downloading and verifying",
+        "assemble": "Preparing assets",
+        "cached": "Loaded · Cached locally",
+        "uncached": "Loaded · Cache unavailable",
+        "error": "Download failed · Retry available"
+    },
+    "mounted": "Mounted {{name}}",
+    "reloaded": "Reloaded {{name}}",
+    "unchanged": "{{name}} is up to date",
+    "reloadFailed": "Could not reload {{name}}",
+    "vanillaReady": "Minecraft {{name}} resources are ready",
+    "vanillaFailed": "Could not load Minecraft {{name}} resources",
+    "checkPassed": "Font metric check passed",
+    "checkMismatch": "Font metric differences found",
+    "settingsHeading": "Resource packs",
+    "checkInterval": "Change detection interval (ms)",
+    "intervalInvalid": "Enter a whole number from 250 to 60000",
+    "copied": "Copied to clipboard",
+    "exportSaved": "Export saved",
+    "exportDownload": "Export download started"
+}

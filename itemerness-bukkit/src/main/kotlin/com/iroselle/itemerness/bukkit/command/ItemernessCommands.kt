@@ -28,7 +28,24 @@ internal class ItemernessCommands(
     private val catalog: CommandCatalogView,
     private val playerArgument: () -> ArgumentType<PlayerSelectorArgumentResolver> = ArgumentTypes::player,
     private val restriction: (Predicate<CommandSourceStack>) -> Predicate<CommandSourceStack> = Commands::restricted,
+    private val namespacedKeyArgument: () -> ArgumentType<NamespacedKey> = ArgumentTypes::namespacedKey,
 ) {
+    private val itemKeyArgument = object : CustomArgumentType.Converted<ItemKey, NamespacedKey> {
+        override fun getNativeType() = namespacedKeyArgument()
+
+        override fun convert(nativeType: NamespacedKey): ItemKey =
+            ItemKey(nativeType.namespace, nativeType.key)
+    }
+
+    private val dataKeyArgument = object : CustomArgumentType.Converted<DataKey, NamespacedKey> {
+        override fun getNativeType() = namespacedKeyArgument()
+
+        override fun convert(nativeType: NamespacedKey): DataKey =
+            DataKey(ItemKey(nativeType.namespace, nativeType.key))
+    }
+
+    private fun onlinePlayerArgument() = OnlinePlayerArgument(playerArgument())
+
     fun register(plugin: Plugin) {
         plugin.lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             event.registrar().register(
@@ -71,9 +88,9 @@ internal class ItemernessCommands(
     private fun give() = Commands.literal("give")
         .requires(restricted(Permissions.GIVE))
         .then(
-            Commands.argument("player", playerArgument())
+            Commands.argument("player", onlinePlayerArgument())
                 .then(
-                    Commands.argument("item-id", ItemKeyArgument)
+                    Commands.argument("item-id", itemKeyArgument)
                         .suggests(suggestions { catalog.itemKeys().map(ItemKey::toString) })
                         .executes { context -> give(context, 1) }
                         .then(
@@ -101,7 +118,7 @@ internal class ItemernessCommands(
         .requires(permission(Permissions.INSPECT))
         .then(inspectHand())
         .then(
-            Commands.argument("player", playerArgument())
+            Commands.argument("player", onlinePlayerArgument())
                 .then(
                     Commands.argument("slot", StringArgumentType.word())
                         .suggests(suggestions { InventorySlot.entries.map(InventorySlot::argument) })
@@ -207,24 +224,24 @@ internal class ItemernessCommands(
 
     private fun dataTarget(
         terminal: (CommandContext<CommandSourceStack>) -> Int,
-    ): ArgumentBuilder<CommandSourceStack, *> = Commands.argument("player", playerArgument())
+    ): ArgumentBuilder<CommandSourceStack, *> = Commands.argument("player", onlinePlayerArgument())
         .then(
             Commands.argument("slot", StringArgumentType.word())
                 .suggests(suggestions { InventorySlot.entries.map(InventorySlot::argument) })
                 .then(
-                    Commands.argument("key", DataKeyArgument)
+                    Commands.argument("key", dataKeyArgument)
                         .suggests(suggestions { catalog.dataKeys().map(DataKey::toString) })
                         .executes(terminal),
                 ),
         )
 
     private fun dataSetTarget(): ArgumentBuilder<CommandSourceStack, *> =
-        Commands.argument("player", playerArgument())
+        Commands.argument("player", onlinePlayerArgument())
             .then(
                 Commands.argument("slot", StringArgumentType.word())
                     .suggests(suggestions { InventorySlot.entries.map(InventorySlot::argument) })
                     .then(
-                        Commands.argument("key", DataKeyArgument)
+                            Commands.argument("key", dataKeyArgument)
                             .suggests(suggestions { catalog.dataKeys().map(DataKey::toString) })
                             .then(
                                 Commands.argument("value", StringArgumentType.greedyString())
@@ -250,7 +267,7 @@ internal class ItemernessCommands(
                 .executes { context -> execute { actions.refreshAll(context.source.sender) } },
         )
         .then(
-            Commands.argument("player", playerArgument())
+            Commands.argument("player", onlinePlayerArgument())
                 .requires(restricted(Permissions.REFRESH))
                 .executes { context ->
                     execute { actions.refreshPlayer(context.source.sender, player(context)) }
@@ -291,20 +308,6 @@ internal class ItemernessCommands(
     private inline fun execute(action: () -> Unit): Int {
         action()
         return Command.SINGLE_SUCCESS
-    }
-
-    private object ItemKeyArgument : CustomArgumentType.Converted<ItemKey, NamespacedKey> {
-        override fun getNativeType() = ArgumentTypes.namespacedKey()
-
-        override fun convert(nativeType: NamespacedKey): ItemKey =
-            ItemKey(nativeType.namespace, nativeType.key)
-    }
-
-    private object DataKeyArgument : CustomArgumentType.Converted<DataKey, NamespacedKey> {
-        override fun getNativeType() = ArgumentTypes.namespacedKey()
-
-        override fun convert(nativeType: NamespacedKey): DataKey =
-            DataKey(ItemKey(nativeType.namespace, nativeType.key))
     }
 
     private companion object {

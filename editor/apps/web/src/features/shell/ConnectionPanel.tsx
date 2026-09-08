@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, CircleAlert, Plug, Unplug } from "lucide-react";
+import {
+    CheckCircle2,
+    CircleAlert,
+    Plug,
+    Unplug,
+    RefreshCw,
+} from "lucide-react";
 import { useConnectionStore } from "../../state/connection.js";
+import { ConnectionHistory } from "./ConnectionHistory.js";
 
 export function ConnectionPanel({
     onDisconnect,
@@ -23,8 +30,10 @@ export function ConnectionPanel({
         }
     });
     const [token, setToken] = useState("");
+    const [expectedServerId, setExpectedServerId] = useState<string>();
     const busy = connection.status === "connecting";
-    const connected = connection.status === "connected";
+    const connected =
+        connection.client !== null || connection.status === "connected";
 
     useEffect(() => {
         if (busy || connected) setToken("");
@@ -44,7 +53,8 @@ export function ConnectionPanel({
             ref={formRef}
             onSubmit={(event) => {
                 event.preventDefault();
-                void connection.connect(url, token);
+                if (connected || busy) return;
+                void connection.connect(url, token, expectedServerId);
             }}
         >
             <label htmlFor="plugin-api-url">{t("connection.address")}</label>
@@ -56,7 +66,10 @@ export function ConnectionPanel({
                 placeholder="http://192.168.1.10:18087"
                 value={url}
                 disabled={busy || connected}
-                onChange={(event) => setUrl(event.target.value)}
+                onChange={(event) => {
+                    setUrl(event.target.value);
+                    setExpectedServerId(undefined);
+                }}
                 spellCheck={false}
             />
             {/^http:\/\//i.test(url.trim()) && (
@@ -87,6 +100,17 @@ export function ConnectionPanel({
                 </>
             )}
             <div className="connection-actions">
+                {connection.recovery !== "none" &&
+                    connection.recovery !== "blocked" && (
+                        <button
+                            type="button"
+                            data-testid="retry-connection"
+                            onClick={connection.retry}
+                        >
+                            <RefreshCw size={15} />
+                            {t("connection.retry")}
+                        </button>
+                    )}
                 {!connected && !busy && (
                     <button type="submit" data-testid="connect-plugin">
                         <Plug size={15} />
@@ -114,6 +138,13 @@ export function ConnectionPanel({
                     {t(`connection.${connection.status}`)}
                 </span>
             </div>
+            {connection.recovery === "waiting" && (
+                <p className="muted connection-retry-status" role="status">
+                    {t("connection.retryScheduled", {
+                        count: connection.attempts,
+                    })}
+                </p>
+            )}
             {connection.info && (
                 <>
                     <dl className="connection-meta">
@@ -181,6 +212,20 @@ export function ConnectionPanel({
                         defaultValue: t("connection.errors.CONNECTION_FAILED"),
                     })}
                 </p>
+            )}
+            {!connected && !busy && (
+                <ConnectionHistory
+                    onSelect={(address, serverId) => {
+                        setUrl(address);
+                        setToken("");
+                        setExpectedServerId(serverId);
+                        formRef.current
+                            ?.querySelector<HTMLInputElement>(
+                                "#plugin-api-token",
+                            )
+                            ?.focus();
+                    }}
+                />
             )}
         </form>
     );

@@ -93,6 +93,107 @@ describe("resolveTheme", () => {
 });
 
 describe("composeLocalPreview", () => {
+    it("uses defaults from the exact bound schema and lets preview overrides win", () => {
+        const document = structuredClone(baselineDocument);
+        const item = document.items.find(
+            (entry) => entry.id === "travel-token",
+        )!;
+        const key = document.dataSchemas[0]!.keys.find(
+            (entry) => entry.id === "example:charges",
+        )!;
+        item.definition.instance.defaults =
+            item.definition.instance.defaults.filter(
+                (entry) => entry.key !== key.id,
+            );
+        item.previewData = item.previewData.filter(
+            (entry) => entry.key !== key.id,
+        );
+        key.defaultValue = { kind: "integer", value: "17" };
+        const render = () =>
+            composeLocalPreview({
+                document,
+                itemId: "itemerness:travel-token",
+                viewer: packViewer,
+                fonts,
+            });
+        expect(
+            render()
+                .display.lore.flatMap((line) => line.runs)
+                .some((run) => run.text === "17"),
+        ).toBe(true);
+        item.previewData.push({
+            key: key.id,
+            value: { kind: "integer", value: "23" },
+        });
+        expect(
+            render()
+                .display.lore.flatMap((line) => line.runs)
+                .some((run) => run.text === "23"),
+        ).toBe(true);
+    });
+
+    it("ignores retained inactive frame geometry without mutating the authoring theme", () => {
+        const document = structuredClone(baselineDocument);
+        const plain = document.themes.find(
+            (theme) => theme.renderer === "PLAIN",
+        )!;
+        const render = () =>
+            composeLocalPreview({
+                document,
+                itemId: "itemerness:ember-blade",
+                viewer: { ...packViewer, requestedTheme: plain.id },
+                fonts,
+            });
+        const before = render().display;
+        plain.characterFrame = {
+            ...document.themes.find((theme) => theme.characterFrame)!
+                .characterFrame!,
+            minimumWidthPixels: 1,
+            maximumWidthPixels: 1,
+        };
+        plain.segmentedFrame = document.themes.find(
+            (theme) => theme.segmentedFrame,
+        )!.segmentedFrame;
+        plain.canvas = document.themes.find((theme) => theme.canvas)!.canvas;
+        expect(render().display).toEqual(before);
+        expect(plain.characterFrame.maximumWidthPixels).toBe(1);
+    });
+
+    it("applies common content geometry to plain themes and only emits native or canvas tooltip styles", () => {
+        const document = structuredClone(baselineDocument);
+        const plain = document.themes.find(
+            (theme) => theme.renderer === "PLAIN",
+        )!;
+        const render = () =>
+            composeLocalPreview({
+                document,
+                itemId: "itemerness:ember-blade",
+                viewer: { ...packViewer, requestedTheme: plain.id },
+                fonts,
+            });
+        const before = render().display;
+        plain.content = {
+            minimumWidthPixels: 1,
+            maximumWidthPixels: 30,
+            leftPaddingPixels: 0,
+            rightPaddingPixels: 0,
+        };
+        expect(render().display.displayName.logicalWidthPixels).toBeLessThan(
+            before.displayName.logicalWidthPixels,
+        );
+        const character = document.themes.find(
+            (theme) => theme.renderer === "VANILLA_CHARACTER_FRAME",
+        )!;
+        character.tooltipStyle = "itemerness:ember";
+        const result = composeLocalPreview({
+            document,
+            itemId: "itemerness:travel-token",
+            viewer: { ...packViewer, requestedTheme: character.id },
+            fonts,
+        });
+        expect(result.display.tooltipStyle).toBeNull();
+    });
+
     it("renders the ember blade with formatted values and a resolved condition", () => {
         const preview = composeLocalPreview({
             document: baselineDocument,
@@ -132,6 +233,52 @@ describe("composeLocalPreview", () => {
         expect(preview.display.displayName.logicalWidthPixels).toBeGreaterThan(
             0,
         );
+    });
+
+    it.each([
+        ["unknown_locale", true],
+        ["known_locale", false],
+    ])("resolves the compiler's fallback chain for %s", (locale, inherited) => {
+        const document = structuredClone(baselineDocument);
+        const item = document.items.find(
+            (entry) => entry.id === "ember-blade",
+        )!;
+        const nameKey = item.presentation.nameMessage;
+        document.locales = [
+            {
+                uuid: crypto.randomUUID(),
+                locale: "en_us",
+                fallback: "fr_fr",
+                messages: Object.fromEntries(
+                    Object.entries(
+                        document.locales.find(
+                            (entry) => entry.locale === "en_us",
+                        )!.messages,
+                    ).filter(([key]) => key !== nameKey),
+                ),
+            },
+            {
+                uuid: crypto.randomUUID(),
+                locale: "fr_fr",
+                fallback: null,
+                messages: { [nameKey]: "Default chain name" },
+            },
+            {
+                uuid: crypto.randomUUID(),
+                locale: "known_locale",
+                fallback: null,
+                messages: {},
+            },
+        ];
+        const preview = composeLocalPreview({
+            document,
+            itemId: "itemerness:ember-blade",
+            viewer: { ...packViewer, locale },
+            fonts,
+        });
+        expect(
+            preview.display.displayName.runs.map((run) => run.text).join(""),
+        ).toBe(inherited ? "Default chain name" : nameKey);
     });
 
     it("expands a repeat block once per list element", () => {

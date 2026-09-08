@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_PROJECT_DOCUMENT_SCHEMA_VERSIONS } from "./document.js";
 
 // API transport, authoring documents, and preview artifacts have independent versions.
 export const EDITOR_PROTOCOL = { major: 2, minMinor: 0, maxMinor: 0 } as const;
@@ -7,6 +8,8 @@ export const handshakeSchema = z.object({
     // Earlier API 2.0 plugins always required Bearer authentication and omitted this field.
     authentication: z.enum(["none", "bearer"]).default("bearer"),
     serverId: z.string().min(1).max(128),
+    serverName: z.string().min(1).max(128).optional(),
+    serverAlias: z.string().max(80).optional(),
     pluginVersion: z.string().min(1).max(64),
     minecraftVersion: z.string().min(1).max(32),
     platform: z.string().min(1).max(64),
@@ -37,7 +40,9 @@ export function negotiateProtocol(handshake: Handshake): string {
     );
     if (
         !compatible.length ||
-        !handshake.documentSchemas.includes(1) ||
+        !SUPPORTED_PROJECT_DOCUMENT_SCHEMA_VERSIONS.some((version) =>
+            handshake.documentSchemas.includes(version),
+        ) ||
         !handshake.previewSchemas.includes(1) ||
         !["draft.read", "draft.write"].every((capability) =>
             handshake.capabilities.includes(capability),

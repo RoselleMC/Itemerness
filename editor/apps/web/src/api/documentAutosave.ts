@@ -52,6 +52,7 @@ export class SerialDocumentAutosave {
     private conflictHash: string | null = null;
     private disposed = false;
     private automatic: boolean;
+    private suspended = false;
     private requested: Snapshot | null = null;
     private readonly waiters = new Set<{
         hash: string;
@@ -77,6 +78,7 @@ export class SerialDocumentAutosave {
         if (this.disposed) return;
         const snapshot = { document, hash: contentHash(document) };
         this.latest = snapshot;
+        if (this.suspended) return;
 
         if (this.blocked === "conflict") return;
         if (this.blocked === "error") this.blocked = null;
@@ -104,6 +106,7 @@ export class SerialDocumentAutosave {
         if (this.disposed || this.automatic === automatic) return;
         this.automatic = automatic;
         this.clearTimer();
+        if (this.suspended) return;
         if (this.blocked) return;
         if (this.inFlight) return;
         if (this.requested) this.arm(0);
@@ -111,6 +114,17 @@ export class SerialDocumentAutosave {
             this.onStatus({ kind: automatic ? "pending" : "unsaved" });
             if (automatic) this.arm(this.debounceMillis);
         }
+    }
+
+    /** A reconnect must validate the remote snapshot before releasing queued writes. */
+    setSuspended(suspended: boolean): void {
+        if (this.disposed || this.suspended === suspended) return;
+        this.suspended = suspended;
+        this.clearTimer();
+        if (suspended || this.blocked === "conflict" || this.inFlight) return;
+        this.blocked = null;
+        if (this.latest) this.queue(this.latest.document);
+        else this.onStatus({ kind: "saved" });
     }
 
     isDirty(hash: string): boolean {
@@ -123,7 +137,7 @@ export class SerialDocumentAutosave {
 
     /** Explicit saves capture this document, not edits made later while a PUT is in flight. */
     saveNow(document: ProjectDocument): Promise<boolean> {
-        if (this.disposed || this.blocked === "conflict")
+        if (this.disposed || this.suspended || this.blocked === "conflict")
             return Promise.resolve(false);
         this.queue(document);
         const snapshot = this.latest!;
@@ -232,7 +246,7 @@ export class SerialDocumentAutosave {
     }
 
     private async flush(): Promise<void> {
-        if (this.disposed || this.inFlight || this.blocked) {
+        if (this.disposed || this.suspended || this.inFlight || this.blocked) {
             return;
         }
         const snapshot =

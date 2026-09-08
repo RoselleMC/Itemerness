@@ -493,12 +493,8 @@ internal class CatalogSourceLoader {
         if (key.namespace != "minecraft") {
             throw StrictYamlException("Nested contents require a supported minecraft bundle or container material at $path")
         }
-        return when {
-            key.value == "bundle" || key.value.endsWith("_bundle") -> NestedContentComponent.BUNDLE
-            key.value == "shulker_box" || key.value.endsWith("_shulker_box") || key.value in CONTAINER_MATERIALS ->
-                NestedContentComponent.CONTAINER
-            else -> throw StrictYamlException("Material $material does not support the concise nested contents syntax at $path")
-        }
+        return nestedContentComponent(key)
+            ?: throw StrictYamlException("Material $material does not support the concise nested contents syntax at $path")
     }
 
     private fun sourceValue(
@@ -610,12 +606,22 @@ internal class CatalogSourceLoader {
     private companion object {
         val YAML_EXTENSIONS = setOf("yml", "yaml")
         val READ_POLICIES = setOf("public", "owner-only", "internal")
-        val CONTAINER_MATERIALS = setOf("chest", "trapped_chest", "barrel")
         val PLUGIN_NAME_PATTERN = Regex("[A-Za-z0-9_.-]+")
         const val SUPPORTED_SOURCE_FORMAT = 1
         const val MAX_PLUGIN_NAME_LENGTH = 64
         const val MAX_FILES_PER_DOMAIN = 1_024
         const val MAX_BYTES_PER_DOMAIN = 16L * 1024L * 1024L
+    }
+}
+
+/** The concise YAML contents carrier, shared with authoring preview validation. */
+internal fun nestedContentComponent(material: ItemKey): NestedContentComponent? {
+    if (material.namespace != "minecraft") return null
+    return when {
+        material.value == "bundle" || material.value.endsWith("_bundle") -> NestedContentComponent.BUNDLE
+        material.value == "shulker_box" || material.value.endsWith("_shulker_box") ||
+            material.value in setOf("chest", "trapped_chest", "barrel") -> NestedContentComponent.CONTAINER
+        else -> null
     }
 }
 

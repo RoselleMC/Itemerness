@@ -21,12 +21,15 @@ export interface FidelityInputs {
     readonly snapshotMatches: boolean;
     /** At least one displayed advance came from a mounted font provider. */
     readonly mountedMetricsUsed: boolean;
+    readonly declaredMetricsUsed?: boolean;
     /** At least one displayed glyph raster came from a mounted font provider. */
     readonly mountedRasterUsed: boolean;
     /** The generated vanilla metrics artifact is loaded. */
     readonly metricsArtifactLoaded: boolean;
     /** All fonts used by the preview produced complete metrics. */
     readonly metricsComplete: boolean;
+    readonly metricsVersionMismatch?: boolean;
+    readonly metricsRevisionMismatch?: boolean;
     /** Every inked glyph had pixels available. */
     readonly rasterComplete: boolean;
     /** The theme asked for a tooltip style and the pack supplied both sprites. */
@@ -48,6 +51,11 @@ function claim(
 
 export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
     const claims: FidelityClaim[] = [];
+    const metricsMismatchReason = inputs.metricsVersionMismatch
+        ? "fidelity.metrics.version_mismatch"
+        : inputs.metricsRevisionMismatch
+          ? "fidelity.metrics.revision_mismatch"
+          : null;
 
     const structureLevel: FidelityLevel =
         inputs.origin === "agent" && inputs.snapshotMatches
@@ -66,8 +74,11 @@ export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
     claims.push(claim("theme-selection", structureLevel, structureReason));
 
     if (
+        !metricsMismatchReason &&
         inputs.metricsComplete &&
-        (inputs.mountedMetricsUsed || inputs.metricsArtifactLoaded)
+        (inputs.mountedMetricsUsed ||
+            inputs.declaredMetricsUsed ||
+            inputs.metricsArtifactLoaded)
     ) {
         claims.push(
             claim(
@@ -75,7 +86,9 @@ export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
                 "metric-faithful",
                 inputs.mountedMetricsUsed
                     ? "fidelity.metrics.from_mounted_assets"
-                    : "fidelity.metrics.from_artifact",
+                    : inputs.declaredMetricsUsed
+                      ? "fidelity.metrics.from_declarations"
+                      : "fidelity.metrics.from_artifact",
             ),
         );
     } else {
@@ -83,7 +96,7 @@ export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
             claim(
                 "metrics",
                 "approximate-raster",
-                "fidelity.metrics.incomplete",
+                metricsMismatchReason ?? "fidelity.metrics.incomplete",
             ),
         );
     }
@@ -93,10 +106,12 @@ export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
             "wrapping",
             inputs.origin === "agent" && inputs.snapshotMatches
                 ? "exact-structure"
-                : "metric-faithful",
-            inputs.origin === "agent"
+                : metricsMismatchReason
+                  ? "approximate-raster"
+                  : "metric-faithful",
+            inputs.origin === "agent" && inputs.snapshotMatches
                 ? "fidelity.wrapping.agent"
-                : "fidelity.wrapping.browser_greedy",
+                : (metricsMismatchReason ?? "fidelity.wrapping.browser_greedy"),
         ),
     );
 

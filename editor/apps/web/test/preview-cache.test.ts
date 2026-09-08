@@ -47,6 +47,26 @@ function result(input: PreviewRequest): Result {
 }
 
 describe("connection-owned preview cache", () => {
+    it("does not verify or cache a display accompanied by blocking diagnostics", async () => {
+        const input = request();
+        const response = result(input);
+        response.artifact.diagnostics.push({
+            code: "CATALOG.INVALID_SCOPE",
+            severity: "ERROR",
+            origin: "agent",
+            messageKey: "diagnostics.catalog.invalid_scope",
+            params: { detail: "Data key is not presentation-readable" },
+            pointer: null,
+            nodeUuid: null,
+            businessId: null,
+            targetServerId: null,
+            fixKey: null,
+        });
+        const cache = new PreviewCache(async () => response);
+        await cache.load(input);
+        expect(cache.status(previewKey(input))).toBe("error");
+        expect(cache.peek(previewKey(input))).toBeUndefined();
+    });
     it("notifies item status subscribers without confusing different preview contexts", async () => {
         let resolve!: (value: Result) => void;
         const cache = new PreviewCache(

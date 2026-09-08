@@ -48,6 +48,42 @@ export interface PackMeta {
     readonly packFormat: number | null;
     readonly description: string | null;
     readonly supportedFormats: readonly number[] | null;
+    /** A declaration, not verification that the archive works in a Minecraft client. */
+    readonly declaredFormats: DeclaredPackFormats | null;
+}
+
+export interface PackFormatVersion {
+    readonly major: number;
+    readonly minor: number;
+}
+
+export interface DeclaredPackFormats {
+    readonly minimum: PackFormatVersion;
+    readonly maximum: PackFormatVersion;
+    readonly source:
+        "min_format/max_format" | "supported_formats" | "pack_format";
+}
+
+export const MAX_PACK_FORMAT_MINOR = 0x7fffffff;
+
+function comparePackFormats(
+    a: PackFormatVersion,
+    b: PackFormatVersion,
+): number {
+    return a.major - b.major || a.minor - b.minor;
+}
+
+/** Only compares the metadata's declared range; it does not validate pack contents or overlays. */
+export function packFormatDeclarationStatus(
+    meta: PackMeta | null,
+    target: PackFormatVersion,
+): "included" | "outside" | "unknown" {
+    const range = meta?.declaredFormats;
+    if (!range) return "unknown";
+    return comparePackFormats(range.minimum, target) <= 0 &&
+        comparePackFormats(target, range.maximum) <= 0
+        ? "included"
+        : "outside";
 }
 
 export type PackKind = "vanilla" | "resource-pack";
@@ -302,31 +338,139 @@ function validateArchiveDirectory(bytes: Uint8Array, label: string): void {
     }
 }
 
+function formatInteger(value: unknown): value is number {
+    return (
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= 0x7fffffff
+    );
+}
+
+function formatEndpoint(
+    value: unknown,
+    maximum: boolean,
+): PackFormatVersion | null {
+    const parts = Array.isArray(value) ? value : [value];
+    if (
+        (parts.length !== 1 && parts.length !== 2) ||
+        !parts.every(formatInteger)
+    )
+        return null;
+    return {
+        major: parts[0]!,
+        minor: parts[1] ?? (maximum ? MAX_PACK_FORMAT_MINOR : 0),
+    };
+}
+
+function legacyFormats(value: unknown): readonly [number, number] | null {
+    if (formatInteger(value)) return [value, value];
+    const bounds = Array.isArray(value)
+        ? value
+        : value !== null && typeof value === "object"
+          ? [
+                (value as Record<string, unknown>).min_inclusive,
+                (value as Record<string, unknown>).max_inclusive,
+            ]
+          : [];
+    if (
+        bounds.length !== 2 ||
+        !bounds.every(formatInteger) ||
+        bounds[0]! > bounds[1]!
+    )
+        return null;
+    return [bounds[0]!, bounds[1]!];
+}
+
+function declaredFormats(
+    pack: Record<string, unknown>,
+    packFormat: number | null,
+    supported: readonly [number, number] | null,
+): DeclaredPackFormats | null {
+    if ("min_format" in pack || "max_format" in pack) {
+        const minimum = formatEndpoint(pack.min_format, false);
+        const maximum = formatEndpoint(pack.max_format, true);
+        if (!minimum || !maximum || comparePackFormats(minimum, maximum) > 0)
+            return null;
+        return { minimum, maximum, source: "min_format/max_format" };
+    }
+    if ("supported_formats" in pack) {
+        if (
+            !supported ||
+            (packFormat !== null &&
+                (packFormat < supported[0] || packFormat > supported[1]))
+        )
+            return null;
+        return {
+            minimum: { major: supported[0], minor: 0 },
+            maximum: { major: supported[1], minor: MAX_PACK_FORMAT_MINOR },
+            source: "supported_formats",
+        };
+    }
+    return packFormat === null
+        ? null
+        : {
+              minimum: { major: packFormat, minor: 0 },
+              maximum: { major: packFormat, minor: MAX_PACK_FORMAT_MINOR },
+              source: "pack_format",
+          };
+}
+
+export function packDescription(value: unknown): string | null {
+    let remaining = 512;
+    const text = (node: unknown, depth: number): string => {
+        if (--remaining < 0 || depth > 16) return "";
+        if (typeof node === "string") return node.slice(0, 4096);
+        if (Array.isArray(node))
+            return node
+                .slice(0, remaining)
+                .map((child) => text(child, depth + 1))
+                .join("");
+        if (!node || typeof node !== "object") return "";
+        const component = node as Record<string, unknown>;
+        return (
+            text(
+                component.text ?? component.fallback ?? component.translate,
+                depth + 1,
+            ) + text(component.extra, depth + 1)
+        );
+    };
+    const result = text(value, 0)
+        .replace(/\u00a7[0-9a-fk-orx]/gi, "")
+        .slice(0, 4096);
+    return result || null;
+}
+
 function readPackMeta(
     read: (path: string) => Uint8Array | undefined,
 ): PackMeta | null {
     const raw = read("pack.mcmeta");
     if (!raw) return null;
     try {
-        const parsed = JSON.parse(new TextDecoder().decode(raw)) as {
-            pack?: {
-                pack_format?: unknown;
-                description?: unknown;
-                supported_formats?: unknown;
-            };
-        };
-        const pack = parsed.pack ?? {};
-        const supported = Array.isArray(pack.supported_formats)
-            ? pack.supported_formats.filter(
-                  (entry): entry is number => typeof entry === "number",
-              )
+        const parsed: unknown = JSON.parse(new TextDecoder().decode(raw));
+        if (
+            parsed === null ||
+            typeof parsed !== "object" ||
+            Array.isArray(parsed)
+        )
+            return null;
+        const candidate = (parsed as Record<string, unknown>).pack;
+        if (
+            candidate === null ||
+            typeof candidate !== "object" ||
+            Array.isArray(candidate)
+        )
+            return null;
+        const pack = candidate as Record<string, unknown>;
+        const packFormat = formatInteger(pack.pack_format)
+            ? pack.pack_format
             : null;
+        const supported = legacyFormats(pack.supported_formats);
         return {
-            packFormat:
-                typeof pack.pack_format === "number" ? pack.pack_format : null,
-            description:
-                typeof pack.description === "string" ? pack.description : null,
+            packFormat,
+            description: packDescription(pack.description),
             supportedFormats: supported,
+            declaredFormats: declaredFormats(pack, packFormat, supported),
         };
     } catch {
         // A malformed pack.mcmeta is worth surfacing, but it must not stop the pack from mounting:

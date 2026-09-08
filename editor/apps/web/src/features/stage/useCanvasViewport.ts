@@ -4,19 +4,33 @@ import {
     useRef,
     useState,
     type PointerEvent as ReactPointerEvent,
+    type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useEditorStore } from "../../state/store.js";
-import { fitZoom, wheelZoom, smoothZoomStep } from "../../state/zoom.js";
+import {
+    canvasGutter,
+    fitZoom,
+    wheelZoom,
+    smoothZoomStep,
+} from "../../state/zoom.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
+import { usePreferences } from "../../state/preferences.js";
+import { contextOwner } from "../../state/interface.js";
 
 export function useCanvasViewport(
     sizes: readonly { width: number; height: number }[],
+    active = true,
 ) {
     const area = useRef<HTMLDivElement>(null);
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
+    const gutter = canvasGutter(viewport);
     const [panMode, setPanMode] = useState(false);
     const [panning, setPanning] = useState(false);
     const targetZoom = useEditorStore((state) => state.guiScale);
     const mode = useEditorStore((state) => state.zoomMode);
+    const epoch = useEditorStore((state) => state.workspaceEpoch);
+    const itemId = useEditorStore((state) => state.selectedItemId);
+    const panButtons = usePreferences((state) => state.canvasPanButtons);
     const [zoom, setZoom] = useState(targetZoom);
     const drawnZoom = useRef(zoom);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -36,6 +50,13 @@ export function useCanvasViewport(
         pan: typeof pan;
         active: boolean;
         deselect: boolean;
+        button: number;
+    } | null>(null);
+    const rightClick = useRef<{
+        target: Element;
+        owner: string;
+        x: number;
+        y: number;
     } | null>(null);
     const space = useRef(false);
     const movePan = (next: typeof pan) => {
@@ -80,16 +101,19 @@ export function useCanvasViewport(
     }, []);
     const stopPan = (cancel = false) => {
         if (drag.current && cancel) movePan(drag.current.pan);
-        if (
-            drag.current &&
-            area.current?.hasPointerCapture(drag.current.pointer)
-        )
-            area.current.releasePointerCapture(drag.current.pointer);
+        const pointer = drag.current?.pointer;
         drag.current = null;
+        if (pointer !== undefined && area.current?.hasPointerCapture(pointer))
+            area.current.releasePointerCapture(pointer);
         setPanning(false);
     };
     useEffect(() => {
+        stopPan(true);
+        rightClick.current = null;
+    }, [active, epoch, itemId, panButtons]);
+    useEffect(() => {
         const down = (event: KeyboardEvent) => {
+            if (!drag.current) rightClick.current = null;
             if (
                 event.code === "Space" &&
                 !(
@@ -108,6 +132,7 @@ export function useCanvasViewport(
             }
             if (event.key === "Escape" && drag.current) {
                 event.preventDefault();
+                event.stopPropagation();
                 stopPan(true);
             }
         };
@@ -118,11 +143,11 @@ export function useCanvasViewport(
             space.current = false;
             stopPan();
         };
-        window.addEventListener("keydown", down);
+        window.addEventListener("keydown", down, true);
         window.addEventListener("keyup", up);
         window.addEventListener("blur", blur);
         return () => {
-            window.removeEventListener("keydown", down);
+            window.removeEventListener("keydown", down, true);
             window.removeEventListener("keyup", up);
             window.removeEventListener("blur", blur);
         };
@@ -188,16 +213,16 @@ export function useCanvasViewport(
         )
             return;
         anchor.current = null;
-        const scale = fitZoom(viewport, sizes, 48);
+        const scale = fitZoom(viewport, sizes, gutter);
         useEditorStore.getState().setGuiScale(scale, "fit");
         movePan({ x: 0, y: 0 });
         if (area.current) {
             area.current.scrollLeft = 0;
             area.current.scrollTop = 0;
         }
-        const signature = sizes
+        const signature = `${viewport.width}:${viewport.height}|${sizes
             .map((size) => `${size.width}:${size.height}`)
-            .join("|");
+            .join("|")}`;
         if (fittedSize.current !== signature) {
             fittedSize.current = signature;
             drawnZoom.current = scale;
@@ -207,6 +232,7 @@ export function useCanvasViewport(
         mode,
         viewport.width,
         viewport.height,
+        gutter,
         sizes.map((size) => `${size.width}:${size.height}`).join("|"),
     ]);
     useLayoutEffect(() => {
@@ -251,7 +277,13 @@ export function useCanvasViewport(
         event: ReactPointerEvent<HTMLDivElement>,
         forced: boolean,
     ) => {
-        if (drag.current || (!forced && event.button !== 0)) return;
+        if (
+            !active ||
+            event.defaultPrevented ||
+            drag.current ||
+            (!forced && event.button !== 0)
+        )
+            return;
         const target = event.target instanceof Element ? event.target : null;
         if (
             !forced &&
@@ -263,21 +295,31 @@ export function useCanvasViewport(
         event.preventDefault();
         if (forced) event.stopPropagation();
         anchor.current = null;
-        if (forced) useEditorStore.getState().setGuiScale(drawnZoom.current);
+        const immediate = forced && event.button !== 2;
+        if (immediate) useEditorStore.getState().setGuiScale(drawnZoom.current);
         event.currentTarget.setPointerCapture(event.pointerId);
         drag.current = {
             pointer: event.pointerId,
             x: event.clientX,
             y: event.clientY,
             pan: panRef.current,
-            active: forced,
-            deselect: !target?.closest(".canvas-wrap"),
+            active: immediate,
+            deselect: event.button === 0 && !target?.closest(".canvas-wrap"),
+            button: event.button,
         };
-        if (forced) setPanning(true);
+        if (event.button === 2 && target)
+            rightClick.current = {
+                target,
+                owner: contextOwner(),
+                x: event.clientX,
+                y: event.clientY,
+            };
+        if (immediate) setPanning(true);
     };
     return {
         area,
         viewport,
+        gutter,
         zoom,
         targetZoom,
         mode,
@@ -296,7 +338,18 @@ export function useCanvasViewport(
             }
         },
         pointerDownCapture: (event: ReactPointerEvent<HTMLDivElement>) => {
+            if (!drag.current) rightClick.current = null;
+            const right =
+                event.button === 2 &&
+                panButtons === "middle-right" &&
+                !(
+                    event.target instanceof Element &&
+                    event.target.closest(
+                        'input,textarea,[contenteditable="true"],[role="menu"],[data-ui-popup]',
+                    )
+                );
             if (
+                right ||
                 event.button === 1 ||
                 (event.button === 0 && (panMode || space.current))
             )
@@ -311,7 +364,7 @@ export function useCanvasViewport(
                 dy = event.clientY - current.y;
             if (!current.active && Math.hypot(dx, dy) < 4) return;
             if (!current.active)
-                useEditorStore.getState().setZoomMode("manual");
+                useEditorStore.getState().setGuiScale(drawnZoom.current);
             current.active = true;
             setPanning(true);
             movePan({ x: current.pan.x + dx, y: current.pan.y + dy });
@@ -319,9 +372,37 @@ export function useCanvasViewport(
         pointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => {
             const current = drag.current;
             if (!current || current.pointer !== event.pointerId) return;
-            if (!current.active && current.deselect)
+            if (!current.active && current.deselect && commitInlineEditor())
                 useEditorStore.getState().selectBlock(null);
+            const right = current.button === 2 ? rightClick.current : null;
+            const showMenu =
+                right && !current.active && event.type === "pointerup";
             stopPan(event.type === "pointercancel");
+            // Defer right-click menus until release on every platform, including those
+            // that emit contextmenu on press. Capture must not replace the clicked object.
+            if (
+                showMenu &&
+                right.target.isConnected &&
+                right.owner === contextOwner()
+            ) {
+                const context = new MouseEvent("contextmenu", {
+                    bubbles: true,
+                    cancelable: true,
+                    button: 2,
+                    clientX: right.x,
+                    clientY: right.y,
+                });
+                right.target.dispatchEvent(context);
+            }
+        },
+        contextMenuCapture: (event: ReactMouseEvent<HTMLDivElement>) => {
+            if (rightClick.current && event.nativeEvent.isTrusted) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        },
+        lostPointerCapture: () => {
+            if (drag.current) stopPan(true);
         },
     };
 }

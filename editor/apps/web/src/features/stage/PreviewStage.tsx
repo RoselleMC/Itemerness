@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { itemKey, itemLayout } from "@itemerness/protocol";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Hand, RotateCcw, Scan, ZoomIn } from "lucide-react";
 import type { TooltipGeometry } from "@itemerness/mc-render";
@@ -13,13 +14,20 @@ import { useCanvasViewport } from "./useCanvasViewport.js";
 import { describeContext } from "../../state/interface.js";
 import { copyAction } from "../common/contextActions.js";
 import { Undo2, Redo2 } from "lucide-react";
+import { commitInlineEditor } from "../common/inlineEdit.js";
+import { previewAccessibleText } from "./previewAccessibleText.js";
+import { PreviewFooter } from "./PreviewFooter.js";
 
 export function PreviewStage({
     preview,
     onGeometry,
+    onOpenDiagnostics,
+    active = true,
 }: {
     preview: PreviewBundle;
     onGeometry: (geometry: TooltipGeometry, sprites: boolean) => void;
+    onOpenDiagnostics(): void;
+    active?: boolean;
 }) {
     const { t } = useTranslation();
     const state = useEditorStore();
@@ -36,7 +44,23 @@ export function PreviewStage({
             width: value.totalWidthPixels,
             height: value.totalHeightPixels,
         }));
-    const view = useCanvasViewport(sizes);
+    const view = useCanvasViewport(sizes, active);
+    const currentView = useRef(view);
+    currentView.current = view;
+    useEffect(() => {
+        if (!active) return;
+        const command = (event: Event) => {
+            const view = currentView.current;
+            const id = (event as CustomEvent<string>).detail;
+            if (id === "zoom-fit") view.fit();
+            if (id === "zoom-reset") view.changeZoom(1);
+            if (id === "zoom-in") view.changeZoom(view.targetZoom * 1.2);
+            if (id === "zoom-out") view.changeZoom(view.targetZoom / 1.2);
+        };
+        window.addEventListener("editor-canvas-command", command);
+        return () =>
+            window.removeEventListener("editor-canvas-command", command);
+    }, [active]);
     const handleGeometry = useCallback(
         (value: TooltipGeometry, sprites: boolean) => {
             setGeometry(value);
@@ -49,8 +73,7 @@ export function PreviewStage({
         [],
     );
     const item = state.document.items.find(
-        (entry) =>
-            `${state.document.namespace}:${entry.id}` === preview.targetItemId,
+        (entry) => itemKey(state.document, entry) === preview.targetItemId,
     );
     const choices = [...new Set([...ZOOM_PRESETS, view.targetZoom])].sort(
         (a, b) => a - b,
@@ -101,6 +124,38 @@ export function PreviewStage({
                         onClick={view.fit}
                     >
                         <Scan size={17} />
+                    </button>
+                </div>
+                <div
+                    className="history-controls"
+                    role="group"
+                    aria-label={t("applicationMenu.history")}
+                >
+                    <button
+                        type="button"
+                        className="icon-button"
+                        data-testid="undo"
+                        disabled={!state.canUndo}
+                        data-tooltip={t("history.undo")}
+                        aria-label={t("history.undo")}
+                        onClick={() => {
+                            if (commitInlineEditor()) state.undo();
+                        }}
+                    >
+                        <Undo2 size={17} />
+                    </button>
+                    <button
+                        type="button"
+                        className="icon-button"
+                        data-testid="redo"
+                        disabled={!state.canRedo}
+                        data-tooltip={t("history.redo")}
+                        aria-label={t("history.redo")}
+                        onClick={() => {
+                            if (commitInlineEditor()) state.redo();
+                        }}
+                    >
+                        <Redo2 size={17} />
                     </button>
                 </div>
                 <div className="canvas-tools">
@@ -170,7 +225,10 @@ export function PreviewStage({
                                 id: "deselect",
                                 label: t("menus.deselect"),
                                 disabled: !state.selectedBlockUuid,
-                                run: () => state.selectBlock(null),
+                                run: () => {
+                                    if (commitInlineEditor())
+                                        state.selectBlock(null);
+                                },
                             },
                             ...(preview.display
                                 ? [
@@ -200,16 +258,25 @@ export function PreviewStage({
                     })
                 }
                 onPointerDownCapture={view.pointerDownCapture}
+                onContextMenuCapture={view.contextMenuCapture}
                 onPointerDown={view.pointerDown}
                 onPointerMove={view.pointerMove}
                 onPointerUp={view.pointerEnd}
                 onPointerCancel={view.pointerEnd}
+                onLostPointerCapture={view.lostPointerCapture}
             >
                 <div
                     className="canvas-world"
                     style={{
-                        width: Math.max(view.viewport.width, width + 96),
-                        height: Math.max(view.viewport.height, height + 96),
+                        width: Math.max(
+                            view.viewport.width,
+                            width + view.gutter * 2,
+                        ),
+                        height: Math.max(
+                            view.viewport.height,
+                            height + view.gutter * 2,
+                        ),
+                        padding: view.gutter,
                     }}
                 >
                     {preview.display ? (
@@ -224,9 +291,9 @@ export function PreviewStage({
                                     className="sr-only"
                                     data-testid="preview-name"
                                 >
-                                    {preview.display.displayName.runs
-                                        .map((run) => run.text)
-                                        .join("")}
+                                    {previewAccessibleText(
+                                        preview.display.displayName,
+                                    ) || t("inspector.name.heading")}
                                 </figcaption>
                                 <div className="canvas-wrap">
                                     <TooltipCanvas
@@ -250,10 +317,13 @@ export function PreviewStage({
                                                 layout={state.document.layouts.find(
                                                     (entry) =>
                                                         entry.id ===
-                                                        item.presentation
-                                                            .layout,
+                                                        itemLayout(
+                                                            state.document,
+                                                            item,
+                                                        ),
                                                 )}
                                                 guiScale={view.zoom}
+                                                fonts={preview.fonts}
                                             />
                                         )}
                                 </div>
@@ -278,10 +348,22 @@ export function PreviewStage({
                             )}
                         </div>
                     ) : (
-                        <p className="muted">{t("stage.noItem")}</p>
+                        <p className="muted">
+                            {t(
+                                state.mode === "formats" ||
+                                    state.mode === "facts"
+                                    ? "presentationLibrary.noPreviewItem"
+                                    : "stage.noItem",
+                            )}
+                        </p>
                     )}
                 </div>
             </div>
+            <PreviewFooter
+                preview={preview}
+                onOpenDiagnostics={onOpenDiagnostics}
+                active={active}
+            />
         </section>
     );
 }

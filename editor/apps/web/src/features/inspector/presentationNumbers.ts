@@ -1,0 +1,2 @@
+export const SOURCE_INT_MIN = -2147483648;
+export const SOURCE_INT_MAX = 2147483647;

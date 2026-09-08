@@ -134,7 +134,8 @@ test("warms full previews, switches within a frame, and invalidates on viewer/do
         testInfo.outputPath("warm-preview-switches.json"),
         JSON.stringify(timings, null, 2),
     );
-    await page.getByTestId("locale-chip-zh_cn").click();
+    await page.getByTestId("preview-language").click();
+    await page.getByTestId("preview-language-option-zh_cn").click();
     await expect
         .poll(() =>
             requests.some((request) => request.viewer.locale === "zh_cn"),

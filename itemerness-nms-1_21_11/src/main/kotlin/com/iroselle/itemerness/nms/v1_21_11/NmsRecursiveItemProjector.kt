@@ -455,6 +455,8 @@ internal class NmsRecursiveItemProjector(
         var containsManaged = false
         NmsItemComponentCarriers.CODEC_GRAPH.forEach { carrier ->
             val original = getComponent(source, carrier.type) ?: return@forEach
+            // Vanilla defaults include an empty enchantment set with no nested graph to inspect.
+            if (original is net.minecraft.world.item.enchantment.ItemEnchantments && original.isEmpty) return@forEach
             budget.consumeCodecCall()
             val encoded = encodeComponent(carrier.type, original, ops)
             val wrapper = CompoundTag().also { tag -> tag.put(CODEC_VALUE_KEY, encoded) }
@@ -546,13 +548,18 @@ internal class NmsPacketItemProjectionBudget(
     val nbtBudget = NmsCanonicalNbtProjector.TraversalBudget(limits)
     val payloadBudget = NmsPayloadProjectionBudget(nbtBudget, limits)
     private var itemCount = 0
+    private var ordinaryItemCount = 0
     private var nestedComponentCount = 0
     private var codecCalls = 0
 
     fun enterItem(depth: Int) {
         requireProjectionInput(depth <= limits.itemDepth) { "Nested item projection exceeds the recursion limit" }
         itemCount++
-        requireProjectionInput(itemCount <= limits.items) { "Packet item projection exceeds the item limit" }
+        if (!payloadBudget.inRecipe) ordinaryItemCount++
+        requireProjectionInput(
+            ordinaryItemCount <= limits.items &&
+                itemCount <= maxOf(limits.items, limits.recipeItems),
+        ) { "Packet item projection exceeds the item limit" }
     }
 
     fun visitNestedComponent() {

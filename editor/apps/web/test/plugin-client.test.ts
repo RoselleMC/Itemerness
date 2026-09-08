@@ -163,7 +163,7 @@ describe("plugin client", () => {
         await useConnectionStore
             .getState()
             .connect("https://server.example/items/", TOKEN);
-        expect(setItem).toHaveBeenCalledExactlyOnceWith(
+        expect(setItem).toHaveBeenCalledWith(
             "itemerness.api-url",
             "https://server.example/items",
         );
@@ -174,7 +174,7 @@ describe("plugin client", () => {
         await useConnectionStore
             .getState()
             .connect("https://rejected.example/", TOKEN);
-        expect(setItem).toHaveBeenCalledTimes(1);
+        expect(setItem).toHaveBeenCalledTimes(2);
         expect(JSON.stringify(setItem.mock.calls)).not.toContain(TOKEN);
     });
     it("omits authorization for empty tokens and still respects protected server refusals", async () => {

@@ -13,6 +13,23 @@ import {
 const MATCHING_SHA1 = "1111111111111111111111111111111111111111";
 const PACK_ID = "10000000-0000-4000-8000-000000000001";
 
+it("deleting another item retains the current item and content selection", () => {
+    useEditorStore.getState().setDocument(baselineDocument);
+    const selected = baselineDocument.items[1]!;
+    const id = `${baselineDocument.namespace}:${selected.id}`;
+    const block = selected.presentation.blocks[0]!.uuid;
+    useEditorStore.getState().selectItem(id);
+    useEditorStore.getState().selectBlock(block);
+    useEditorStore.getState().removeItem(baselineDocument.items[2]!.uuid);
+    expect(useEditorStore.getState().selectedItemId).toBe(id);
+    expect(useEditorStore.getState().selectedBlockUuid).toBe(block);
+    useEditorStore.getState().removeItem(selected.uuid);
+    expect(useEditorStore.getState().selectedItemId).toBe(
+        `${baselineDocument.namespace}:${baselineDocument.items[0]!.id}`,
+    );
+    expect(useEditorStore.getState().selectedBlockUuid).toBeNull();
+});
+
 it("reuses immutable pack derivations and skips no-op document edits", () => {
     const a = [pack(MATCHING_SHA1)];
     const b = [pack("2222222222222222222222222222222222222222"), ...a];

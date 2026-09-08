@@ -11,7 +11,6 @@ import {
 } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import {
     contextFor,
     contextOwner,
@@ -26,6 +25,8 @@ import { textMenu, isTextControl } from "./textMenu.js";
 import { commitInlineEditor } from "./inlineEdit.js";
 import { copyAction } from "./contextActions.js";
 import { TooltipLayer } from "./TooltipLayer.js";
+import { ToastHost } from "./ToastHost.js";
+import { notify } from "../../state/toasts.js";
 
 interface OpenMenu extends MenuDescription {
     x: number;
@@ -60,12 +61,13 @@ export function InterfaceHost({
     useEffect(() => () => resolveConfirmation(false), []);
     useEffect(() => {
         if (!ui.error) return;
+        notify(t(ui.error), "error", "interface-error");
         const timer = setTimeout(
             () => useInterface.setState({ error: null }),
             5000,
         );
         return () => clearTimeout(timer);
-    }, [ui.error]);
+    }, [ui.error, t]);
     const context = (event: MouseEvent<HTMLDivElement>) => {
         event.preventDefault();
         if (blocked || ui.confirmation || !(event.target instanceof Element))
@@ -147,9 +149,12 @@ export function InterfaceHost({
     const prepare = (target: EventTarget | null) => {
         if (
             target instanceof Element &&
-            !target.closest(".inline-editor,[data-ui-popup]")
+            !target.closest(
+                ".inline-editor,[data-buffered-value],[data-ui-popup]",
+            )
         )
-            commitInlineEditor();
+            return commitInlineEditor();
+        return true;
     };
     const anchor = {
         getBoundingClientRect: () =>
@@ -164,8 +169,16 @@ export function InterfaceHost({
         <>
             {cloneElement(children, {
                 onContextMenu: context,
-                onContextMenuCapture: (event) => prepare(event.target),
-                onPointerDownCapture: (event) => prepare(event.target),
+                onContextMenuCapture: (event) => {
+                    if (!prepare(event.target)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                },
+                onPointerDownCapture: (event) => {
+                    // Keep focus on invalid text; context-changing commands also guard their mutations.
+                    if (!prepare(event.target)) event.preventDefault();
+                },
                 onKeyDown: keyboard,
             })}
             <Menu.Root
@@ -190,7 +203,7 @@ export function InterfaceHost({
                         side="bottom"
                         align="start"
                         collisionPadding={{
-                            top: 56,
+                            top: 8,
                             right: 8,
                             bottom: 8,
                             left: 8,
@@ -202,12 +215,22 @@ export function InterfaceHost({
                             data-testid="context-menu"
                             onContextMenu={(event) => event.preventDefault()}
                             aria-label={model?.label}
-                            finalFocus={() =>
-                                model?.focus?.isConnected &&
-                                !model.focus.closest("[inert],[hidden]")
+                            finalFocus={() => {
+                                const active = document.activeElement;
+                                // A closing animation must not steal focus from a newly focused field.
+                                if (
+                                    active instanceof HTMLElement &&
+                                    active !== document.body &&
+                                    active !== model?.focus &&
+                                    active.id !== "editor-context-anchor" &&
+                                    !active.closest("[data-ui-popup]")
+                                )
+                                    return false;
+                                return model?.focus?.isConnected &&
+                                    !model.focus.closest("[inert],[hidden]")
                                     ? model.focus
-                                    : false
-                            }
+                                    : false;
+                            }}
                             onKeyDown={(event) => {
                                 if (event.key === "Escape")
                                     event.stopPropagation();
@@ -222,19 +245,7 @@ export function InterfaceHost({
                 <ConfirmationDialog key={ui.confirmation.owner} />
             )}
             <TooltipLayer />
-            {ui.error && (
-                <div role="alert" className="ui-status">
-                    <span>{t(ui.error)}</span>
-                    <button
-                        type="button"
-                        className="icon-button"
-                        aria-label={t("common.close")}
-                        onClick={() => useInterface.setState({ error: null })}
-                    >
-                        <X size={15} />
-                    </button>
-                </div>
-            )}
+            <ToastHost />
         </>
     );
 }

@@ -319,6 +319,8 @@ data class FrameRowSource(
     val left: String,
     val fill: String,
     val right: String,
+    val center: String? = null,
+    val kern: String? = null,
 )
 
 data class SegmentedFrameSource(
@@ -330,6 +332,7 @@ data class SegmentedFrameSource(
     val body: FrameRowSource,
     val connector: FrameRowSource? = null,
     val bottom: FrameRowSource,
+    val includeName: Boolean = false,
 )
 
 data class CanvasLayerSource(

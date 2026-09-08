@@ -33,7 +33,10 @@ describe("document-wide history", () => {
             ...theme,
             requireExactFontMetrics: !theme.requireExactFontMetrics,
         }));
-        state().addItem("Added");
+        state().addItem("Added", {
+            layout: "itemerness:plain",
+            theme: "itemerness:default",
+        });
         const afterAdd = state().snapshotHash;
         state().removeItem(state().document.items.at(-1)!.uuid);
         state().undo();

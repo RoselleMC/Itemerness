@@ -68,6 +68,7 @@ val exactNmsAdapters = linkedMapOf(
 )
 
 dependencies {
+    implementation(project(":itemerness-bukkit-api"))
     implementation(project(":itemerness-core"))
     implementation(project(":itemerness-projection-spi"))
     implementation(project(":itemerness-bukkit-spi"))
@@ -95,6 +96,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -111,6 +113,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -127,6 +130,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -143,6 +147,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -159,6 +164,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -175,6 +181,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -191,6 +198,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -207,6 +215,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -223,6 +232,7 @@ kotlin {
         defaultSourceSet {
             kotlin.srcDirs(mainSources)
             dependencies {
+                implementation(project(":itemerness-bukkit-api"))
                 implementation(project(":itemerness-core"))
                 implementation(project(":itemerness-projection-spi"))
                 implementation(project(":itemerness-bukkit-spi"))
@@ -286,6 +296,7 @@ tasks.named("check") {
 
 tasks.test {
     // The managed-document test compiles the same golden fixture the browser edits.
+    inputs.dir(rootProject.layout.projectDirectory.dir("editor/packages/protocol/fixtures"))
     systemProperty(
         "itemerness.editorFixtures",
         rootProject.layout.projectDirectory.dir("editor/packages/protocol/fixtures").asFile.absolutePath,
@@ -398,6 +409,15 @@ val verifyPluginJar by tasks.registering {
             }
             check(jar.getJarEntry("com/iroselle/itemerness/api/ItemernessApi.class") != null) {
                 "Itemerness.jar does not contain the public API"
+            }
+            listOf(
+                "com/iroselle/itemerness/bukkit/api/BukkitItemernessApi.class",
+                "com/iroselle/itemerness/bukkit/api/BoundBukkitItemernessApi.class",
+                "com/iroselle/itemerness/bukkit/event/ItemernessCatalogPublishedEvent.class",
+            ).forEach { className ->
+                check(jar.entries().asSequence().count { entry -> entry.name == className } == 1) {
+                    "Itemerness.jar must contain exactly one public contract class: $className"
+                }
             }
             check(
                 jar.getJarEntry(

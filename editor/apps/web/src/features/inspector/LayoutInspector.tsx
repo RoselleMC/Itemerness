@@ -1,16 +1,16 @@
 import { useTranslation } from "react-i18next";
+import { itemLayout } from "@itemerness/protocol";
 import type { ReactNode } from "react";
+import { AlignLeft, AlignRight } from "lucide-react";
 import { useEditorStore } from "../../state/store.js";
-import { humanizePath } from "../common/messages.js";
-import { SelectField } from "../common/SelectField.js";
 import { describeContext } from "../../state/interface.js";
-import { copyAction, relatedItems } from "../common/contextActions.js";
+import { themeLayoutActions } from "../common/themeLayoutActions.js";
+import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
+import { LayoutNumber } from "./LayoutFields.js";
+import { LayoutWrapping } from "./LayoutWrapping.js";
+import { LayoutCanvas } from "./LayoutCanvas.js";
+import "./layoutInspector.css";
 
-/**
- * Layout editing in spatial terms: widths as sliders, alignment as a two-state toggle, spacing as
- * small steppers. The stage previews an item that actually uses the layout, so dragging the width
- * slider visibly re-wraps real content rather than a synthetic sample.
- */
 export function LayoutInspector({
     previewSettings,
 }: {
@@ -22,299 +22,225 @@ export function LayoutInspector({
     const layout = doc.layouts.find(
         (entry) => entry.id === store.selectedLayoutId,
     );
-
-    if (!layout) {
+    if (!layout)
         return (
             <aside className="inspector">
-                <p className="muted">{t("stage.noItem")}</p>
+                <ThemeLayoutAdd kind="layouts" testIdPrefix="empty-" />
                 {previewSettings}
             </aside>
         );
-    }
-
     const usedBy = doc.items.filter(
-        (item) => item.presentation.layout === layout.id,
+        (item) => itemLayout(doc, item) === layout.id,
     );
-
-    if (layout.kind === "canvas") {
-        return (
-            <aside
-                className="inspector"
-                aria-label={t("inspector.layout.heading")}
-                onContextMenu={(event) =>
-                    describeContext(event, {
-                        label: layout.id,
-                        items: [
-                            copyAction("copy-id", t("menus.copyId"), layout.id),
-                            relatedItems(usedBy, t),
-                        ],
-                    })
-                }
-            >
-                <section>
-                    <h3>{t("inspector.layout.heading")}</h3>
-                    <p className="library-title">
-                        {humanizePath(layout.id.split(":").pop() ?? layout.id)}
-                        <span className="tag">
-                            {t("inspector.layoutKind.canvas")}
-                        </span>
-                    </p>
-                    <p className="muted small">
-                        {t("inspector.layout.usedBy", { count: usedBy.length })}
-                    </p>
-                </section>
-                <section>
-                    <h3>{t("inspector.theme.canvasSize")}</h3>
-                    <dl className="fact-list">
-                        <dt>{t("inspector.theme.canvasSize")}</dt>
-                        <dd>
-                            {layout.widthPixels} × {layout.heightPixels} px
-                        </dd>
-                        <dt>{t("inspector.theme.reserveLines")}</dt>
-                        <dd>{layout.reserveTooltipLines}</dd>
-                        <dt>{t("inspector.layout.anchors")}</dt>
-                        <dd>{Object.keys(layout.anchors).join(", ")}</dd>
-                    </dl>
-                    <p className="muted small">
-                        {t("inspector.layout.canvasHint")}
-                    </p>
-                </section>
-                {previewSettings}
-            </aside>
-        );
-    }
-
-    const patch = (changes: Partial<typeof layout>) =>
-        store.updateLayout(layout.uuid, (current) =>
-            current.kind === "flow" ? { ...current, ...changes } : current,
-        );
-
-    const bodyWrapping =
-        layout.wrapping.body ?? Object.values(layout.wrapping)[0];
-    const wrappingName = layout.wrapping.body
-        ? "body"
-        : Object.keys(layout.wrapping)[0];
-
     return (
         <aside
-            className="inspector"
+            className="inspector layout-inspector"
             aria-label={t("inspector.layout.heading")}
             onContextMenu={(event) =>
                 describeContext(event, {
                     label: layout.id,
-                    items: [
-                        copyAction("copy-id", t("menus.copyId"), layout.id),
-                        relatedItems(usedBy, t),
-                    ],
+                    items: themeLayoutActions("layouts", layout.uuid, t),
                 })
             }
         >
+            <ThemeLayoutHeader kind="layouts" uuid={layout.uuid} />
             <section>
-                <h3>{t("inspector.layout.heading")}</h3>
                 <p className="library-title">
-                    {humanizePath(layout.id.split(":").pop() ?? layout.id)}
                     <span className="tag">
-                        {t("inspector.layoutKind.flow")}
+                        {t(`inspector.layoutKind.${layout.kind}`)}
                     </span>
                 </p>
                 <p className="muted small">
                     {t("inspector.layout.usedBy", { count: usedBy.length })}
                 </p>
             </section>
-
-            <section>
-                <h3>{t("inspector.layout.width")}</h3>
-                <div className="slider-rows">
-                    <label className="slider-row">
-                        <span>{t("inspector.theme.minWidth")}</span>
-                        <input
-                            type="range"
-                            min={40}
-                            max={220}
-                            value={layout.minimumWidthPixels}
-                            onChange={(event) => {
-                                const next = Number(event.target.value);
-                                patch({
-                                    minimumWidthPixels: next,
-                                    maximumWidthPixels: Math.max(
-                                        next,
+            {layout.kind === "canvas" ? (
+                <LayoutCanvas layout={layout} document={doc} />
+            ) : (
+                (() => {
+                    const patch = (changes: Partial<typeof layout>) =>
+                        store.updateLayout(layout.uuid, (current) =>
+                            current.kind === "flow"
+                                ? { ...current, ...changes }
+                                : current,
+                        );
+                    return (
+                        <>
+                            <section>
+                                <h3>{t("inspector.layout.width")}</h3>
+                                <LayoutNumber
+                                    name="minimumWidthPixels"
+                                    value={layout.minimumWidthPixels}
+                                    minimum={1}
+                                    maximum={Math.min(
                                         layout.maximumWidthPixels,
-                                    ),
-                                });
-                            }}
-                        />
-                        <span className="dim small">
-                            {layout.minimumWidthPixels}px
-                        </span>
-                    </label>
-                    <label className="slider-row">
-                        <span>{t("inspector.theme.maxWidth")}</span>
-                        <input
-                            type="range"
-                            min={60}
-                            max={220}
-                            value={layout.maximumWidthPixels}
-                            onChange={(event) => {
-                                const next = Number(event.target.value);
-                                patch({
-                                    minimumWidthPixels: Math.min(
+                                        doc.budgets.maximumWidthPixels,
+                                    )}
+                                    owner={layout.uuid}
+                                    onChange={(minimumWidthPixels) =>
+                                        patch({ minimumWidthPixels })
+                                    }
+                                />
+                                <LayoutNumber
+                                    name="maximumWidthPixels"
+                                    value={layout.maximumWidthPixels}
+                                    minimum={Math.max(
                                         layout.minimumWidthPixels,
-                                        next,
-                                    ),
-                                    maximumWidthPixels: next,
-                                });
-                            }}
-                            data-testid="layout-max-width"
-                        />
-                        <span className="dim small">
-                            {layout.maximumWidthPixels}px
-                        </span>
-                    </label>
-                </div>
-            </section>
-
-            <section>
-                <h3>{t("inspector.layout.fields")}</h3>
-                <p className="field-label">
-                    {t("inspector.layout.valueAlignment")}
-                </p>
-                <div className="chip-group">
-                    {(["LEFT", "RIGHT"] as const).map((alignment) => (
-                        <button
-                            key={alignment}
-                            type="button"
-                            className={`chip ${layout.fieldValueAlignment === alignment ? "chip-on" : ""}`}
-                            onClick={() =>
-                                patch({ fieldValueAlignment: alignment })
-                            }
-                            data-testid={`align-${alignment}`}
-                        >
-                            {t(`inspector.layout.align${alignment}`)}
-                        </button>
-                    ))}
-                </div>
-                <label className="field-inline">
-                    {t("inspector.layout.fieldPadding")}
-                    <input
-                        type="number"
-                        min={0}
-                        max={64}
-                        value={layout.fieldLeftPaddingPixels}
-                        onChange={(event) =>
-                            patch({
-                                fieldLeftPaddingPixels:
-                                    Number(event.target.value) || 0,
-                            })
-                        }
-                    />
-                </label>
-                <label className="field-inline">
-                    {t("inspector.layout.iconGap")}
-                    <input
-                        type="number"
-                        min={0}
-                        max={32}
-                        value={layout.fieldIconGapPixels}
-                        onChange={(event) =>
-                            patch({
-                                fieldIconGapPixels:
-                                    Number(event.target.value) || 0,
-                            })
-                        }
-                    />
-                </label>
-            </section>
-
-            <section>
-                <h3>{t("inspector.layout.description")}</h3>
-                <label className="field-inline">
-                    {t("inspector.layout.gapBefore")}
-                    <input
-                        type="number"
-                        min={0}
-                        max={64}
-                        value={layout.descriptionGapBeforePixels}
-                        onChange={(event) =>
-                            patch({
-                                descriptionGapBeforePixels:
-                                    Number(event.target.value) || 0,
-                            })
-                        }
-                    />
-                </label>
-                {bodyWrapping && wrappingName ? (
-                    <>
-                        <label className="field-inline">
-                            {t("inspector.layout.maxLines")}
-                            <input
-                                type="number"
-                                min={1}
-                                max={64}
-                                value={bodyWrapping.maximumLines}
-                                onChange={(event) => {
-                                    const next = Math.max(
-                                        1,
-                                        Number(event.target.value) || 1,
-                                    );
-                                    store.updateLayout(
-                                        layout.uuid,
-                                        (current) =>
-                                            current.kind === "flow"
-                                                ? {
-                                                      ...current,
-                                                      wrapping: {
-                                                          ...current.wrapping,
-                                                          [wrappingName]: {
-                                                              ...bodyWrapping,
-                                                              maximumLines:
-                                                                  next,
-                                                          },
-                                                      },
-                                                  }
-                                                : current,
-                                    );
-                                }}
-                            />
-                        </label>
-                        <label className="field-inline">
-                            {t("inspector.layout.overflow")}
-                            <SelectField
-                                label={t("inspector.layout.overflow")}
-                                value={bodyWrapping.overflow}
-                                onValueChange={(value) =>
-                                    store.updateLayout(
-                                        layout.uuid,
-                                        (current) =>
-                                            current.kind === "flow"
-                                                ? {
-                                                      ...current,
-                                                      wrapping: {
-                                                          ...current.wrapping,
-                                                          [wrappingName]: {
-                                                              ...bodyWrapping,
-                                                              overflow:
-                                                                  value as never,
-                                                          },
-                                                      },
-                                                  }
-                                                : current,
-                                    )
-                                }
-                                options={(
-                                    [
-                                        "ELLIPSIS",
-                                        "ALLOW_OVERFLOW",
-                                        "ERROR",
-                                    ] as const
-                                ).map((policy) => ({
-                                    value: policy,
-                                    label: t(`inspector.overflow.${policy}`),
-                                }))}
-                            />
-                        </label>
-                    </>
-                ) : null}
-            </section>
+                                        layout.fieldLeftPaddingPixels + 1,
+                                        layout.descriptionLeftPaddingPixels +
+                                            layout.descriptionRightPaddingPixels +
+                                            1,
+                                    )}
+                                    maximum={doc.budgets.maximumWidthPixels}
+                                    owner={layout.uuid}
+                                    onChange={(maximumWidthPixels) =>
+                                        patch({ maximumWidthPixels })
+                                    }
+                                />
+                                <input
+                                    type="range"
+                                    className="layout-width-slider"
+                                    aria-label={t(
+                                        "layoutAuthoring.maximumWidthPixels",
+                                    )}
+                                    min={Math.max(
+                                        layout.minimumWidthPixels,
+                                        layout.fieldLeftPaddingPixels + 1,
+                                        layout.descriptionLeftPaddingPixels +
+                                            layout.descriptionRightPaddingPixels +
+                                            1,
+                                    )}
+                                    max={doc.budgets.maximumWidthPixels}
+                                    value={layout.maximumWidthPixels}
+                                    data-testid="layout-max-width"
+                                    onChange={(event) =>
+                                        patch({
+                                            maximumWidthPixels: Number(
+                                                event.target.value,
+                                            ),
+                                        })
+                                    }
+                                />
+                                <LayoutNumber
+                                    name="blockGapAfterPixels"
+                                    value={layout.blockGapAfterPixels}
+                                    step={10}
+                                    owner={layout.uuid}
+                                    onChange={(blockGapAfterPixels) =>
+                                        patch({ blockGapAfterPixels })
+                                    }
+                                />
+                            </section>
+                            <section>
+                                <h3>{t("inspector.layout.fields")}</h3>
+                                <div className="field-inline">
+                                    <span>
+                                        {t("inspector.layout.valueAlignment")}
+                                    </span>
+                                    <div
+                                        className="chip-group"
+                                        role="group"
+                                        aria-label={t(
+                                            "inspector.layout.valueAlignment",
+                                        )}
+                                    >
+                                        {(["LEFT", "RIGHT"] as const).map(
+                                            (alignment) => {
+                                                const Icon =
+                                                    alignment === "LEFT"
+                                                        ? AlignLeft
+                                                        : AlignRight;
+                                                return (
+                                                    <button
+                                                        key={alignment}
+                                                        type="button"
+                                                        className={`icon-button ${layout.fieldValueAlignment === alignment ? "chip-on" : ""}`}
+                                                        aria-label={t(
+                                                            `inspector.layout.align${alignment}`,
+                                                        )}
+                                                        aria-pressed={
+                                                            layout.fieldValueAlignment ===
+                                                            alignment
+                                                        }
+                                                        data-tooltip={t(
+                                                            `inspector.layout.align${alignment}`,
+                                                        )}
+                                                        data-testid={`align-${alignment}`}
+                                                        onClick={() =>
+                                                            patch({
+                                                                fieldValueAlignment:
+                                                                    alignment,
+                                                            })
+                                                        }
+                                                    >
+                                                        <Icon size={16} />
+                                                    </button>
+                                                );
+                                            },
+                                        )}
+                                    </div>
+                                </div>
+                                <LayoutNumber
+                                    name="fieldLeftPaddingPixels"
+                                    value={layout.fieldLeftPaddingPixels}
+                                    maximum={layout.maximumWidthPixels - 1}
+                                    owner={layout.uuid}
+                                    onChange={(fieldLeftPaddingPixels) =>
+                                        patch({ fieldLeftPaddingPixels })
+                                    }
+                                />
+                                <LayoutNumber
+                                    name="fieldIconGapPixels"
+                                    value={layout.fieldIconGapPixels}
+                                    owner={layout.uuid}
+                                    onChange={(fieldIconGapPixels) =>
+                                        patch({ fieldIconGapPixels })
+                                    }
+                                />
+                            </section>
+                            <section>
+                                <h3>{t("inspector.layout.description")}</h3>
+                                <LayoutNumber
+                                    name="descriptionLeftPaddingPixels"
+                                    value={layout.descriptionLeftPaddingPixels}
+                                    maximum={
+                                        layout.maximumWidthPixels -
+                                        layout.descriptionRightPaddingPixels -
+                                        1
+                                    }
+                                    owner={layout.uuid}
+                                    onChange={(descriptionLeftPaddingPixels) =>
+                                        patch({ descriptionLeftPaddingPixels })
+                                    }
+                                />
+                                <LayoutNumber
+                                    name="descriptionRightPaddingPixels"
+                                    value={layout.descriptionRightPaddingPixels}
+                                    maximum={
+                                        layout.maximumWidthPixels -
+                                        layout.descriptionLeftPaddingPixels -
+                                        1
+                                    }
+                                    owner={layout.uuid}
+                                    onChange={(descriptionRightPaddingPixels) =>
+                                        patch({ descriptionRightPaddingPixels })
+                                    }
+                                />
+                                <LayoutNumber
+                                    name="descriptionGapBeforePixels"
+                                    value={layout.descriptionGapBeforePixels}
+                                    step={10}
+                                    owner={layout.uuid}
+                                    onChange={(descriptionGapBeforePixels) =>
+                                        patch({ descriptionGapBeforePixels })
+                                    }
+                                />
+                            </section>
+                        </>
+                    );
+                })()
+            )}
+            <LayoutWrapping key={layout.uuid} layout={layout} document={doc} />
             {previewSettings}
         </aside>
     );

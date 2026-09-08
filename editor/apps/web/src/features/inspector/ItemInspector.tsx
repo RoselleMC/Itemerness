@@ -1,6 +1,7 @@
+import { itemKey, itemLayout, itemTheme } from "@itemerness/protocol";
 import { type ReactNode, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2, GitBranch, Copy } from "lucide-react";
+import { Trash2, GitBranch, Copy, Plus, RotateCcw } from "lucide-react";
 import { duplicateSelectedContent } from "../../state/contentActions.js";
 import type {
     DataValue,
@@ -13,11 +14,26 @@ import { locateBlock, editBlockTree } from "../../state/blocks.js";
 import { humanizePath, resolveMessage } from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
 import type { PreviewBundle } from "../preview/usePreview.js";
-import { SelectField, type SelectChoice } from "../common/SelectField.js";
-import { SuggestionInput } from "../common/SuggestionInput.js";
+import { SelectField } from "../common/SelectField.js";
 import { deleteItem, duplicateItem } from "../../state/itemActions.js";
 import { describeContext } from "../../state/interface.js";
 import { itemActions, contentActions } from "../common/contextActions.js";
+import { ConditionEditor } from "../common/ConditionEditor.js";
+import { commitInlineEditor } from "../common/inlineEdit.js";
+import { DataValueEditor } from "../common/DataValueEditor.js";
+import { BufferedInput } from "../common/BufferedInput.js";
+import { ItemDefinitionEditor } from "./ItemDefinitionEditor.js";
+import { itemIdIssue, renameItem } from "../../state/itemIdentity.js";
+import {
+    inferContentComponent,
+    normalizeMaterial,
+} from "./itemDefinitionEditing.js";
+import {
+    initialDataValue,
+    itemDataKeys,
+    resolveSampleValue,
+    valueKindForType,
+} from "../common/typedValues.js";
 
 /**
  * The inspector: edit what the preview shows, in the words the preview shows it.
@@ -28,82 +44,6 @@ import { itemActions, contentActions } from "../common/contextActions.js";
  * type with a labelMessage. The ids, uuids, and keys that make the document robust still exist and
  * are still stable — folded into an advanced section, where the people who need them will look.
  */
-
-/** Common item materials for the picker; free text is still accepted. */
-const COMMON_MATERIALS = [
-    "paper",
-    "book",
-    "writable_book",
-    "netherite_sword",
-    "diamond_sword",
-    "iron_sword",
-    "bow",
-    "crossbow",
-    "trident",
-    "mace",
-    "shield",
-    "iron_pickaxe",
-    "diamond_pickaxe",
-    "golden_apple",
-    "enchanted_golden_apple",
-    "emerald",
-    "diamond",
-    "amethyst_shard",
-    "echo_shard",
-    "ender_pearl",
-    "nether_star",
-    "blaze_rod",
-    "stick",
-    "compass",
-    "clock",
-    "filled_map",
-    "name_tag",
-    "bundle",
-    "potion",
-    "elytra",
-    "totem_of_undying",
-    "goat_horn",
-];
-
-const OPERATOR_GLYPHS: Record<string, string> = {
-    LESS_THAN: "<",
-    LESS_THAN_OR_EQUAL: "≤",
-    GREATER_THAN: ">",
-    GREATER_THAN_OR_EQUAL: "≥",
-    EQUALS: "=",
-    NOT_EQUALS: "≠",
-    EXISTS: "∃",
-};
-
-/** The scalar sample value shown next to a data reference, from preview data then item defaults. */
-function sampleValue(item: ItemNode, dataKey: string): DataValue | null {
-    for (const source of [
-        item.previewData,
-        item.definition.instance.defaults,
-        item.definition.definitionData,
-    ]) {
-        const found = source.find((assignment) => assignment.key === dataKey);
-        if (found) return found.value;
-    }
-    return null;
-}
-
-function scalarText(value: DataValue | null): string | null {
-    if (!value) return null;
-    switch (value.kind) {
-        case "integer":
-        case "decimal":
-            return value.value;
-        case "string":
-            return value.value.includes(":")
-                ? (value.value.split(":").pop() ?? value.value)
-                : value.value;
-        case "boolean":
-            return String(value.value);
-        default:
-            return null;
-    }
-}
 
 export function ItemInspector({
     preview,
@@ -117,7 +57,7 @@ export function ItemInspector({
     const { document: doc, viewerLocale } = store;
 
     const item = doc.items.find(
-        (entry) => `${doc.namespace}:${entry.id}` === store.selectedItemId,
+        (entry) => itemKey(doc, entry) === store.selectedItemId,
     );
     if (!item) {
         return (
@@ -210,7 +150,10 @@ export function ItemInspector({
                             <button
                                 key={ancestor.uuid}
                                 type="button"
-                                onClick={() => store.selectBlock(ancestor.uuid)}
+                                onClick={() => {
+                                    if (commitInlineEditor())
+                                        store.selectBlock(ancestor.uuid);
+                                }}
                                 data-testid={`select-parent-${ancestor.uuid}`}
                             >
                                 <GitBranch size={14} />
@@ -249,8 +192,7 @@ export function ItemInspector({
                                 ...Object.keys(
                                     doc.themes.find(
                                         (theme) =>
-                                            theme.id ===
-                                            item.presentation.theme,
+                                            theme.id === itemTheme(doc, item),
                                     )?.styles ?? {},
                                 ).map((style) => ({
                                     value: style,
@@ -277,7 +219,7 @@ export function ItemInspector({
                                         doc.layouts.find(
                                             (layout) =>
                                                 layout.id ===
-                                                item.presentation.layout,
+                                                itemLayout(doc, item),
                                         )?.wrapping ?? {},
                                     ).map((policy) => ({
                                         value: policy,
@@ -293,10 +235,10 @@ export function ItemInspector({
     }
 
     const selectedTheme =
-        preview.display?.selectedTheme ?? item.presentation.theme;
+        preview.display?.selectedTheme ?? itemTheme(doc, item) ?? "";
     const themeFellBack =
         preview.display != null &&
-        preview.display.selectedTheme !== item.presentation.theme;
+        preview.display.selectedTheme !== itemTheme(doc, item);
 
     return (
         <aside
@@ -320,7 +262,10 @@ export function ItemInspector({
                         data-testid="duplicate-item"
                         aria-label={t("menus.duplicateItem")}
                         data-tooltip={t("menus.duplicateItem")}
-                        onClick={() => duplicateItem(item.uuid, t)}
+                        onClick={() => {
+                            if (commitInlineEditor())
+                                duplicateItem(item.uuid, t);
+                        }}
                     >
                         <Copy size={16} />
                     </button>
@@ -330,7 +275,10 @@ export function ItemInspector({
                         data-testid="delete-item"
                         aria-label={t("inspector.advanced.deleteItem")}
                         data-tooltip={t("inspector.advanced.deleteItem")}
-                        onClick={() => void deleteItem(item.uuid, t)}
+                        onClick={() => {
+                            if (commitInlineEditor())
+                                void deleteItem(item.uuid, t);
+                        }}
                     >
                         <Trash2 size={16} />
                     </button>
@@ -393,29 +341,112 @@ export function ItemInspector({
                         label={name.text}
                         size={32}
                     />
-                    <SuggestionInput
+                    <BufferedInput
                         label={t("inspector.advanced.material")}
-                        suggestions={COMMON_MATERIALS}
-                        value={item.definition.material.split(":").pop() ?? ""}
-                        onValueChange={(value) => {
-                            const path = value
-                                .trim()
-                                .toLowerCase()
-                                .replace(/\s+/g, "_");
-                            if (!/^[a-z0-9_./-]+$/.test(path)) return;
+                        owner={`${item.uuid}-material`}
+                        suggestions={[
+                            "paper",
+                            "book",
+                            "writable_book",
+                            "netherite_sword",
+                            "diamond_sword",
+                            "iron_sword",
+                            "bow",
+                            "crossbow",
+                            "trident",
+                            "mace",
+                            "shield",
+                            "iron_pickaxe",
+                            "diamond_pickaxe",
+                            "golden_apple",
+                            "enchanted_golden_apple",
+                            "emerald",
+                            "diamond",
+                            "amethyst_shard",
+                            "echo_shard",
+                            "ender_pearl",
+                            "nether_star",
+                            "blaze_rod",
+                            "stick",
+                            "compass",
+                            "clock",
+                            "filled_map",
+                            "name_tag",
+                            "bundle",
+                            "potion",
+                            "elytra",
+                            "totem_of_undying",
+                            "goat_horn",
+                            "shulker_box",
+                            "chest",
+                            "trapped_chest",
+                            "barrel",
+                        ]}
+                        value={item.definition.material.replace(
+                            /^minecraft:/,
+                            "",
+                        )}
+                        validate={(raw) => {
+                            const material = normalizeMaterial(raw);
+                            if (!material)
+                                return t("values.errors.namespacedKey");
+                            return item.definition.contents.length &&
+                                !inferContentComponent(material)
+                                ? t("itemDefinition.errors.contentCarrier")
+                                : null;
+                        }}
+                        onCommit={(raw) => {
+                            const material = normalizeMaterial(raw);
+                            if (!material) return;
                             store.updateItem(item.uuid, (current) => ({
                                 ...current,
                                 definition: {
                                     ...current.definition,
-                                    material: `minecraft:${path}`,
+                                    material,
+                                    contentComponent: current.definition
+                                        .contents.length
+                                        ? inferContentComponent(material)
+                                        : null,
                                 },
                             }));
                         }}
-                        data-testid="material-input"
+                        testId="material-input"
                     />
                 </div>
 
                 <p className="field-label">{t("inspector.appearance.theme")}</p>
+                {doc.schemaVersion === 2 && (
+                    <label className="item-theme-inherit">
+                        <input
+                            type="checkbox"
+                            data-testid="item-theme-inherit"
+                            checked={item.presentation.theme == null}
+                            disabled={!doc.defaultTheme}
+                            onChange={(event) => {
+                                const inherited = event.target.checked;
+                                if (commitInlineEditor())
+                                    store.updateItem(item.uuid, (current) => ({
+                                        ...current,
+                                        presentation: {
+                                            ...current.presentation,
+                                            theme: inherited
+                                                ? null
+                                                : itemTheme(
+                                                      useEditorStore.getState()
+                                                          .document,
+                                                      current,
+                                                  ),
+                                        },
+                                    }));
+                            }}
+                        />
+                        <span>
+                            {t("projectSettings.inherit", {
+                                id: doc.defaultTheme ?? t("inspector.none"),
+                            })}
+                        </span>
+                    </label>
+                )}
                 <div className="theme-grid" data-testid="theme-grid">
                     {doc.themes.map((theme) => (
                         <button
@@ -458,6 +489,8 @@ export function ItemInspector({
                                             id: "edit-theme",
                                             label: t("menus.editTheme"),
                                             run: () => {
+                                                if (!commitInlineEditor())
+                                                    return;
                                                 store.setMode("themes");
                                                 store.selectTheme(theme.id);
                                             },
@@ -516,35 +549,72 @@ export function ItemInspector({
                 <SelectField
                     label={t("inspector.appearance.layout")}
                     id="layout-select"
-                    value={item.presentation.layout}
+                    value={item.presentation.layout ?? ""}
                     onValueChange={(value) =>
                         store.updateItem(item.uuid, (current) => ({
                             ...current,
                             presentation: {
                                 ...current.presentation,
-                                layout: value,
+                                layout: value || null,
                             },
                         }))
                     }
                     data-testid="form-layout"
-                    options={doc.layouts.map((layout) => ({
-                        value: layout.id,
-                        label: `${humanizePath(layout.id.split(":").pop() ?? layout.id)} - ${t(`inspector.layoutKind.${layout.kind}`)}`,
-                    }))}
+                    options={[
+                        ...(doc.schemaVersion === 2
+                            ? [
+                                  {
+                                      value: "",
+                                      label: t("projectSettings.inherit", {
+                                          id:
+                                              doc.defaultLayout ??
+                                              t("inspector.none"),
+                                      }),
+                                      disabled: !doc.defaultLayout,
+                                  },
+                              ]
+                            : []),
+                        ...doc.layouts.map((layout) => ({
+                            value: layout.id,
+                            label: `${humanizePath(layout.id.split(":").pop() ?? layout.id)} - ${t(`inspector.layoutKind.${layout.kind}`)}`,
+                        })),
+                    ]}
                 />
             </section>
 
             {previewSettings}
+            <ItemDefinitionEditor key={item.uuid} document={doc} item={item} />
             {/* --- Advanced ---------------------------------------------------------------- */}
             <details className="advanced">
                 <summary>{t("inspector.advanced.heading")}</summary>
-                <dl>
-                    <dt>{t("inspector.advanced.id")}</dt>
-                    <dd>
-                        <code>
-                            {doc.namespace}:{item.id}
+                <label className="field">
+                    <span>{t("inspector.advanced.id")}</span>
+                    <BufferedInput
+                        value={item.id}
+                        owner={`${item.uuid}:id`}
+                        label={t("inspector.advanced.id")}
+                        testId="item-stable-id"
+                        validate={(id) => {
+                            const issue = itemIdIssue(
+                                useEditorStore.getState().document,
+                                item.uuid,
+                                id,
+                            );
+                            return issue ? t(`itemIdentity.${issue}`) : null;
+                        }}
+                        onCommit={(id) =>
+                            store.updateDocument((current) =>
+                                renameItem(current, item.uuid, id),
+                            )
+                        }
+                    />
+                    {item.id !== itemKey(doc, item) && (
+                        <code className="item-identity-key">
+                            {itemKey(doc, item)}
                         </code>
-                    </dd>
+                    )}
+                </label>
+                <dl>
                     <dt>{t("inspector.advanced.material")}</dt>
                     <dd>
                         <code>{item.definition.material}</code>
@@ -613,67 +683,79 @@ function BlockRow({
     };
 
     const sampleEditor = (dataKey: string) => {
-        const value = sampleValue(item, dataKey);
-        const text = scalarText(value);
-        if (value === null || text === null) {
-            return value === null ? null : (
-                <span className="tag">
-                    {t("inspector.content.complexValue")}
-                </span>
-            );
-        }
-        const commit = (raw: string) => {
-            let next: DataValue | null = null;
-            if (value.kind === "integer" && /^-?\d+$/.test(raw))
-                next = { kind: "integer", value: raw };
-            if (value.kind === "decimal" && /^-?\d+(\.\d+)?$/.test(raw))
-                next = { kind: "decimal", value: raw };
-            if (value.kind === "string") {
-                // Namespaced values keep their namespace; the input edits the readable path half.
-                const namespace = value.value.includes(":")
-                    ? value.value.split(":")[0] + ":"
-                    : "";
-                next = { kind: "string", value: namespace + raw };
-            }
-            if (value.kind === "boolean")
-                next = { kind: "boolean", value: raw === "true" };
-            if (!next) return;
+        const sample = resolveSampleValue(doc, item, dataKey);
+        const commit = (value: DataValue) => {
             store.updateItem(item.uuid, (current) => ({
                 ...current,
                 previewData: [
                     ...current.previewData.filter(
                         (assignment) => assignment.key !== dataKey,
                     ),
-                    { key: dataKey, value: next },
+                    { key: dataKey, value },
                 ],
             }));
         };
-        if (value.kind === "boolean") {
-            return (
-                <label className="sample-bool">
-                    <input
-                        type="checkbox"
-                        checked={value.value}
-                        onChange={(event) =>
-                            commit(String(event.target.checked))
-                        }
-                    />
-                    {t("inspector.content.sample")}
-                </label>
-            );
-        }
         return (
-            <input
-                className="sample-input"
-                value={text}
-                onChange={(event) => commit(event.target.value)}
-                data-tooltip={t("inspector.content.sampleHint")}
-            />
+            <div
+                className="sample-editor"
+                key={`${item.uuid}:${block.uuid}:${dataKey}`}
+            >
+                <div className="sample-source">
+                    <span className="muted small">
+                        {t(`values.sources.${sample.source}`)}
+                    </span>
+                    <button
+                        type="button"
+                        className="icon-button"
+                        disabled={sample.source !== "preview"}
+                        aria-label={t("values.resetPreview")}
+                        data-tooltip={t("values.resetPreview")}
+                        data-testid={`sample-${block.uuid}-reset`}
+                        onClick={() =>
+                            store.updateItem(item.uuid, (current) => ({
+                                ...current,
+                                previewData: current.previewData.filter(
+                                    (entry) => entry.key !== dataKey,
+                                ),
+                            }))
+                        }
+                    >
+                        <RotateCcw size={15} />
+                    </button>
+                </div>
+                {sample.value ? (
+                    <DataValueEditor
+                        value={sample.value}
+                        onChange={commit}
+                        type={sample.schema?.type}
+                        nullable={sample.schema?.nullable ?? true}
+                        label={t("inspector.content.sample")}
+                        testId={`sample-${block.uuid}`}
+                    />
+                ) : (
+                    sample.schema && (
+                        <button
+                            type="button"
+                            className="text-command"
+                            onClick={() =>
+                                commit(
+                                    initialDataValue(
+                                        valueKindForType(sample.schema!.type),
+                                        sample.schema!.type,
+                                    ),
+                                )
+                            }
+                        >
+                            <Plus size={15} />
+                            {t("values.setPreview")}
+                        </button>
+                    )
+                )}
+            </div>
         );
     };
 
-    const presentationKeys = doc.dataSchemas
-        .flatMap((schema) => schema.keys)
+    const presentationKeys = itemDataKeys(doc, item)
         .filter((key) => key.presentationReadable)
         .map((key) => key.id);
     const iconIds = doc.glyphs
@@ -707,7 +789,7 @@ function BlockRow({
         "data-selected": selected,
         onClick: (event: MouseEvent) => {
             event.stopPropagation();
-            store.selectBlock(block.uuid);
+            if (commitInlineEditor()) store.selectBlock(block.uuid);
         },
     };
     const rowClass = (extra = "") =>
@@ -819,44 +901,6 @@ function BlockRow({
                 </li>
             );
         case "conditional": {
-            const encode = (reference: {
-                kind: string;
-                key?: string;
-            }): string =>
-                reference.kind === "literal"
-                    ? "literal"
-                    : `${reference.kind}:${reference.key}`;
-            const decode = (
-                encoded: string,
-            ): PresentationBlock extends never
-                ? never
-                : NonNullable<unknown> => {
-                if (encoded === "literal")
-                    return {
-                        kind: "literal",
-                        value: { kind: "integer", value: "1" },
-                    };
-                const [kind, ...rest] = encoded.split(":");
-                return { kind: kind as "fact" | "data", key: rest.join(":") };
-            };
-            const literalValue =
-                block.condition.right?.kind === "literal" &&
-                "value" in block.condition.right
-                    ? scalarText(block.condition.right.value)
-                    : null;
-            const referenceOptions: SelectChoice[] = [
-                ...doc.viewerFacts.map((fact) => ({
-                    value: `fact:${fact.id}`,
-                    label: fact.id.split(":").pop() ?? fact.id,
-                    group: t("inspector.content.factGroup"),
-                })),
-                ...presentationKeys.map((key) => ({
-                    value: `data:${key}`,
-                    label: key.split(":").pop() ?? key,
-                    group: t("inspector.content.dataGroup"),
-                })),
-                { value: "literal", label: t("inspector.content.literal") },
-            ];
             return (
                 <li
                     className={rowClass("block-group")}
@@ -867,101 +911,15 @@ function BlockRow({
                     <span className="block-kind">
                         {t("inspector.content.conditional")}
                     </span>
-                    <span className="condition-editor">
-                        <SelectField
-                            label={t("menus.leftOperand")}
-                            options={referenceOptions}
-                            value={encode(block.condition.left)}
-                            onValueChange={(value) =>
-                                onReplace({
-                                    ...block,
-                                    condition: {
-                                        ...block.condition,
-                                        left: decode(value) as never,
-                                    },
-                                })
-                            }
-                        />
-                        <SelectField
-                            label={t("menus.comparison")}
-                            value={block.condition.operator}
-                            onValueChange={(value) =>
-                                onReplace({
-                                    ...block,
-                                    condition: {
-                                        ...block.condition,
-                                        operator: value as never,
-                                        right:
-                                            value === "EXISTS"
-                                                ? null
-                                                : (block.condition.right ?? {
-                                                      kind: "literal",
-                                                      value: {
-                                                          kind: "integer",
-                                                          value: "1",
-                                                      },
-                                                  }),
-                                    },
-                                })
-                            }
-                            options={Object.entries(OPERATOR_GLYPHS).map(
-                                ([operator, glyph]) => ({
-                                    value: operator,
-                                    label: glyph,
-                                }),
-                            )}
-                        />
-                        {block.condition.operator !== "EXISTS" ? (
-                            <>
-                                <SelectField
-                                    label={t("menus.rightOperand")}
-                                    options={referenceOptions}
-                                    value={
-                                        block.condition.right
-                                            ? encode(block.condition.right)
-                                            : "literal"
-                                    }
-                                    onValueChange={(value) =>
-                                        onReplace({
-                                            ...block,
-                                            condition: {
-                                                ...block.condition,
-                                                right: decode(value) as never,
-                                            },
-                                        })
-                                    }
-                                />
-                                {literalValue !== null ? (
-                                    <input
-                                        className="sample-input"
-                                        value={literalValue}
-                                        onChange={(event) => {
-                                            if (
-                                                !/^-?\d+$/.test(
-                                                    event.target.value,
-                                                )
-                                            )
-                                                return;
-                                            onReplace({
-                                                ...block,
-                                                condition: {
-                                                    ...block.condition,
-                                                    right: {
-                                                        kind: "literal",
-                                                        value: {
-                                                            kind: "integer",
-                                                            value: event.target
-                                                                .value,
-                                                        },
-                                                    },
-                                                },
-                                            });
-                                        }}
-                                    />
-                                ) : null}
-                            </>
-                        ) : null}
-                    </span>
+                    <ConditionEditor
+                        document={doc}
+                        item={item}
+                        condition={block.condition}
+                        testId={`condition-${block.uuid}`}
+                        onChange={(condition) =>
+                            onReplace({ ...block, condition })
+                        }
+                    />
                     {controls}
                     <div className="block-nested">
                         <p className="dim small">
@@ -1067,6 +1025,7 @@ function NestedRows({
                             data-testid={`select-child-${nested.uuid}`}
                             onClick={(event) => {
                                 event.stopPropagation();
+                                if (!commitInlineEditor()) return;
                                 selectBlock(nested.uuid);
                             }}
                         >

@@ -152,7 +152,7 @@ test("wheel zoom is fractional, fit contains both previews, and narrow layouts d
     await expect(page.getByTestId("canvas-zoom")).not.toContainText("200%");
     await page.getByTestId("zoom-reset").click();
     await expect(page.getByTestId("canvas-zoom")).toContainText("100%");
-    await page.getByTestId("compare-toggle").check();
+    await page.getByTestId("compare-toggle").click();
     await page.getByTestId("zoom-fit").click();
     for (const size of [
         { width: 1440, height: 960 },
@@ -382,6 +382,20 @@ test("real plugin artifacts remain selectable without draft writes", async ({
         );
         const lines = page.locator('.line-hit:not([data-origin="__name"])');
         expect(await lines.count()).toBeGreaterThan(0);
+        const canvas = page.getByTestId("tooltip-canvas");
+        const before = (await canvas.boundingBox())!;
+        const row = (await lines.first().boundingBox())!;
+        await page.mouse.move(row.x + 20, row.y + row.height / 2);
+        await page.mouse.down({ button: "right" });
+        await page.mouse.move(row.x + 60, row.y + row.height / 2 + 24, {
+            steps: 5,
+        });
+        await page.mouse.up({ button: "right" });
+        const after = (await canvas.boundingBox())!;
+        expect(after.x - before.x).toBeCloseTo(40, 0);
+        expect(after.y - before.y).toBeCloseTo(24, 0);
+        await expect(page.getByTestId("context-menu")).toHaveCount(0);
+        await expect(page.getByTestId("global-inspector")).toBeVisible();
         await lines.first().click();
         await expect(page.getByTestId("content-inspector")).toBeVisible();
         await page.getByTestId("insert-after").click();

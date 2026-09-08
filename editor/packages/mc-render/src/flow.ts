@@ -21,7 +21,7 @@ export interface ComposedLine {
     line: PreviewLine;
     origin: string | null;
 }
-interface FlowResult {
+export interface FlowResult {
     lines: ComposedLine[];
     boundaries: Set<number>;
     targetWidth: number;

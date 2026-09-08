@@ -1,5 +1,6 @@
 import {
     contentHash,
+    hasBlockingDiagnostics,
     type PreviewArtifact,
     type PreviewRequest,
 } from "@itemerness/protocol";
@@ -140,6 +141,7 @@ export class PreviewCache {
                 !result.stale &&
                 artifact.origin === "agent" &&
                 artifact.failure === null &&
+                !hasBlockingDiagnostics(artifact.diagnostics) &&
                 artifact.display !== null &&
                 artifact.digests.snapshot === task.request.snapshotHash &&
                 artifact.itemId === task.request.itemId &&

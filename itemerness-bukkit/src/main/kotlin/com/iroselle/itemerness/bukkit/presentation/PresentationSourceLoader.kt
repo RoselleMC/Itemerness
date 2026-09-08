@@ -538,7 +538,8 @@ internal class PresentationSourceLoader(
             values.forEach { glyph ->
                 val previous = metrics.put(
                     glyph.codePoint,
-                    GlyphMetricSource(glyph.advancePixels, glyph.visualBounds),
+                    GlyphMetricSource(glyph.advancePixels, glyph.visualBounds,
+                        hasInk = glyph.visualBounds.right > glyph.visualBounds.left && glyph.visualBounds.bottom > glyph.visualBounds.top),
                 )
                 if (previous != null) {
                     throw StrictYamlException("Font $font assigns U+${glyph.codePoint.toString(16)} more than once")
@@ -673,7 +674,7 @@ internal class PresentationSourceLoader(
                 ThemeRenderer.PLAIN -> setOf("icons")
                 ThemeRenderer.VANILLA_CHARACTER_FRAME -> setOf("frame", "wrapping", "safety")
                 ThemeRenderer.NATIVE_TOOLTIP_STYLE -> setOf("tooltip-style", "content")
-                ThemeRenderer.SEGMENTED_FRAME -> setOf("frame", "wrapping")
+                ThemeRenderer.SEGMENTED_FRAME -> setOf("frame", "wrapping", "tooltip-style")
                 ThemeRenderer.BITMAP_CANVAS -> setOf("experimental", "tooltip-style", "canvas", "safety")
             }
             node.rejectUnknown(*(common + rendererKeys).toTypedArray())
@@ -835,6 +836,7 @@ internal class PresentationSourceLoader(
             "bottom",
             "fill-mode",
             "height-mode",
+            "include-name",
         )
         if (frame.requiredString("width") != "layout" ||
             frame.requiredString("fill-mode") != "exact-pixel" ||
@@ -855,15 +857,18 @@ internal class PresentationSourceLoader(
             body = parseFrameRow(frame.requiredObject("body")),
             connector = frame.optionalObject("connector")?.let(::parseFrameRow),
             bottom = parseFrameRow(frame.requiredObject("bottom")),
+            includeName = frame.optionalBoolean("include-name", false),
         )
     }
 
     private fun parseFrameRow(node: YamlObject): FrameRowSource {
-        node.rejectUnknown("left", "fill", "right")
+        node.rejectUnknown("left", "fill", "right", "center", "kern")
         return FrameRowSource(
             node.requiredString("left"),
             node.requiredString("fill"),
             node.requiredString("right"),
+            node.optionalString("center"),
+            node.optionalString("kern"),
         )
     }
 

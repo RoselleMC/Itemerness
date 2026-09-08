@@ -4,37 +4,28 @@ import { ItemInspector } from "./ItemInspector.js";
 import { ThemeInspector } from "./ThemeInspector.js";
 import { LayoutInspector } from "./LayoutInspector.js";
 import { DataInspector } from "./DataInspector.js";
-import { PreviewSettings } from "./PreviewSettings.js";
+import { FormatInspector } from "./FormatInspector.js";
+import { ViewerFactInspector } from "./ViewerFactInspector.js";
 
 /**
- * One inspector slot, four editors. The shell keeps the same list | preview | inspector shape in
+ * One inspector slot. The shell keeps the same list | preview | inspector shape in
  * every mode, so switching from editing an item to restyling a theme moves the selection, not the
  * user's mental model of where things are.
  */
-export function Inspector({
-    preview,
-    onOpenDiagnostics,
-}: {
-    preview: PreviewBundle;
-    onOpenDiagnostics: () => void;
-}) {
+export function Inspector({ preview }: { preview: PreviewBundle }) {
     const mode = useEditorStore((state) => state.mode);
-    const settings = (
-        <PreviewSettings
-            preview={preview}
-            onOpenDiagnostics={onOpenDiagnostics}
-        />
-    );
     switch (mode) {
         case "themes":
-            return <ThemeInspector previewSettings={settings} />;
+            return <ThemeInspector />;
         case "layouts":
-            return <LayoutInspector previewSettings={settings} />;
+            return <LayoutInspector />;
         case "data":
-            return <DataInspector previewSettings={settings} />;
+            return <DataInspector />;
+        case "formats":
+            return <FormatInspector />;
+        case "facts":
+            return <ViewerFactInspector />;
         default:
-            return (
-                <ItemInspector preview={preview} previewSettings={settings} />
-            );
+            return <ItemInspector preview={preview} />;
     }
 }

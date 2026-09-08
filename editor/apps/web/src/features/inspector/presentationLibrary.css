@@ -1,0 +1,97 @@
+.presentation-library {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+.presentation-library .item-list {
+    flex: 1;
+}
+.presentation-inspector .field {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    margin: 12px 0;
+    min-width: 0;
+}
+.presentation-inspector .buffered-field,
+.presentation-inspector .ui-select {
+    min-width: 0;
+    max-width: 100%;
+}
+.presentation-inspector .typed-value > legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+.presentation-node-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.presentation-node-heading h3 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.presentation-node-heading .inspector-actions,
+.presentation-providers .inspector-actions {
+    display: flex;
+    flex: 0 0 auto;
+}
+.presentation-entry-id {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    overflow-wrap: anywhere;
+}
+.presentation-references {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.presentation-references ul {
+    padding-left: 16px;
+}
+.presentation-variant-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.presentation-providers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
+    list-style: none;
+}
+.presentation-providers li {
+    display: flex;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+}
+.presentation-providers .buffered-field {
+    flex: 1;
+}
+.presentation-providers .icon-button {
+    width: 25px;
+    height: 30px;
+}
+.presentation-add-provider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.presentation-add-provider > input {
+    flex: 1;
+    min-width: 0;
+}

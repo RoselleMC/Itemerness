@@ -33,7 +33,8 @@ test("vanilla tooltip sprites enclose visible text and align with the editing hi
         for (const scale of viewport.width > 720 ? [1, 3] : [1]) {
             await setZoom(page, scale);
             for (const locale of ["en_us", "zh_cn"]) {
-                await page.getByTestId(`locale-chip-${locale}`).click();
+                await page.getByTestId("preview-language").click();
+                await page.getByTestId(`preview-language-option-${locale}`).click();
                 for (const item of [
                     "travel-token",
                     "ember-blade",

@@ -253,13 +253,31 @@ internal class NmsPayloadProjectionBudget(
     private val limits: NmsProjectionLimits = NmsProjectionLimits.DEFAULT,
 ) {
     private var componentNodes = 0
+    private var ordinaryComponentNodes = 0
     private var payloadNodes = 0
+    private var ordinaryPayloadNodes = 0
+    var inRecipe: Boolean = false
+        private set
     private val activeDialogs = java.util.IdentityHashMap<Dialog, Unit>()
+
+    fun <T> withinRecipe(block: () -> T): T {
+        val previous = inRecipe
+        inRecipe = true
+        return try {
+            block()
+        } finally {
+            inRecipe = previous
+        }
+    }
 
     fun enterComponent(depth: Int) {
         requireProjectionInput(depth <= limits.componentDepth) { "Component projection exceeds the recursion limit" }
         componentNodes++
-        requireProjectionInput(componentNodes <= limits.componentNodes) {
+        if (!inRecipe) ordinaryComponentNodes++
+        requireProjectionInput(
+            ordinaryComponentNodes <= limits.componentNodes &&
+                componentNodes <= maxOf(limits.componentNodes, limits.recipeComponentNodes),
+        ) {
             "Component projection exceeds the node limit"
         }
     }
@@ -269,7 +287,11 @@ internal class NmsPayloadProjectionBudget(
             "Structured payload projection exceeds the recursion limit"
         }
         payloadNodes++
-        requireProjectionInput(payloadNodes <= limits.payloadNodes) {
+        if (!inRecipe) ordinaryPayloadNodes++
+        requireProjectionInput(
+            ordinaryPayloadNodes <= limits.payloadNodes &&
+                payloadNodes <= maxOf(limits.payloadNodes, limits.recipePayloadNodes),
+        ) {
             "Structured payload projection exceeds the node limit"
         }
     }

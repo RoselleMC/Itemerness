@@ -1,0 +1,13 @@
+.settings-section.project-settings {
+    max-width: 560px;
+    padding-top: 20px;
+}
+.project-settings .field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 18px;
+    min-width: 0;
+}
+.project-settings .field > span {
+    overflow-wrap: anywhere;
+}

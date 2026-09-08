@@ -396,14 +396,18 @@ private class ThemeRendererEngine(
                 anchored.lines
             }
             ThemeRenderer.VANILLA_CHARACTER_FRAME -> renderCharacterFrame(layout, styledBlocks)
-            ThemeRenderer.SEGMENTED_FRAME -> renderSegmentedFrame(layout, styledBlocks)
+            ThemeRenderer.SEGMENTED_FRAME -> {
+                val framed = renderSegmentedFrame(layout, styledBlocks, name)
+                name = framed.name
+                framed.lines
+            }
             ThemeRenderer.BITMAP_CANVAS -> renderCanvas(layout, styledBlocks)
         }
         validateOutput(name, lore)
         return PresentationDisplay(
             displayName = name,
             lore = lore,
-            tooltipStyle = if (theme.source.renderer in setOf(ThemeRenderer.NATIVE_TOOLTIP_STYLE, ThemeRenderer.BITMAP_CANVAS)) theme.tooltipStyle else null,
+            tooltipStyle = if (theme.source.renderer in setOf(ThemeRenderer.NATIVE_TOOLTIP_STYLE, ThemeRenderer.SEGMENTED_FRAME, ThemeRenderer.BITMAP_CANVAS)) theme.tooltipStyle else null,
             renderer = theme.source.renderer,
             selectedTheme = theme.id,
             requestedTheme = requestedTheme,
@@ -730,8 +734,11 @@ private class ThemeRendererEngine(
         return result
     }
 
-    private fun renderSegmentedFrame(layout: CompiledLayout, blocks: List<StyledBlock>): List<PresentationLine> {
+    private fun renderSegmentedFrame(layout: CompiledLayout, blocks: List<StyledBlock>, name: PresentationLine): AnchoredFlow {
         val frame = requireNotNull(theme.source.segmentedFrame)
+        if (frame.includeName || listOfNotNull(frame.top, frame.body, frame.connector, frame.bottom).any { it.center != null || it.kern != null }) {
+            return renderDecoratedFrame(layout, blocks, name, frame)
+        }
         val contentMaximum = frame.maximumWidthPixels - frame.leftPaddingPixels - frame.rightPaddingPixels - 8
         val flow = renderFlow(layout, blocks, contentMaximum)
         val target = max(frame.minimumWidthPixels, flow.targetWidth + frame.leftPaddingPixels + frame.rightPaddingPixels + 8)
@@ -743,7 +750,108 @@ private class ThemeRendererEngine(
             output += segmentedBody(frame.body, line, target, frame.leftPaddingPixels, frame.rightPaddingPixels)
         }
         output += segmentedBorder(frame.bottom, target)
-        return output
+        return AnchoredFlow(name, output)
+    }
+
+    private data class FrameStrip(
+        val left: PresentationTextRun,
+        val fill: PresentationTextRun,
+        val right: PresentationTextRun,
+        val center: PresentationTextRun?,
+        val leftWidth: Int,
+        val rightWidth: Int,
+        val centerWidth: Int,
+        val fillWidth: Int,
+    ) {
+        val fixed: Int get() = leftWidth + rightWidth + centerWidth
+        fun fits(width: Int): Boolean = width >= fixed && (width - fixed) % fillWidth == 0
+    }
+
+    private fun frameStrip(row: FrameRowSource): FrameStrip {
+        val kern = row.kern?.let { assetRun(it, PresentationRunKind.FRAME) }
+        fun piece(id: String): PresentationTextRun {
+            val run = assetRun(id, PresentationRunKind.FRAME)
+            if (kern == null) return run
+            if (run.style != kern.style) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame pieces and kern must share a font and style")
+            return run.copy(text = run.text + kern.text)
+        }
+        val left = piece(row.left)
+        val fill = piece(row.fill)
+        val right = piece(row.right)
+        val center = row.center?.let(::piece)
+        fun width(run: PresentationTextRun): Int = measurer.measure(listOf(run)).logicalWidthPixels.also {
+            if (it <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame pieces must have positive net advance")
+        }
+        return FrameStrip(left, fill, right, center, width(left), width(right), center?.let(::width) ?: 0, width(fill))
+    }
+
+    private fun stripRuns(strip: FrameStrip, target: Int): List<PresentationTextRun> {
+        if (!strip.fits(target)) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame pieces cannot exactly cover the target width")
+        val count = (target - strip.fixed) / strip.fillWidth
+        if (count.toLong() * strip.fill.text.codePointCount(0, strip.fill.text.length) > catalog.budgets.maximumTextCodePoints ||
+            count.toLong() * strip.fill.text.length > MAX_PRESENTATION_LINE_UTF16
+        ) {
+            throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Frame fill exceeds the text budget")
+        }
+        val leading = if (strip.center == null) count else ((target - strip.centerWidth) / 2.0 - strip.leftWidth)
+            .div(strip.fillWidth).let { kotlin.math.floor(it + 0.5).toInt().coerceIn(0, count) }
+        return buildList {
+            add(strip.left)
+            if (leading > 0) add(strip.fill.copy(text = strip.fill.text.repeat(leading)))
+            strip.center?.let(::add)
+            if (count > leading) add(strip.fill.copy(text = strip.fill.text.repeat(count - leading)))
+            add(strip.right)
+        }
+    }
+
+    private fun decoratedRow(strip: FrameStrip, target: Int, content: PresentationLine?, frame: SegmentedFrameSource, contentStrip: FrameStrip = strip): PresentationLine {
+        val background = stripRuns(strip, target)
+        val runs = if (content == null) background else {
+            val interior = target - contentStrip.leftWidth - contentStrip.rightWidth
+            val remaining = interior - frame.leftPaddingPixels - content.logicalWidthPixels
+            if (remaining < frame.rightPaddingPixels) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Segmented content exceeds its frame")
+            background + spacingRuns(contentStrip.leftWidth + frame.leftPaddingPixels - target, PresentationRunKind.SPACING) +
+                content.runs + spacingRuns(remaining + contentStrip.rightWidth, PresentationRunKind.WIDTH_ANCHOR)
+        }
+        return measurer.measure(runs).also {
+            if (it.logicalWidthPixels != target) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame did not preserve its exact target width")
+        }
+    }
+
+    private fun renderDecoratedFrame(layout: CompiledLayout, blocks: List<StyledBlock>, name: PresentationLine, frame: SegmentedFrameSource): AnchoredFlow {
+        val top = frameStrip(frame.top)
+        val body = frameStrip(frame.body)
+        val connector = frame.connector?.let(::frameStrip)
+        val bottom = frameStrip(frame.bottom)
+        val strips = listOfNotNull(top, body, connector, bottom)
+        val maximum = minOf(frame.maximumWidthPixels, catalog.budgets.maximumWidthPixels)
+        val maximumTarget = (maximum downTo frame.minimumWidthPixels).firstOrNull { target -> strips.all { it.fits(target) } }
+            ?: throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame rows have no common exact width within their bounds")
+        val padding = frame.leftPaddingPixels.toLong() + frame.rightPaddingPixels
+        fun available(strip: FrameStrip): Int = (maximumTarget.toLong() - strip.leftWidth - strip.rightWidth - padding).let {
+            if (it < 1) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame has no space for text")
+            it.toInt()
+        }
+        val bodyAvailable = available(body)
+        val contentMinimum = maxOf((layout as? CompiledLayout.Flow)?.source?.minimumWidthPixels ?: 1, theme.source.content?.minimumWidthPixels ?: 1)
+        if (contentMinimum > bodyAvailable) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Layout minimum width exceeds the frame content area")
+        val flow = renderFlow(layout, blocks, bodyAvailable)
+        val fittedName = if (frame.includeName) layouter.ellipsizeLine(name.runs, available(body)) else name
+        val needed = maxOf(frame.minimumWidthPixels.toLong(), flow.targetWidth.toLong() + body.leftWidth + body.rightWidth + padding,
+            if (frame.includeName) fittedName.logicalWidthPixels.toLong() + body.leftWidth + body.rightWidth + padding else 0L)
+        if (needed > maximumTarget) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame content cannot fit its maximum width")
+        val target = (needed.toInt()..maximumTarget).firstOrNull { width -> strips.all { it.fits(width) } }
+            ?: throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Frame rows have no common exact width")
+        val framedName = if (frame.includeName) decoratedRow(top, target, fittedName, frame, body) else name
+        val output = buildList {
+            if (!frame.includeName) add(decoratedRow(top, target, null, frame))
+            flow.lines.forEachIndexed { index, line ->
+                if (index in flow.sectionBoundaries && connector != null) add(decoratedRow(connector, target, null, frame))
+                add(decoratedRow(body, target, line, frame))
+            }
+            add(decoratedRow(bottom, target, null, frame))
+        }
+        return AnchoredFlow(framedName, output)
     }
 
     private fun segmentedBorder(row: FrameRowSource, target: Int): PresentationLine {

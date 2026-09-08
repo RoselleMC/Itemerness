@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { LoaderCircle, ServerOff } from "lucide-react";
+import { LoaderCircle, ServerOff, Plus } from "lucide-react";
 import type { DocumentSyncStatus } from "../../api/documentAutosave.js";
 
 /** Generic disabled chrome only. Never render a stale or locally seeded configuration here. */
@@ -16,6 +16,15 @@ export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
                 <header className="sidebar-head">
                     <div className="library-heading">
                         <h2>{t("sidebar.mode.items")}</h2>
+                        <button
+                            type="button"
+                            disabled
+                            className="icon-button library-create"
+                            aria-label={t("sidebar.addItem")}
+                            data-tooltip={t("sidebar.addItem")}
+                        >
+                            <Plus size={16} aria-hidden="true" />
+                        </button>
                     </div>
                     <input
                         type="search"
@@ -26,9 +35,6 @@ export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
                     />
                 </header>
                 <div className="locked-library" />
-                <button type="button" disabled className="add-item">
-                    + {t("sidebar.addItem")}
-                </button>
             </aside>
             <section
                 className="stage workspace-disabled"

@@ -140,8 +140,10 @@ test("cold theme and canvas edits paint next frame even while every server previ
             undefined,
             "VANILLA_CHARACTER_FRAME",
         );
-        await action("locale-chip-zh_cn");
-        await action("locale-chip-en_us");
+        await page.getByTestId("preview-language").click();
+        await action("preview-language-option-zh_cn");
+        await page.getByTestId("preview-language").click();
+        await action("preview-language-option-en_us");
         await action("name-input", "Immediate unsaved name");
         await page.getByTestId("canvas-zoom").click();
         await action("canvas-zoom-2");

@@ -12,6 +12,22 @@ import org.junit.jupiter.api.Test
 
 class PresentationMetricAndBudgetTest {
     @Test
+    fun `registered ink-free negative kern keeps its advance without growing visual bounds`() {
+        val source = PresentationFixtures.source()
+        val font = "itemerness:frame"
+        val ink = GlyphSource("test.ink", font, 0xE901, 27.0, VisualBoundsSource(0.0, 26.0, -19.0, 4.0))
+        val kern = GlyphSource("test.kern", font, 0xE902, -1.0, VisualBoundsSource(0.0, 0.0, 0.0, 0.0))
+        val measurer = PixelMeasurer(compile(copySource(source, glyphs = source.glyphs + listOf(ink, kern))))
+        val style = PresentationTextStyle(font = ItemKey.parse(font))
+        val plain = measurer.measure(listOf(PresentationTextRun("\uE901", style, PresentationRunKind.FRAME, true)))
+        val joined = measurer.measure(listOf(PresentationTextRun("\uE901\uE902", style, PresentationRunKind.FRAME, true)))
+        assertEquals(27, plain.logicalWidthPixels)
+        assertEquals(26, joined.logicalWidthPixels)
+        assertEquals(PresentationVisualBounds(0.0, 26.0, -19.0, 4.0), joined.visualBounds)
+        assertEquals(plain.visualBounds, joined.visualBounds)
+    }
+
+    @Test
     fun `vanilla tooltip geometry includes the title gap and single component reduction`() {
         assertEquals(0, VanillaTooltipGeometry.measuredHeight(0))
         assertEquals(8, VanillaTooltipGeometry.measuredHeight(1))
@@ -277,6 +293,7 @@ class PresentationMetricAndBudgetTest {
     private fun copySource(
         source: PresentationSource,
         fonts: Collection<FontSource> = source.fonts,
+        glyphs: Collection<GlyphSource> = source.glyphs,
         layouts: Collection<LayoutSource> = source.layouts,
         themes: Collection<ThemeSource> = source.themes,
         items: Collection<ItemPresentationSource> = source.items,
@@ -284,7 +301,7 @@ class PresentationMetricAndBudgetTest {
         formats = source.formats,
         locales = source.locales,
         fonts = fonts,
-        glyphs = source.glyphs,
+        glyphs = glyphs,
         bitmaps = source.bitmaps,
         assetProfiles = source.assetProfiles,
         viewerFacts = source.viewerFacts,

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { create } from "zustand";
 
 export type ColorMode = "light" | "dark" | "system";
 const KEY = "itemerness.color-mode";
@@ -25,9 +26,16 @@ function apply(mode: ColorMode, dark: boolean) {
 export function initializeAppearance() {
     apply(readMode(), matchMedia(QUERY).matches);
 }
+export const useColorMode = create<{
+    mode: ColorMode;
+    setMode(mode: ColorMode): void;
+}>((set) => ({
+    mode: readMode(),
+    setMode: (mode) => set({ mode }),
+}));
 
 export function useAppearance() {
-    const [mode, setMode] = useState<ColorMode>(readMode);
+    const { mode, setMode } = useColorMode();
     const [systemDark, setSystemDark] = useState(
         () => matchMedia(QUERY).matches,
     );

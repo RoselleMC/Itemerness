@@ -1,0 +1,10 @@
+.diagnostics li > code {
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.diagnostic-locate {
+    justify-self: start;
+    width: max-content;
+    max-width: 100%;
+}
