@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
     FontLibrary,
     mountArchive,
@@ -652,18 +652,21 @@ describe("fidelity claims", () => {
 });
 
 describe.skipIf(!existsSync(BUNDLE_PATH))("with mounted vanilla assets", () => {
-    const stack = new PackStack().with(
-        mountArchive(new Uint8Array(readFileSync(BUNDLE_PATH)), {
-            name: "vanilla",
-            kind: "vanilla",
-        }),
-    );
-    const mountedFonts = new PresentationFonts({
-        library: new FontLibrary(stack),
-        artifact,
-        fonts: baselineDocument.fonts,
-        glyphs: baselineDocument.glyphs,
-        spacing: baselineDocument.spacing,
+    let mountedFonts: PresentationFonts;
+    beforeAll(() => {
+        const stack = new PackStack().with(
+            mountArchive(new Uint8Array(readFileSync(BUNDLE_PATH)), {
+                name: "vanilla",
+                kind: "vanilla",
+            }),
+        );
+        mountedFonts = new PresentationFonts({
+            library: new FontLibrary(stack),
+            artifact,
+            fonts: baselineDocument.fonts,
+            glyphs: baselineDocument.glyphs,
+            spacing: baselineDocument.spacing,
+        });
     });
 
     it("measures identically with and without mounted assets", () => {

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { readFontMetricsArtifact } from "../src/ifm.js";
 import { mountArchive, PackStack } from "../src/pack.js";
 import { FontLibrary } from "../src/font/assemble.js";
@@ -30,16 +30,21 @@ const ARTIFACT_PATH = fileURLToPath(
 const bundleAvailable = existsSync(BUNDLE_PATH);
 
 describe.skipIf(!bundleAvailable)("vanilla asset cross-check", () => {
-    const stack = new PackStack().with(
-        mountArchive(new Uint8Array(readFileSync(BUNDLE_PATH)), {
-            name: "vanilla-26.1.2",
-            kind: "vanilla",
-        }),
-    );
-    const library = new FontLibrary(stack);
-    const artifact = readFontMetricsArtifact(
-        new Uint8Array(readFileSync(ARTIFACT_PATH)),
-    );
+    let stack: PackStack;
+    let library: FontLibrary;
+    let artifact: ReturnType<typeof readFontMetricsArtifact>;
+    beforeAll(() => {
+        stack = new PackStack().with(
+            mountArchive(new Uint8Array(readFileSync(BUNDLE_PATH)), {
+                name: "vanilla-26.1.2",
+                kind: "vanilla",
+            }),
+        );
+        library = new FontLibrary(stack);
+        artifact = readFontMetricsArtifact(
+            new Uint8Array(readFileSync(ARTIFACT_PATH)),
+        );
+    });
 
     it("assembles both vanilla fonts without incomplete metrics", () => {
         for (const fontId of ["minecraft:default", "minecraft:uniform"]) {
