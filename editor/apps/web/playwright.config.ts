@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * End-to-end configuration.
  *
- * The suite runs against the same static SPA embedded by Tauri. Screenshots are renderer goldens:
+ * CI runs against the same static SPA embedded by Tauri. Screenshots are renderer goldens:
  * the browser preview is stable across changes. They are not evidence about the Minecraft client,
  * and the specs say so where they are taken.
  */
@@ -17,7 +17,7 @@ export default defineConfig({
     fullyParallel: false,
     workers: 1,
     reporter: process.env.CI
-        ? [["list"], ["html", { open: "never" }]]
+        ? [["github"], ["list"], ["html", { open: "never" }]]
         : [["list"]],
     use: {
         baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173",
@@ -29,7 +29,9 @@ export default defineConfig({
     webServer: process.env.E2E_BASE_URL
         ? undefined
         : {
-              command: "pnpm dev",
+              command: process.env.CI
+                  ? "pnpm preview --host 127.0.0.1 --port 5173 --strictPort"
+                  : "pnpm dev",
               url: "http://127.0.0.1:5173",
               reuseExistingServer: !process.env.CI,
           },

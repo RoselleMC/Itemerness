@@ -59,6 +59,10 @@ jobs:
 
   frontend:
     needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -82,11 +86,11 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm --filter @itemerness/web exec playwright install --with-deps chromium
-      - run: pnpm e2e
+      - run: pnpm e2e --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: frontend-test-reports
+          name: frontend-test-reports-${{ matrix.shard }}
           path: |
             editor/apps/web/test-results/
             editor/apps/web/playwright-report/

@@ -20,6 +20,9 @@ pnpm desktop:build       # portable .app.zip (macOS) or single .exe (Windows)
 cargo test --manifest-path apps/web/src-tauri/Cargo.toml
 ```
 
+CI runs the full browser suite in three shards against `pnpm build` output using Vite's preview
+server. Local browser tests start the development server unless `E2E_BASE_URL` is supplied.
+
 Portable artifacts remain in `apps/web/src-tauri/target/release/portable`:
 
 - macOS: `Itemerness-Editor_<version>_macos_<arch>.app.zip`. Extract and run the `.app`; no installer
