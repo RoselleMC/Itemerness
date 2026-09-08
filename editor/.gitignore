@@ -20,3 +20,7 @@ blob-report/
 !.env.example
 data/
 vanilla-cache/
+
+# Generated Java locale symbols are a renderer source input, not runtime state.
+!packages/mc-render/src/data/
+!packages/mc-render/src/data/java-decimal-symbols-25.json
