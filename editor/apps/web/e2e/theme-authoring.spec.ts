@@ -251,6 +251,10 @@ test("bitmap canvas edits signed offsets, baselines, widths, layer lifecycle and
     const source = baselineDocument.themes.find(
         (theme) => theme.id === "itemerness:aurora-canvas",
     )!;
+    const savedTheme = () =>
+        plugin.writes
+            .at(-1)
+            ?.document.themes.find((theme) => theme.uuid === source.uuid);
     await expect(page.getByTestId("theme-tooltip-style")).toBeVisible();
     await chooseValue(
         page,
@@ -269,35 +273,27 @@ test("bitmap canvas edits signed offsets, baselines, widths, layer lifecycle and
     await page.getByTestId("theme-add-layer").click();
     const added = source.canvas!.layers.length;
     await expect(page.getByTestId(`theme-layer-${added}-asset`)).toBeVisible();
+    await expect
+        .poll(() => savedTheme()?.canvas?.layers[added]?.anchor)
+        .toBe("TOP_LEFT");
     await chooseValue(
         page,
         page.getByTestId(`theme-layer-${added}-anchor`),
         "TOP_RIGHT",
     );
     await expect
-        .poll(
-            () =>
-                plugin.writes
-                    .at(-1)
-                    ?.document.themes.find(
-                        (theme) => theme.uuid === source.uuid,
-                    )?.canvas?.layers.length,
-        )
-        .toBe(added + 1);
-    const saved = plugin.writes
-        .at(-1)!
-        .document.themes.find((theme) => theme.uuid === source.uuid)!.canvas!;
+        .poll(() => savedTheme()?.canvas?.layers[added]?.anchor)
+        .toBe("TOP_RIGHT");
+    const saved = savedTheme()!.canvas!;
+    expect(saved.layers).toHaveLength(added + 1);
     expect(saved.layers[0]!.xPixels).toBe(-8);
     expect(saved.measuredAdvancePixels).toBe(210);
     expect(saved.finalTooltipWidthPixels).toBe(210);
     expect(saved.rejectOutOfBoundsLayer).toBe(false);
     expect(saved.layers[added]!.anchor).toBe("TOP_RIGHT");
-    expect(
-        plugin.writes
-            .at(-1)!
-            .document.themes.find((theme) => theme.uuid === source.uuid)!
-            .tooltipStyle,
-    ).toBe(baselineDocument.tooltipStyles[0]!.id);
+    expect(savedTheme()!.tooltipStyle).toBe(
+        baselineDocument.tooltipStyles[0]!.id,
+    );
     for (const width of [900, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page

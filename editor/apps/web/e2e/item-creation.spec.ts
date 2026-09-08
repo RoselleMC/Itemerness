@@ -35,7 +35,16 @@ test("blank creation requires explicit appearance, never borrows schemas, and sa
         "data-field-value",
         "",
     );
-    await page.getByTestId("new-item-id").fill("blank-item");
+    const id = page.getByTestId("new-item-id");
+    const initialId = await id.inputValue();
+    await id.press("ControlOrMeta+a");
+    await id.pressSequentially("temporary");
+    await expect(id).toHaveValue("temporary");
+    await id.press("ControlOrMeta+z");
+    await expect(id).toHaveValue(initialId);
+    await expect(page.getByTestId("new-item-dialog")).toBeVisible();
+    expect(plugin.writes).toHaveLength(0);
+    await id.fill("blank-item");
     await page.getByTestId("new-item-name").fill("Blank Item");
     await appearance(page);
     await page.getByTestId("new-item-create").click();

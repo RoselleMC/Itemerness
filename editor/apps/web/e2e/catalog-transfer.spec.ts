@@ -291,7 +291,20 @@ test("import review exposes runtime differences without writing and cancels when
             ),
     ).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.keyboard.press("Control+z");
+    for (const inputType of ["historyUndo", "historyRedo"]) {
+        await namespace.evaluate((element, inputType) => {
+            element.dispatchEvent(
+                new InputEvent("beforeinput", {
+                    inputType,
+                    bubbles: true,
+                    cancelable: true,
+                }),
+            );
+        }, inputType);
+        await expect(page.getByTestId("catalog-review")).toBeVisible();
+        await expect(namespace).toHaveValue("current");
+    }
+    await page.keyboard.press("ControlOrMeta+z");
     await expect(page.getByTestId("catalog-review")).toBeVisible();
     await expect(namespace).toHaveValue("current");
     await applicationMenuAction(page, "edit", "undo");

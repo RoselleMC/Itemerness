@@ -65,7 +65,11 @@ export function useEditingShortcuts(enabled: boolean) {
                 documentInput(event.target) &&
                 ["historyUndo", "historyRedo"].includes(event.inputType)
             ) {
+                const dialog = document.querySelector(".unsaved-dialog[open]");
+                if (dialog?.contains(event.target)) return;
                 event.preventDefault();
+                // Native history can target the last edited field behind an open dialog.
+                if (dialog) return;
                 if (!commitInlineEditor()) return;
                 if (event.inputType === "historyUndo")
                     useEditorStore.getState().undo();
