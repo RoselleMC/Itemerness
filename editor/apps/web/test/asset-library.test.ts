@@ -116,6 +116,35 @@ describe("resource declaration factories and validation", () => {
             "unknownBuiltinMetrics",
         );
     });
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"])(
+        "accepts both explicit builtin tables for %s",
+        (version) => {
+            for (const name of ["default", "uniform"]) {
+                expect(
+                    fontMetricsError(
+                        `minecraft:${name}`,
+                        `builtin:minecraft-${name}-${version}`,
+                    ),
+                ).toBeNull();
+                expect(
+                    fontMetricsError(
+                        "test:font",
+                        `builtin:minecraft-${name}-${version}`,
+                    ),
+                ).toBe("builtinFontId");
+            }
+        },
+    );
+    it.each(["1.21.10", "26.2.1", "26.1.2-extra"])(
+        "rejects unavailable builtin version %s",
+        (version) =>
+            expect(
+                fontMetricsError(
+                    "minecraft:default",
+                    `builtin:minecraft-default-${version}`,
+                ),
+            ).toBe("unknownBuiltinMetrics"),
+    );
     it("protects fallback chains, duplicate code points and built-in font overrides", () => {
         const doc = document();
         const first = font(),

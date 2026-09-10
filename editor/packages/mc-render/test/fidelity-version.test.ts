@@ -5,6 +5,7 @@ import {
     PackStack,
     readFontMetricsArtifact,
     type MountedPack,
+    type MinecraftClientVersion,
 } from "@itemerness/mc-assets";
 import { baselineDocument } from "@itemerness/protocol/fixtures/baseline.js";
 import type { PreviewLine, PreviewRun } from "@itemerness/protocol";
@@ -99,6 +100,7 @@ function claims(
 function pack(
     files: Record<string, string | Uint8Array>,
     kind: MountedPack["kind"] = "resource-pack",
+    clientVersion?: MinecraftClientVersion,
 ): MountedPack {
     const encoded = new Map(
         Object.entries(files).map(([path, value]) => [
@@ -111,6 +113,7 @@ function pack(
         sha1: "0".repeat(40),
         name: "fixture",
         kind,
+        clientVersion,
         meta: null,
         byteLength: 0,
         has: (path) => encoded.has(path),
@@ -121,6 +124,83 @@ function pack(
 }
 
 describe("version-scoped metric fidelity", () => {
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"] as const)(
+        "uses the mounted vanilla provider's actual version for %s",
+        (version) => {
+            const selectedArtifact = readFontMetricsArtifact(
+                new Uint8Array(
+                    readFileSync(
+                        new URL(
+                            `../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-${version}.ifm`,
+                            import.meta.url,
+                        ),
+                    ),
+                ),
+            );
+            const declaration = {
+                "assets/minecraft/font/default.json": JSON.stringify({
+                    providers: [
+                        {
+                            type: "bitmap",
+                            file: "minecraft:font/test.png",
+                            height: 8,
+                            ascent: 7,
+                            chars: ["A"],
+                        },
+                        { type: "space", advances: { B: 6 } },
+                    ],
+                }),
+                "assets/minecraft/textures/font/test.png": new Uint8Array(
+                    readFileSync(
+                        new URL(
+                            "../../../apps/web/src-tauri/icons/32x32.png",
+                            import.meta.url,
+                        ),
+                    ),
+                ),
+            };
+            for (const mountedVersion of [
+                version,
+                version === "26.2" ? "1.21.11" : "26.2",
+                undefined,
+            ] as const) {
+                const library = new FontLibrary(
+                    new PackStack([
+                        pack(declaration, "vanilla", mountedVersion),
+                    ]),
+                );
+                const fonts = new PresentationFonts({
+                    ...options,
+                    artifact: selectedArtifact,
+                    library,
+                    fonts: options.fonts.map((font) =>
+                        font.id === "minecraft:default"
+                            ? {
+                                  ...font,
+                                  metrics: `builtin:minecraft-default-${version}`,
+                              }
+                            : font,
+                    ),
+                });
+                const value = evidence(
+                    fonts,
+                    { serverClientVersion: version },
+                    "AB",
+                    "minecraft:default",
+                    library,
+                );
+                for (const codePoint of [65, 66])
+                    expect(
+                        fonts.resolve("minecraft:default", codePoint, "TEXT")
+                            ?.metricsClientVersion,
+                    ).toBe(mountedVersion ?? "unknown");
+                expect(value.metricsVersionMismatch).toBe(
+                    mountedVersion !== version,
+                );
+                expect(value.metricsRevisionMismatch).toBe(false);
+            }
+        },
+    );
     it.each([
         {},
         { serverClientVersion: "26.1.2" },
@@ -230,6 +310,35 @@ describe("version-scoped metric fidelity", () => {
         );
         expect(value.metricsVersionMismatch).toBe(true);
         expect(value.metricsRevisionMismatch).toBe(false);
+    });
+
+    it("retains a different mounted version through a builtin fallback", () => {
+        const text = String.fromCodePoint(0x4f59);
+        const library = new FontLibrary(
+            new PackStack([
+                pack(
+                    {
+                        "assets/minecraft/font/uniform.json": JSON.stringify({
+                            providers: [
+                                { type: "space", advances: { [text]: 9 } },
+                            ],
+                        }),
+                    },
+                    "vanilla",
+                    "1.21.11",
+                ),
+            ]),
+        );
+        const fonts = new PresentationFonts({ ...options, library });
+        expect(
+            evidence(
+                fonts,
+                { serverClientVersion: "26.1.2" },
+                text,
+                "minecraft:default",
+                library,
+            ).metricsVersionMismatch,
+        ).toBe(true);
     });
 
     it("does not downgrade complete declared glyphs or flat fallbacks without a vanilla artifact", () => {

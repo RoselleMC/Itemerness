@@ -313,6 +313,7 @@ export async function loadVanilla(version: VanillaVersion, explicit = false) {
         const pack = mountArchive(bytes, {
             name: `vanilla-${version}`,
             kind: "vanilla",
+            clientVersion: version,
         });
         useEditorStore.getState().setMountedPack(pack);
         useAssetMounts.setState((state) => ({

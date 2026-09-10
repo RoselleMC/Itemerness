@@ -1275,7 +1275,7 @@
             "duplicateId": "该 ID 已被使用。",
             "builtinFontId": "内建度量必须使用对应的 minecraft 字体 ID。请先更改度量再重命名。",
             "metrics": "请输入 explicit、space-provider 或带命名空间的度量修订。",
-            "unknownBuiltinMetrics": "26.1.2 中没有此内建度量表。",
+            "unknownBuiltinMetrics": "支持的 Minecraft 版本中没有此内建度量表。",
             "requiredFields": "请完整填写所有必填字段。",
             "missingFont": "引用的字体不存在。",
             "missingBitmap": "引用的位图不存在。",

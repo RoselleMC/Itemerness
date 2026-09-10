@@ -194,9 +194,10 @@ export class PresentationFonts {
                     ...packGlyph,
                     sourceFontId: current,
                     rasterMissing: packGlyph.raster === null,
-                    ...(packGlyph.vanillaMetrics
+                    ...(packGlyph.vanillaClientVersion
                         ? {
-                              metricsClientVersion: EXPECTED_CLIENT_VERSION,
+                              metricsClientVersion:
+                                  packGlyph.vanillaClientVersion,
                               metricsRevisionMatches:
                                   !declaration?.metrics.startsWith(
                                       "builtin:",
@@ -206,7 +207,8 @@ export class PresentationFonts {
                                   )?.fontId === current,
                           }
                         : {}),
-                    ...(fallbackEvidence.metricsClientVersion
+                    ...(fallbackEvidence.metricsClientVersion &&
+                    !packGlyph.vanillaClientVersion
                         ? {
                               metricsClientVersion:
                                   fallbackEvidence.metricsClientVersion,

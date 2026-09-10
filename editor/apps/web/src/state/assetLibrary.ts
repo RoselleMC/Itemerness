@@ -17,6 +17,7 @@ import {
     type ThemeNode,
     type TooltipStyleNode,
 } from "@itemerness/protocol";
+import { isMinecraftClientVersion } from "@itemerness/mc-assets";
 import { freshNamespacedId } from "./freshId.js";
 
 export type AssetKind =
@@ -210,10 +211,11 @@ export function fontMetricsError(id: string, metrics: string): string | null {
     if (!fontNodeSchema.shape.metrics.safeParse(metrics).success)
         return "metrics";
     if (!metrics.startsWith("builtin:")) return null;
-    const table = /^builtin:minecraft-(default|uniform)(?:-26\.1\.2)?$/.exec(
+    const table = /^builtin:minecraft-(default|uniform)(?:-(.+))?$/.exec(
         metrics,
     );
-    if (!table) return "unknownBuiltinMetrics";
+    if (!table || (table[2] && !isMinecraftClientVersion(table[2])))
+        return "unknownBuiltinMetrics";
     return id === `minecraft:${table[1]}` ? null : "builtinFontId";
 }
 

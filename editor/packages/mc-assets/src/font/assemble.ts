@@ -4,6 +4,7 @@ import {
     assetPath,
     locationToString,
     parseLocation,
+    type MountedPack,
     type PackStack,
 } from "../pack.js";
 import { bitmapProviderGlyphs } from "./bitmap.js";
@@ -71,24 +72,32 @@ interface AssembleState {
     metricsIncomplete: boolean;
 }
 
-const vanillaGlyphs = new WeakMap<Glyph, Glyph>();
+const vanillaGlyphs = new WeakMap<MountedPack, WeakMap<Glyph, Glyph>>();
 
 /** First-wins insertion, matching `put_first` in the metrics generator. */
 function putFirst(
     target: Map<number, Glyph>,
     source: ReadonlyMap<number, Glyph>,
-    vanillaMetrics: boolean,
+    pack: MountedPack,
 ): void {
+    let cache = vanillaGlyphs.get(pack);
+    if (pack.kind === "vanilla" && !cache) {
+        cache = new WeakMap();
+        vanillaGlyphs.set(pack, cache);
+    }
     for (const [codePoint, glyph] of source) {
         if (target.has(codePoint)) continue;
-        if (!vanillaMetrics) {
+        if (!cache) {
             target.set(codePoint, glyph);
             continue;
         }
-        let sourced = vanillaGlyphs.get(glyph);
+        let sourced = cache.get(glyph);
         if (!sourced) {
-            sourced = { ...glyph, vanillaMetrics: true };
-            vanillaGlyphs.set(glyph, sourced);
+            sourced = {
+                ...glyph,
+                vanillaClientVersion: pack.clientVersion ?? "unknown",
+            };
+            cache.set(glyph, sourced);
         }
         target.set(codePoint, sourced);
     }
@@ -96,7 +105,7 @@ function putFirst(
 
 interface FontDefinition {
     readonly providers: readonly FontProvider[];
-    readonly vanilla: boolean;
+    readonly pack: MountedPack;
 }
 
 function readDefinition(
@@ -124,7 +133,7 @@ function readDefinition(
             JSON.parse(new TextDecoder().decode(source.bytes)),
             path,
         ),
-        vanilla: source.pack.kind === "vanilla",
+        pack: source.pack,
     };
     cache.set(fontId, result);
     return result;
@@ -163,7 +172,7 @@ function visitProvider(
     provider: FontProvider,
     options: FontOptions,
     state: AssembleState,
-    vanillaDefinition: boolean,
+    definitionPack: MountedPack,
 ): void {
     if (!providerEnabled(provider, options)) return;
 
@@ -182,7 +191,7 @@ function visitProvider(
                     providerKind: "space",
                 });
             }
-            putFirst(state.glyphs, glyphs, vanillaDefinition);
+            putFirst(state.glyphs, glyphs, definitionPack);
             return;
         }
         case "bitmap": {
@@ -213,7 +222,7 @@ function visitProvider(
                             path,
                         ),
                     ),
-                    source.pack.kind === "vanilla",
+                    source.pack,
                 );
             } catch (error) {
                 state.metricsIncomplete = true;
@@ -265,7 +274,7 @@ function visitProvider(
                         }
                         return glyphs;
                     }),
-                    source.pack.kind === "vanilla",
+                    source.pack,
                 );
             } catch (error) {
                 state.metricsIncomplete = true;
@@ -319,7 +328,7 @@ function visitProvider(
                 return;
             }
             for (const nested of providers.providers)
-                visitProvider(stack, nested, options, state, providers.vanilla);
+                visitProvider(stack, nested, options, state, providers.pack);
             return;
         }
         case "ttf": {
@@ -405,7 +414,7 @@ export function assembleFont(
     }
 
     for (const provider of providers.providers)
-        visitProvider(stack, provider, options, state, providers.vanilla);
+        visitProvider(stack, provider, options, state, providers.pack);
 
     return {
         fontId,

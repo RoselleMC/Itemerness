@@ -1,5 +1,6 @@
 import { unzipSync } from "fflate";
 import { bytesHash, resourcePackSha1 } from "@itemerness/protocol";
+import type { MinecraftClientVersion } from "./versions.js";
 
 /**
  * A virtual file system over a stack of mounted resource packs.
@@ -95,6 +96,7 @@ export interface MountedPack {
     readonly sha1: string;
     readonly name: string;
     readonly kind: PackKind;
+    readonly clientVersion?: MinecraftClientVersion;
     readonly meta: PackMeta | null;
     readonly byteLength: number;
     has(path: string): boolean;
@@ -488,7 +490,11 @@ function readPackMeta(
  */
 export function mountArchive(
     bytes: Uint8Array,
-    options: { name: string; kind?: PackKind },
+    options: {
+        name: string;
+        kind?: PackKind;
+        clientVersion?: MinecraftClientVersion;
+    },
 ): MountedPack {
     if (bytes.byteLength > MAX_PACK_BYTES) {
         throw new PackMountError(
@@ -529,6 +535,7 @@ export function mountArchive(
         sha1: resourcePackSha1(bytes),
         name: options.name,
         kind: options.kind ?? "resource-pack",
+        clientVersion: options.clientVersion,
         meta: readPackMeta(read),
         byteLength: bytes.byteLength,
         has: (path) => files.has(path),

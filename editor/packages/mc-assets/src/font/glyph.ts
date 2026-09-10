@@ -73,7 +73,7 @@ export interface Glyph {
     readonly providerKind:
         "bitmap" | "space" | "unihex" | "metrics-artifact" | "declared";
     /** The actual provider data came from the mounted vanilla base, not a custom override. */
-    readonly vanillaMetrics?: boolean;
+    readonly vanillaClientVersion?: string;
 }
 
 /** Reads a unihex bit, with column 0 at the left. */

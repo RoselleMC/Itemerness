@@ -1286,7 +1286,7 @@
             "duplicateId": "This ID is already in use.",
             "builtinFontId": "Built-in metrics require their matching minecraft font ID. Change the metrics before renaming.",
             "metrics": "Enter explicit, space-provider or a namespaced metrics revision.",
-            "unknownBuiltinMetrics": "This built-in metrics table is not available for 26.1.2.",
+            "unknownBuiltinMetrics": "This built-in metrics table is not available for a supported Minecraft version.",
             "requiredFields": "Complete all required fields with valid values.",
             "missingFont": "The referenced font does not exist.",
             "missingBitmap": "The referenced bitmap does not exist.",
