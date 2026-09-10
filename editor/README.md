@@ -194,6 +194,8 @@ The additive `authentication` field is `none` or `bearer`; older API 2.0 plugins
 treated as `bearer`. Empty-token clients omit the Authorization header entirely. Origin, TLS,
 protocol, size-limit, and compare-and-swap rules apply in both modes.
 
+- `GET /api/v2/catalog`: read local YAML as an import candidate without writing a draft.
+- `POST /api/v2/catalog/export`: validate a document and return its YAML files without publication.
 - `GET /api/v2/document`: current plugin draft, hash, and revision; 404 when no draft exists.
 - `PUT /api/v2/document`: `{document, expectedHash}` with compare-and-swap. Use an empty expected
   hash only for first creation. A conflict returns 409 and `actualHash` without overwriting anything.
@@ -205,7 +207,7 @@ This is **not** a published artifact: the running catalog remains owned by local
 starts empty, with the editing area disabled and grey. A successful handshake alone does not unlock
 it: the current plugin connection must return a valid document. No example configuration is loaded
 locally or automatically uploaded to an empty plugin. If the API has no authoring document, the
-workspace stays empty; the existing API does not automatically import the plugin's local YAML.
+empty workspace offers an explicit import with review and compare-and-swap creation.
 
 Disconnecting, switching servers, or losing the remote document clears the visible document,
 selections, resource packs, and editing tools. Reconnecting always loads from the plugin first.
@@ -317,12 +319,12 @@ and layout/draw lists independently of zoom and annotation controls. Same-sized 
 textures cannot share tinted pixels. Tests block every server preview response while checking cold
 theme, color, locale, fact, layout, zoom and annotation changes at the next animation frame.
 
-The 26.1.2 tooltip geometry includes both 3px body padding and a separate 9px outer sprite margin on
+The supported clients share 3px body padding and a separate 9px outer sprite margin on
 each edge. Text, line hitboxes, annotations, and canvas anchors share the same content origin. The
 renderer's full canvas extent is not the logical text width. Character-frame themes can decorate only
 managed Lore, leaving the name above that inner ornament but still inside the vanilla tooltip body.
 
-Bundled 26.1.2 font metrics require no network download. The resource-pack page mounts local ZIPs,
+Bundled font metrics follow the connected version and require no network download. The resource-pack page mounts local ZIPs,
 directories, or `client.jar` through native selection or file drops. Custom packs retain their source
 paths and priority, show `pack.png` (with the Minecraft fallback icon), description, format declaration,
 size and load status. Reload never writes to a source or changes authoring history. A failed reload
@@ -346,8 +348,8 @@ remain importable but explicitly disable reload. Local mounts are session-only a
 pnpm assets:vanilla       # optional local fixture for metrics and Playwright tests
 ```
 
-Exact preview is currently limited to Minecraft 26.1.2. Other supported plugin versions expose
-draft capabilities but do not advertise or execute `preview.compile`. Flat item sprites are
+Import, export, draft editing and production previews support Minecraft 1.21.11, 26.1.1, 26.1.2 and 26.2.
+Each uses its exact bundled metrics. Flat item sprites are
 supported; block models and unmeasured TTF providers remain explicitly unsupported.
 
 ## Structure

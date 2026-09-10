@@ -1,4 +1,5 @@
 export * from "./ifm.js";
+export * from "./versions.js";
 export * from "./image.js";
 export * from "./pack.js";
 export * from "./sprites.js";

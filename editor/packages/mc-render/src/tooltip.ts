@@ -21,11 +21,11 @@ import {
 /**
  * Tooltip geometry and painting.
  *
- * The vertical metrics come from an audit of the 26.1.2 client: every text component is ten logical
+ * Audited clients 1.21.11, 26.1.1, 26.1.2 and 26.2 share these metrics: every text component is ten logical
  * pixels tall, an extra two pixels sit between the first and second component, a single-component
  * tooltip is two pixels shorter, and the text has three pixels of background padding. The sprite
  * rectangle extends another nine pixels on each edge (TooltipRenderUtil.extractTooltipBackground).
- * These version facts live in one named profile and must be re-audited when the baseline changes.
+ * New client versions require another audit before entering the profile map.
  */
 export interface TooltipProfile {
     readonly clientVersion: string;
@@ -52,6 +52,19 @@ export const PROFILE_26_1_2: TooltipProfile = {
     textAscentPixels: 7,
     shadowOffsetPixels: 1,
 };
+
+const CLIENT_PROFILES: ReadonlyMap<string, TooltipProfile> = new Map(
+    ["1.21.11", "26.1.1", "26.1.2", "26.2"].map((clientVersion) => [
+        clientVersion,
+        { ...PROFILE_26_1_2, clientVersion },
+    ]),
+);
+
+export function tooltipProfile(
+    clientVersion: string,
+): TooltipProfile | undefined {
+    return CLIENT_PROFILES.get(clientVersion);
+}
 
 /** Top edge of component `index`, in GUI pixels from the content origin. */
 export function componentTop(

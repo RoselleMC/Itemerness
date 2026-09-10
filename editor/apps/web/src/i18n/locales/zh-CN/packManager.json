@@ -14,7 +14,7 @@
     "basePriority": "基础资源 · 最低优先级",
     "version": "Minecraft 版本",
     "retryVanilla": "加载或重试原版资源",
-    "previewVersionWarning": "精确预览指标仍以 Minecraft {{version}} 为基线。",
+    "previewVersionWarning": "当前连接的服务器版本为 Minecraft {{version}}。",
     "status": { "loading": "加载中", "ready": "已加载", "error": "重载失败" },
     "source": {
         "archive": "压缩包",

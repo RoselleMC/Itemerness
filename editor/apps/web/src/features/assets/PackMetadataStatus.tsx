@@ -5,14 +5,10 @@ import {
     packFormatDeclarationStatus,
     type DeclaredPackFormats,
     type MountedPack,
+    MINECRAFT_RESOURCE_FORMATS,
 } from "@itemerness/mc-assets";
+import { useAssetMounts } from "../../state/assetMounts.js";
 import "./packMetadata.css";
-
-// The pinned vanilla client's version.json, not the plugin's negotiated version.
-export const PREVIEW_RESOURCE_PACK_BASELINE = {
-    minecraftVersion: "26.1.2",
-    format: { major: 84, minor: 0 },
-} as const;
 
 function rangeLabel(range: DeclaredPackFormats): string {
     const { minimum, maximum } = range;
@@ -28,9 +24,10 @@ function rangeLabel(range: DeclaredPackFormats): string {
 
 export function PackMetadataStatus({ pack }: { pack: MountedPack }) {
     const { t } = useTranslation("packMetadata");
+    const version = useAssetMounts((state) => state.vanilla.version);
     if (pack.kind === "vanilla") return null;
-    const baseline = PREVIEW_RESOURCE_PACK_BASELINE;
-    const status = packFormatDeclarationStatus(pack.meta, baseline.format);
+    const format = MINECRAFT_RESOURCE_FORMATS[version];
+    const status = packFormatDeclarationStatus(pack.meta, format);
     const range = pack.meta?.declaredFormats;
     const Icon = status === "outside" ? TriangleAlert : Info;
     return (
@@ -44,8 +41,8 @@ export function PackMetadataStatus({ pack }: { pack: MountedPack }) {
                 <span>
                     {t(status, {
                         range: range ? rangeLabel(range) : "",
-                        version: baseline.minecraftVersion,
-                        format: `${baseline.format.major}.${baseline.format.minor}`,
+                        version,
+                        format: `${format.major}.${format.minor}`,
                     })}
                 </span>
                 {range && (

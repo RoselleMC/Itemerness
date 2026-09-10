@@ -10,6 +10,14 @@
     gap: 8px;
     margin-bottom: 12px;
 }
+.catalog-controls-compact .catalog-commands {
+    justify-content: center;
+    margin-bottom: 0;
+}
+.catalog-controls-compact .catalog-review-dialog {
+    text-align: left;
+    color: var(--text);
+}
 .catalog-commands button,
 .catalog-review-dialog .dialog-actions button {
     display: inline-flex;

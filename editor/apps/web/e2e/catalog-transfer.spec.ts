@@ -39,6 +39,76 @@ function fixture(namespace = "imported") {
     document.defaultLayout = "itemerness:plain";
     return document;
 }
+
+for (const version of ["1.21.11", "26.1.1", "26.1.2", "26.2"]) {
+    test(`first import is reachable from the empty workspace on ${version}`, async ({
+        page,
+    }) => {
+        const plugin = await mockPlugin(page, null, API_URL, {
+            ...HANDSHAKE,
+            minecraftVersion: version,
+            documentSchemas: [1, 2],
+            capabilities: [
+                ...HANDSHAKE.capabilities,
+                "catalog.read",
+                "catalog.export",
+            ],
+        });
+        const candidate = fixture();
+        candidate.fonts = candidate.fonts.map((font) => ({
+            ...font,
+            metrics: font.metrics.replace("26.1.2", version),
+        }));
+        await page.route(`${API_URL}/api/v2/catalog`, (route) =>
+            route.fulfill({
+                json: {
+                    document: candidate,
+                    sourceHash: "sha256:" + "1".repeat(64),
+                    diagnostics: [],
+                },
+            }),
+        );
+        const metrics = page.waitForResponse(
+            (response) =>
+                response.url().includes(`minecraft-${version}`) &&
+                response.url().includes("ifm") &&
+                response.status() === 200,
+        );
+        await page.goto("/?lang=en-US");
+        await connectPlugin(page);
+        await expect(page.getByTestId("document-sync-status")).toHaveAttribute(
+            "data-sync-kind",
+            "empty",
+        );
+        await page.getByTestId("close-connection").click();
+        await metrics;
+        expect(plugin.writes).toHaveLength(0);
+        await page.getByTestId("catalog-read").click();
+        await expect(page.getByTestId("catalog-review")).toBeVisible();
+        await page.getByTestId("catalog-review-close").click();
+        expect(plugin.writes).toHaveLength(0);
+        await page.getByTestId("catalog-read").click();
+        await page.getByTestId("catalog-replace").click();
+        await expect(page.getByTestId("workspace")).toHaveAttribute(
+            "data-ready",
+            "true",
+        );
+        await expect(page.getByTestId("tooltip-canvas").first()).toBeVisible();
+        await expect(
+            page.getByTestId("tooltip-canvas").first(),
+        ).toHaveAttribute("data-metrics-version", version);
+        await expect(
+            page.getByTestId("tooltip-canvas").first(),
+        ).toHaveAttribute("data-client-version", version);
+        expect(plugin.writes).toHaveLength(1);
+        expect(plugin.writes[0]!.expectedHash).toBe("");
+        expect(plugin.writes[0]!.document).toEqual(candidate);
+        await page.reload();
+        await enterWorkspace(page);
+        await expect(page.getByTestId("tooltip-canvas").first()).toBeVisible();
+        expect(plugin.writes).toHaveLength(1);
+    });
+}
 async function start(
     page: Page,
     initial: ProjectDocument | null = fixture("original"),
@@ -81,6 +151,56 @@ async function start(
     await page.getByTestId("auto-save-toggle").uncheck();
     return { ...plugin, candidate };
 }
+
+test("late metrics from a disconnected server cannot replace the new version", async ({
+    page,
+}) => {
+    const oldUrl = "http://127.0.0.1:18088";
+    await mockPlugin(page, null, oldUrl, {
+        ...HANDSHAKE,
+        serverId: "older",
+        minecraftVersion: "1.21.11",
+    });
+    const document = fixture();
+    document.fonts = document.fonts.map((font) => ({
+        ...font,
+        metrics: font.metrics.replace("26.1.2", "26.2"),
+    }));
+    await mockPlugin(page, document, API_URL, {
+        ...HANDSHAKE,
+        serverId: "newer",
+        minecraftVersion: "26.2",
+        documentSchemas: [1, 2],
+    });
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let started!: () => void;
+    const requested = new Promise<void>((resolve) => {
+        started = resolve;
+    });
+    await page.route("**/minecraft-1.21.11*.ifm", async (route) => {
+        const response = await route.fetch();
+        started();
+        await blocked;
+        await route.fulfill({ response });
+    });
+    await page.goto("/?lang=en-US");
+    await connectPlugin(page, oldUrl);
+    await requested;
+    await expect(page.getByTestId("document-sync-status")).toHaveAttribute(
+        "data-sync-kind",
+        "empty",
+    );
+    await enterWorkspace(page);
+    const canvas = page.getByTestId("tooltip-canvas").first();
+    await expect(canvas).toHaveAttribute("data-metrics-version", "26.2");
+    release();
+    await page.unrouteAll({ behavior: "wait" });
+    await expect(canvas).toHaveAttribute("data-metrics-version", "26.2");
+    await expect(canvas).toHaveAttribute("data-client-version", "26.2");
+});
 
 test("empty server draft stays locked until explicit reviewed import passes CAS creation", async ({
     page,

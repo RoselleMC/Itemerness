@@ -63,8 +63,8 @@ internal class EditorApiService(
         worker = worker,
         scheduler = scheduler,
         onFailure = { logger.log(Level.WARNING, "Editor API request failed (${it.javaClass.simpleName})") },
-        readCatalog = if (minecraftVersion == "26.1.2") catalogReader::read else null,
-        exportCatalog = if (minecraftVersion == "26.1.2") catalogExporter::export else null,
+        readCatalog = catalogReader::read,
+        exportCatalog = catalogExporter::export,
         serverMetadata = serverMetadata,
     ) }
     private val api by apiDelegate

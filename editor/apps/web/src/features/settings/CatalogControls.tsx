@@ -52,9 +52,11 @@ const errorCodes = new Set([
 export function CatalogControls({
     sync,
     confirmReplace,
+    compact = false,
 }: {
     sync: DocumentSync;
     confirmReplace(): Promise<boolean>;
+    compact?: boolean;
 }) {
     const { t } = useTranslation();
     const connection = useConnectionStore();
@@ -246,10 +248,14 @@ export function CatalogControls({
     );
     return (
         <section
-            className="settings-section catalog-controls"
+            className={
+                compact
+                    ? "catalog-controls catalog-controls-compact"
+                    : "settings-section catalog-controls"
+            }
             data-testid="catalog-controls"
         >
-            <h3>{t("catalogTransfer.heading")}</h3>
+            {!compact && <h3>{t("catalogTransfer.heading")}</h3>}
             <div className="catalog-commands">
                 <button
                     type="button"
@@ -268,37 +274,39 @@ export function CatalogControls({
                     )}
                     {t("catalogTransfer.read")}
                 </button>
-                <button
-                    type="button"
-                    data-testid="catalog-export"
-                    disabled={
-                        !sync.ready ||
-                        connection.recovery !== "none" ||
-                        !exportSupported ||
-                        !!exportRequirement ||
-                        phase !== null
-                    }
-                    onClick={() => void exportZip()}
-                >
-                    {phase === "export" ? (
-                        <LoaderCircle size={15} />
-                    ) : (
-                        <Download size={15} />
-                    )}
-                    {t("catalogTransfer.export")}
-                </button>
+                {!compact && (
+                    <button
+                        type="button"
+                        data-testid="catalog-export"
+                        disabled={
+                            !sync.ready ||
+                            connection.recovery !== "none" ||
+                            !exportSupported ||
+                            !!exportRequirement ||
+                            phase !== null
+                        }
+                        onClick={() => void exportZip()}
+                    >
+                        {phase === "export" ? (
+                            <LoaderCircle size={15} />
+                        ) : (
+                            <Download size={15} />
+                        )}
+                        {t("catalogTransfer.export")}
+                    </button>
+                )}
             </div>
             {!readSupported && !exportSupported && (
                 <p className="muted small">
                     {t("catalogTransfer.unavailable")}
                 </p>
             )}
-            {exportSupported && (
+            {!compact && exportSupported && (
                 <p className="muted small">
                     {t("catalogTransfer.patchNotice")}
                 </p>
             )}
-            {sync.ready && exportSupported && exportRequirement && (
+            {!compact && sync.ready && exportSupported && exportRequirement && (
                 <p className="muted small">
                     {t(`catalogTransfer.errors.${exportRequirement}`)}
                 </p>

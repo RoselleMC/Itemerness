@@ -17,7 +17,7 @@ class CompilerDigestTest {
             MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)),
         )}"
 
-        assertEquals(digest(prefix + "7"), bridge.compilerDigest())
-        assertNotEquals(digest(prefix + "6"), bridge.compilerDigest())
+        assertEquals(digest(prefix + "8|metrics-null"), bridge.compilerDigest())
+        assertNotEquals(digest(prefix + "7"), bridge.compilerDigest())
     }
 }

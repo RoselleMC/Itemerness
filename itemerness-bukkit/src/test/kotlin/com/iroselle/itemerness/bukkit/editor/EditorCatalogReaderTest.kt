@@ -29,6 +29,43 @@ class EditorCatalogReaderTest {
     ) }
 
     @Test
+    fun `all supported client metrics import export and preview the same YAML catalog`() {
+        fixture()
+        val items = directory.resolve("items/examples.yml")
+        Files.writeString(items, Files.readString(items).replace("enabled: false", "enabled: true"))
+        val before = EditorCatalogFiles.capture(directory).digest
+        val digests = mutableSetOf<String>()
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+            val artifact = BuiltinFontMetricsLoader.bundled(version)
+            val metrics = BundledBuiltinFontMetrics(artifact)
+            val bridge = CompilerBridge(metrics, "test")
+            digests.add(bridge.compilerDigest())
+            val response = JsonObject.of(EditorCatalogReader(directory, artifact, "test", validator).read(), "catalog")
+            val document = requireNotNull(response.raw("document"))
+            val text = Json.canonicalize(document)
+            assertTrue(bridge.validateDocument(document).isEmpty(), version)
+            assertTrue(ProjectDocumentCodec.decode(text, metrics).presentation.fonts.any {
+                it.metricsRevision == "builtin:minecraft-default-$version"
+            }, version)
+            val result = bridge.compilePreview(text, CompilerBridge.PreviewContext(
+                itemId = "itemerness:ember-blade", locale = "en_us", requestedTheme = null,
+                assetProfile = null, capabilities = emptyList(), metricsRevision = null,
+                resourcePackLoaded = false, managesVanillaTooltipLines = false,
+                snapshotHash = com.iroselle.itemerness.editor.agent.EditorDraftStore.digest(text),
+            ))
+            assertTrue(result is CompilerBridge.Outcome.Rendered, "$version: $result")
+            val preview = JsonObject.parse((result as CompilerBridge.Outcome.Rendered).json, "preview")
+            assertEquals(JsonValue.Null, preview.raw("failure"), version)
+            assertTrue(preview.requiredObject("display").requiredObject("displayName").requiredInt("logicalWidthPixels") > 0, version)
+            val exported = JsonObject.of(EditorCatalogExporter(artifact, bridge).export(document), "export")
+            assertTrue(exported.requiredObjects("files").isNotEmpty(), version)
+            assertEquals(before, EditorCatalogFiles.capture(directory).digest)
+            assertFalse(Files.exists(directory.resolve("editor")))
+        }
+        assertEquals(4, digests.size)
+    }
+
+    @Test
     fun `the complete bundled YAML imports through actual loaders without creating a draft`() {
         fixture()
         val config = directory.resolve("config.yml")

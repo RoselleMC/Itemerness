@@ -18,7 +18,7 @@ import { DiagnosticsList } from "./features/diagnostics/DiagnosticsList.js";
 import { Titlebar } from "./features/shell/Titlebar.js";
 import { ArrowLeft, Save, Settings2, Server, Undo2, Redo2 } from "lucide-react";
 import { windowPlatform } from "./window/chrome.js";
-import metricsUrl from "../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm?url";
+import { useBuiltinMetrics } from "./features/assets/useBuiltinMetrics.js";
 import { useDocumentSync } from "./features/document/useDocumentSync.js";
 import { useEditingShortcuts } from "./features/document/useEditingShortcuts.js";
 import { SettingsPage } from "./features/settings/SettingsPage.js";
@@ -31,6 +31,7 @@ import { useConnectionStore } from "./state/connection.js";
 import { ReconnectDialog } from "./features/shell/ReconnectDialog.js";
 import { useApplicationMenu } from "./window/useApplicationMenu.js";
 import { AboutDialog } from "./features/shell/AboutDialog.js";
+import { CatalogControls } from "./features/settings/CatalogControls.js";
 
 /** Keep the editing workspace mounted while global pages occupy the navigation's right side. */
 
@@ -67,6 +68,9 @@ export function App() {
     const reconnectDecision = useConnectionStore(
         (state) => state.recovery === "manual" || state.recovery === "blocked",
     );
+    const canImportCatalog = useConnectionStore(
+        (state) => state.info?.capabilities.includes("catalog.read") ?? false,
+    );
     const interactionBlocked =
         unsavedChanges.open ||
         confirmationOpen ||
@@ -99,8 +103,7 @@ export function App() {
         about: () => setAboutOpen(true),
     });
     const [spritesAvailable, setSpritesAvailable] = useState(false);
-    const loadArtifact = useEditorStore((state) => state.loadArtifact);
-    const artifact = useEditorStore((state) => state.artifact);
+    useBuiltinMetrics();
     const storedDiagnostics = useEditorStore((state) => state.diagnostics);
 
     const preview = usePreview(spritesAvailable, documentSync.ready);
@@ -132,20 +135,6 @@ export function App() {
             setSpritesAvailable(false);
         }
     }, [documentSync.ready]);
-
-    useEffect(() => {
-        // Metrics ship inside the desktop bundle and work without a plugin connection.
-        if (artifact) return;
-        void (async () => {
-            try {
-                const response = await fetch(metricsUrl);
-                if (!response.ok) return;
-                loadArtifact(new Uint8Array(await response.arrayBuffer()));
-            } catch {
-                // Mounted packs still provide metrics; the fidelity panel reports the downgrade.
-            }
-        })();
-    }, [artifact, loadArtifact]);
 
     const handleGeometry = useCallback(
         (_geometry: unknown, sprites: boolean) => {
@@ -271,7 +260,22 @@ export function App() {
                                 <Inspector preview={preview} />
                             </>
                         ) : (
-                            <LockedWorkspace status={documentSync.status} />
+                            <LockedWorkspace
+                                status={documentSync.status}
+                                importControls={
+                                    page === "editor" &&
+                                    documentSync.status.kind === "empty" &&
+                                    canImportCatalog ? (
+                                        <CatalogControls
+                                            compact
+                                            sync={documentSync}
+                                            confirmReplace={
+                                                unsavedChanges.confirmReplace
+                                            }
+                                        />
+                                    ) : undefined
+                                }
+                            />
                         )}
                     </div>
                     <main

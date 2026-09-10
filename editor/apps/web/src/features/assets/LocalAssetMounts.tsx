@@ -33,10 +33,9 @@ import { copyAction } from "../common/contextActions.js";
 import { useDragReorder } from "../common/dragReorder.js";
 import { SelectField } from "../common/SelectField.js";
 import { PackFontImport } from "./PackFontImport.js";
-import {
-    PackMetadataStatus,
-    PREVIEW_RESOURCE_PACK_BASELINE,
-} from "./PackMetadataStatus.js";
+import { PackMetadataStatus } from "./PackMetadataStatus.js";
+import { MINECRAFT_RESOURCE_FORMATS } from "@itemerness/mc-assets";
+import { useConnectionStore } from "../../state/connection.js";
 import { PackIcon } from "./PackIcon.js";
 import { PackSelfCheck } from "./PackSelfCheck.js";
 
@@ -54,6 +53,9 @@ export function LocalAssetMounts({
     const { t } = useTranslation();
     const state = useEditorStore();
     const { sources, vanilla } = useAssetMounts();
+    const serverVersion = useConnectionStore(
+        (state) => state.info?.minecraftVersion,
+    );
     const [importId, setImportId] = useState<string | null>(null);
     const custom = state.packs.filter((slot) => slot.pack.kind !== "vanilla");
     const base = state.packs.find((slot) => slot.pack.kind === "vanilla")?.pack;
@@ -388,12 +390,10 @@ export function LocalAssetMounts({
                         {vanilla.error && (
                             <span className="pack-error">{vanilla.error}</span>
                         )}
-                        {vanilla.version !==
-                            PREVIEW_RESOURCE_PACK_BASELINE.minecraftVersion && (
+                        {serverVersion && vanilla.version !== serverVersion && (
                             <span className="pack-warning">
                                 {t("packManager:previewVersionWarning", {
-                                    version:
-                                        PREVIEW_RESOURCE_PACK_BASELINE.minecraftVersion,
+                                    version: serverVersion,
                                 })}
                             </span>
                         )}
@@ -448,10 +448,11 @@ function PackDetails({
     mount?: SourceMount;
 }) {
     const { t } = useTranslation();
+    const version = useAssetMounts((state) => state.vanilla.version);
     const declaration = pack
         ? packFormatDeclarationStatus(
               pack.meta,
-              PREVIEW_RESOURCE_PACK_BASELINE.format,
+              MINECRAFT_RESOURCE_FORMATS[version],
           )
         : "unknown";
     const status = mount?.status ?? "ready";

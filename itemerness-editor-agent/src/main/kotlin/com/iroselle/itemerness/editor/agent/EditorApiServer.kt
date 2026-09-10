@@ -167,7 +167,7 @@ class EditorApiServer(
                 }
                 "/api/v2/preview" -> {
                     if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
-                    if (metadata.minecraftVersion != "26.1.2") return error(exchange, 422, "PREVIEW_VERSION_UNSUPPORTED")
+                    if (metadata.minecraftVersion !in PREVIEW_VERSIONS) return error(exchange, 422, "PREVIEW_VERSION_UNSUPPORTED")
                     val requestValue = body(exchange)
                     val request = JsonObject.of(requestValue, "preview")
                         .rejectUnknown("document", "itemId", "viewer", "snapshotHash", "targetServerId")
@@ -240,7 +240,7 @@ class EditorApiServer(
         ) +
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
-            (if (metadata.minecraftVersion == "26.1.2") listOf("preview.compile") else emptyList()) +
+            (if (metadata.minecraftVersion in PREVIEW_VERSIONS) listOf("preview.compile") else emptyList()) +
             (if (readCatalog != null) listOf("catalog.read") else emptyList()) +
             (if (exportCatalog != null) listOf("catalog.export") else emptyList())).map(::text)),
     )
@@ -274,6 +274,7 @@ class EditorApiServer(
 
     companion object {
         const val PROTOCOL: String = "2.0"
+        private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2")
         private fun text(value: String): JsonValue = JsonValue.Text(value)
         private fun obj(vararg values: Pair<String, JsonValue>): JsonValue = JsonValue.Obj(mapOf(*values))
     }

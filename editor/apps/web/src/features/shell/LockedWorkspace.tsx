@@ -1,9 +1,16 @@
 import { useTranslation } from "react-i18next";
-import { LoaderCircle, ServerOff, Plus } from "lucide-react";
+import { LoaderCircle, ServerOff, File, Plus } from "lucide-react";
+import type { ReactNode } from "react";
 import type { DocumentSyncStatus } from "../../api/documentAutosave.js";
 
 /** Generic disabled chrome only. Never render a stale or locally seeded configuration here. */
-export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
+export function LockedWorkspace({
+    status,
+    importControls,
+}: {
+    status: DocumentSyncStatus;
+    importControls?: ReactNode;
+}) {
     const { t } = useTranslation();
     const loading = status.kind === "loading";
     return (
@@ -38,7 +45,7 @@ export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
             </aside>
             <section
                 className="stage workspace-disabled"
-                aria-disabled="true"
+                aria-disabled={importControls ? undefined : true}
                 aria-label={t("stage.heading")}
             >
                 <header className="stage-top">
@@ -55,6 +62,8 @@ export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
                             className="connection-spinner"
                             aria-hidden="true"
                         />
+                    ) : status.kind === "empty" ? (
+                        <File size={26} aria-hidden="true" />
                     ) : (
                         <ServerOff size={26} aria-hidden="true" />
                     )}
@@ -67,6 +76,7 @@ export function LockedWorkspace({ status }: { status: DocumentSyncStatus }) {
                                   : "workspace.disconnected",
                         )}
                     </span>
+                    {importControls}
                 </div>
             </section>
             <aside

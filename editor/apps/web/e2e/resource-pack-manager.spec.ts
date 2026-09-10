@@ -183,12 +183,23 @@ test("path handles reload automatically, retain valid bytes on failure, and keep
         .click();
     await expect(row).toContainText("Repaired pack");
     await expect(page.getByTestId("mount-error")).toHaveCount(0);
+    await expect(row.getByTestId("pack-metadata-status")).toHaveAttribute(
+        "data-pack-format-status",
+        "included",
+    );
     await chooseValue(page, page.getByTestId("vanilla-version"), "26.2");
     await expect(page.getByTestId("vanilla-pack")).toHaveAttribute(
         "data-status",
         "ready",
     );
     await expect(page.getByTestId("vanilla-pack")).toHaveCount(1);
+    await expect(row.getByTestId("pack-metadata-status")).toHaveAttribute(
+        "data-pack-format-status",
+        "outside",
+    );
+    await expect(row.getByTestId("pack-metadata-status")).toContainText(
+        "Minecraft 26.2 (88.0)",
+    );
     await expect(
         page.getByTestId("pack-list").locator("li").last(),
     ).toHaveAttribute("data-testid", "vanilla-pack");

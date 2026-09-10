@@ -7,12 +7,14 @@ import {
 } from "@itemerness/mc-assets";
 import {
     renderTooltip,
+    tooltipProfile,
     type PresentationFonts,
     type TooltipGeometry,
 } from "@itemerness/mc-render";
 import { renderDrawList } from "@itemerness/mc-render/canvas";
 import type { PreviewDisplay, PreviewOrigin } from "@itemerness/protocol";
 import { packStackOf, useEditorStore } from "../../state/store.js";
+import { useConnectionStore } from "../../state/connection.js";
 
 /**
  * Paints one tooltip.
@@ -39,6 +41,11 @@ export function TooltipCanvas({
     const storedScale = useEditorStore((state) => state.guiScale);
     const guiScale = viewZoom ?? storedScale;
     const annotations = useEditorStore((state) => state.annotations);
+    const version = useConnectionStore((state) => state.info?.minecraftVersion);
+    const profile = version ? tooltipProfile(version) : undefined;
+    const metricsVersion = useEditorStore(
+        (state) => state.artifact?.clientVersion,
+    );
 
     const sprites = useMemo(() => {
         const stack = packStackOf(packs);
@@ -66,12 +73,13 @@ export function TooltipCanvas({
                     : [display.displayName],
                 fonts,
                 {
+                    profile,
                     backgroundSprite: sprites.background,
                     frameSprite: sprites.frame,
                     annotations: true,
                 },
             ),
-        [display, fonts, sprites],
+        [display, fonts, sprites, profile],
     );
     useLayoutEffect(() => {
         const canvas = canvasRef.current;
@@ -96,6 +104,8 @@ export function TooltipCanvas({
             className="tooltip-canvas"
             data-testid="tooltip-canvas"
             data-preview-origin={origin}
+            data-client-version={profile?.clientVersion}
+            data-metrics-version={metricsVersion}
             data-logical-width={rendered.geometry.totalWidthPixels}
             data-logical-height={rendered.geometry.totalHeightPixels}
             data-renderer={display.renderer}

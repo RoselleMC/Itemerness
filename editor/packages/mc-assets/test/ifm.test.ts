@@ -24,6 +24,37 @@ const artifactBytes = new Uint8Array(readFileSync(ARTIFACT_PATH));
 describe("readFontMetricsArtifact", () => {
     const artifact = readFontMetricsArtifact(artifactBytes);
 
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"])(
+        "verifies the exact shipped tables for %s",
+        (version) => {
+            const bytes = new Uint8Array(
+                readFileSync(
+                    ARTIFACT_PATH.replace("26.1.2.ifm", `${version}.ifm`),
+                ),
+            );
+            const result = readFontMetricsArtifact(bytes, version);
+            expect(result.clientVersion).toBe(version);
+            expect([...result.tablesByRevision.keys()]).toEqual([
+                `builtin:minecraft-default-${version}`,
+                `builtin:minecraft-uniform-${version}`,
+            ]);
+            expect(
+                result.tablesByFont.get("minecraft:default")!.glyphs.size,
+            ).toBeGreaterThan(1000);
+            expect(() =>
+                readFontMetricsArtifact(
+                    bytes,
+                    version === "26.2" ? "1.21.11" : "26.2",
+                ),
+            ).toThrow(FontMetricsArtifactError);
+            const tampered = bytes.slice();
+            tampered[tampered.length - 1]! ^= 1;
+            expect(() => readFontMetricsArtifact(tampered, version)).toThrow(
+                FontMetricsArtifactError,
+            );
+        },
+    );
+
     it("accepts the artifact bundled with the plugin", () => {
         expect(artifact.clientVersion).toBe(EXPECTED_CLIENT_VERSION);
         expect(artifact.artifactSha256).toBe(EXPECTED_ARTIFACT_SHA256);

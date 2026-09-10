@@ -391,11 +391,11 @@ class CompilerBridge(
 
     /**
      * Identifies the compiler that produced an artifact. A preview compiled by a different plugin
-     * build is a different answer, and the control plane needs to be able to tell.
+     * build or client metrics is a different answer.
      */
     fun compilerDigest(): String {
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest("$agentVersion|schemas-${ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSIONS.joinToString(",")}|catalog-validation-7".toByteArray())
+            .digest("$agentVersion|schemas-${ProjectDocumentCodec.SUPPORTED_SCHEMA_VERSIONS.joinToString(",")}|catalog-validation-8|metrics-${builtinFontMetrics.clientVersion}".toByteArray())
         return "sha256:${HexFormat.of().formatHex(digest)}"
     }
 

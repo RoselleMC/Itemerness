@@ -14,7 +14,7 @@
     "basePriority": "Base resources · Lowest priority",
     "version": "Minecraft version",
     "retryVanilla": "Load or retry default resources",
-    "previewVersionWarning": "Exact preview metrics remain pinned to Minecraft {{version}}.",
+    "previewVersionWarning": "The connected server uses Minecraft {{version}}.",
     "status": {
         "loading": "Loading",
         "ready": "Loaded",

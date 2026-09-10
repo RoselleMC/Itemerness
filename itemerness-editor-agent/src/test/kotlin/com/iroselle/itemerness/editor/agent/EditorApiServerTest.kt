@@ -187,10 +187,34 @@ class EditorApiServerTest {
     }
 
     @Test
-    fun `unsupported preview versions are not advertised or compiled`() = fixture("26.2") { api, count ->
+    fun `unsupported preview versions are not advertised or compiled`() = fixture("1.21.10") { api, count ->
         assertFalse(request(api, "/api/handshake").body().contains("preview.compile"))
         assertEquals(422, request(api, "/api/v2/preview", "POST", "{}").statusCode())
         assertEquals(0, count.get())
+    }
+
+    @Test
+    fun `every supported version can import its first draft and preview without implicit writes`() {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+            fixture(version, readCatalog = { document }, exportCatalog = { it }) { api, count ->
+                val capabilities = JsonObject.parse(request(api, "/api/handshake").body(), "handshake").requiredArray("capabilities")
+                for (capability in listOf("catalog.read", "catalog.export", "preview.compile")) {
+                    assertTrue(JsonValue.Text(capability) in capabilities, "$version: $capability")
+                }
+                assertEquals(404, request(api, "/api/v2/document").statusCode())
+                assertEquals(document, Json.parse(request(api, "/api/v2/catalog").body()))
+                assertFalse(Files.exists(directory.resolve("draft.json")))
+                assertEquals(200, request(api, "/api/v2/document", "PUT", saveBody()).statusCode())
+                val saved = request(api, "/api/v2/document").body()
+                val payload = Json.canonicalize(JsonValue.Obj(mapOf("document" to document,
+                    "snapshotHash" to JsonValue.Text(EditorDraftStore.digest(Json.canonicalize(document))))))
+                assertEquals(200, request(api, "/api/v2/preview", "POST", payload).statusCode())
+                assertEquals(1, count.get())
+                assertEquals(200, request(api, "/api/v2/catalog/export", "POST", payload).statusCode())
+                assertEquals(saved, request(api, "/api/v2/document").body())
+            }
+            Files.delete(directory.resolve("draft.json"))
+        }
     }
 
     @Test
