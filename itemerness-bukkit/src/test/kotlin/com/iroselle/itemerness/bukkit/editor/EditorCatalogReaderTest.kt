@@ -410,6 +410,34 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `authored string literals compare with namespaced key data only when they parse`() {
+        fixture()
+        val items = directory.resolve("items/examples.yml")
+        val original = Files.readString(items)
+        val condition = """
+            operator: less-than
+            left:
+              fact: example:level
+            right:
+              data: example:required-level
+        """.trimIndent().prependIndent("            ")
+        assertTrue(original.contains(condition))
+        fun withLiteral(literal: String) = Files.writeString(items, original.replace(condition, """
+            operator: equals
+            left:
+              data: example:quality
+            right:
+              literal: $literal
+        """.trimIndent().prependIndent("            ")))
+
+        withLiteral("example:rare")
+        read()
+        withLiteral("'not a key'")
+        val failure = assertThrows(CatalogTransferException::class.java) { reader().read() }
+        assertTrue(Json.canonicalize(JsonValue.Arr(failure.diagnostics)).contains("not comparable"))
+    }
+
+    @Test
     fun `theme selectors keep their own file through the source layout`() {
         fixture()
         Files.writeString(directory.resolve("themes/selectors.yml"), """

@@ -154,6 +154,25 @@ internal fun comparePresentationValues(left: ItemDataValue?, right: ItemDataValu
     }
 }
 
+/**
+ * Equality for presentation conditions. Numbers compare by value across integer widths, and a
+ * string literal equals a namespaced-key or UUID value with the same text, because authored
+ * literals have no separate key or UUID syntax. This matches the editor's local evaluation.
+ */
+internal fun presentationValuesEqual(left: ItemDataValue?, right: ItemDataValue?): Boolean {
+    if (left == null || right == null) return left == right
+    val leftNumber = numericValue(left)
+    val rightNumber = numericValue(right)
+    if (leftNumber != null && rightNumber != null) return leftNumber.compareTo(rightNumber) == 0
+    return left == right || sameText(left, right) || sameText(right, left)
+}
+
+private fun sameText(literal: ItemDataValue, typed: ItemDataValue): Boolean = literal is StringDataValue && when (typed) {
+    is NamespacedKeyDataValue -> typed.value.toString() == literal.value
+    is UuidDataValue -> typed.value.toString() == literal.value
+    else -> false
+}
+
 private fun numericValue(value: ItemDataValue): BigDecimal? = when (value) {
     is IntegerDataValue -> BigDecimal.valueOf(value.value.toLong())
     is LongDataValue -> BigDecimal.valueOf(value.value)

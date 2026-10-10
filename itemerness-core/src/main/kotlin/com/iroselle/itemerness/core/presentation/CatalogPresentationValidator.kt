@@ -235,13 +235,27 @@ object CatalogPresentationValidator {
         val right = condition.right?.let {
             referenceKind(it, "$path.right", item, domain, presentation, diagnostics)
         }
-        if (left != null && right != null && !left.comparableWith(right)) {
+        if (left != null && right != null && !left.comparableWith(right) && !textLiteralCompares(condition, left, right)) {
             diagnostics += CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_VALUE,
                 path,
                 "Condition operands ${left.label} and ${right.label} are not comparable",
             )
         }
+    }
+
+    /** A string literal may name a key or UUID in an equality, matching the runtime comparison. */
+    private fun textLiteralCompares(condition: CompiledCondition, left: ValueKind, right: ValueKind): Boolean {
+        if (condition.operator != ConditionOperator.EQUALS && condition.operator != ConditionOperator.NOT_EQUALS) return false
+        fun literalFits(reference: CompiledValueReference?, kind: ValueKind): Boolean {
+            val text = ((reference as? CompiledValueReference.Literal)?.value as? StringDataValue)?.value ?: return false
+            return when (kind) {
+                ValueKind.NAMESPACED_KEY -> runCatching { ItemKey.parse(text) }.isSuccess
+                ValueKind.UUID -> runCatching { java.util.UUID.fromString(text) }.isSuccess
+                else -> false
+            }
+        }
+        return literalFits(condition.right, left) || literalFits(condition.left, right)
     }
 
     private fun referenceKind(

@@ -321,8 +321,8 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         if (condition.operator == ConditionOperator.EXISTS) return left != null
         val right = condition.right?.let { resolveReference(it, request) }
         return when (condition.operator) {
-            ConditionOperator.EQUALS -> left == right
-            ConditionOperator.NOT_EQUALS -> left != right
+            ConditionOperator.EQUALS -> presentationValuesEqual(left, right)
+            ConditionOperator.NOT_EQUALS -> !presentationValuesEqual(left, right)
             ConditionOperator.LESS_THAN -> comparePresentationValues(left, right)?.let { it < 0 } ?: false
             ConditionOperator.LESS_THAN_OR_EQUAL -> comparePresentationValues(left, right)?.let { it <= 0 } ?: false
             ConditionOperator.GREATER_THAN -> comparePresentationValues(left, right)?.let { it > 0 } ?: false

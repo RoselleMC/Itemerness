@@ -5,12 +5,16 @@ import com.iroselle.itemerness.api.IntegerDataValue
 import com.iroselle.itemerness.api.ItemDataValue
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.api.NamespacedKeyDataValue
+import com.iroselle.itemerness.api.LongDataValue
+import com.iroselle.itemerness.api.StringDataValue
+import com.iroselle.itemerness.api.UuidDataValue
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class ThemeSelectorTest {
     private val selectorId = "example:quality-frame"
@@ -200,5 +204,33 @@ class ThemeSelectorTest {
         assertEquals(PresentationDiagnosticCode.INVALID_VALUE, diagnostic?.code, found.joinToString())
         assertTrue(diagnostic!!.message.contains("itemerness:aurora-canvas"))
         assertNull(diagnostics(source()).firstOrNull { it.path == "items.$itemId.layout" })
+    }
+
+    @Test
+    fun `an authored string literal selects namespaced key data`() {
+        val authored = selector(cases = listOf(case(
+            ConditionOperator.EQUALS,
+            ValueReferenceSource.Data(PresentationFixtures.quality.toString()),
+            ValueReferenceSource.Literal(StringDataValue("example:rare")),
+            "itemerness:vanilla-frame",
+        )))
+        val engine = PresentationEngine(PresentationFixtures.compile(source(selectors = listOf(authored))))
+        val result = engine.render(PresentationRenderRequest(
+            ItemKey.parse(itemId),
+            mapOf(PresentationFixtures.quality to NamespacedKeyDataValue(ItemKey.parse("example:rare"))),
+            PresentationViewer("en_us"),
+        ))
+        val display = assertInstanceOf(PresentationRenderResult.Rendered::class.java, result).display
+        assertEquals(ItemKey.parse("itemerness:vanilla-frame"), display.selectedTheme)
+    }
+
+    @Test
+    fun `condition equality compares numbers by value and keys or uuids by text`() {
+        assertTrue(presentationValuesEqual(LongDataValue(3), IntegerDataValue(3)))
+        assertTrue(presentationValuesEqual(StringDataValue("example:rare"), NamespacedKeyDataValue(ItemKey.parse("example:rare"))))
+        assertFalse(presentationValuesEqual(StringDataValue("example:common"), NamespacedKeyDataValue(ItemKey.parse("example:rare"))))
+        val uuid = UUID.fromString("00000000-0000-4000-8000-000000000001")
+        assertTrue(presentationValuesEqual(UuidDataValue(uuid), StringDataValue(uuid.toString())))
+        assertFalse(presentationValuesEqual(StringDataValue("3"), IntegerDataValue(3)))
     }
 }
