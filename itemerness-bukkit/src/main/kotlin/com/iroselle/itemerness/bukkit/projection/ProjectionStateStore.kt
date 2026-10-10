@@ -21,6 +21,8 @@ import com.iroselle.itemerness.core.presentation.PresentationRenderRequest
 import com.iroselle.itemerness.core.presentation.PresentationRenderResult
 import com.iroselle.itemerness.core.presentation.PresentationTextRun
 import com.iroselle.itemerness.core.presentation.PresentationViewer
+import com.iroselle.itemerness.core.presentation.ResourcePackBinding
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
 import com.iroselle.itemerness.projection.BooleanProjectionValue
 import com.iroselle.itemerness.projection.DecimalProjectionValue
@@ -293,6 +295,18 @@ internal class ProjectionStateStore : ProjectionContextSource,
         sha1: String,
     ): ItemKey? = matchAssetProfile(ownedCatalog(retainedCatalog), packId, sha1)
 
+    /** The enabled binding whose exact pack id and SHA-1 a client verifiably loaded, regardless of its delivery. */
+    fun matchResourcePackBinding(
+        retainedCatalog: ProjectionCatalogHandle,
+        packId: UUID,
+        sha1: String,
+    ): ResourcePackBinding? = matchResourcePackBinding(ownedCatalog(retainedCatalog), packId, sha1)
+
+    /** The enabled binding the operator declared present for every viewer; the compiler admits at most one. */
+    fun assumedResourcePackBinding(retainedCatalog: ProjectionCatalogHandle): ResourcePackBinding? =
+        ownedCatalog(retainedCatalog).presentation.resourcePackBindings.values
+            .firstOrNull { binding -> binding.enabled && binding.delivery == ResourcePackDelivery.ASSUMED }
+
     fun capabilities(
         catalogRevision: Long,
         assetProfile: ItemKey,
@@ -531,14 +545,19 @@ internal class ProjectionStateStore : ProjectionContextSource,
         catalog: PublishedProjectionCatalog,
         packId: UUID,
         sha1: String,
-    ): ItemKey? = catalog.presentation.resourcePackBindings.values
+    ): ItemKey? = matchResourcePackBinding(catalog, packId, sha1)?.assetProfile
+
+    private fun matchResourcePackBinding(
+        catalog: PublishedProjectionCatalog,
+        packId: UUID,
+        sha1: String,
+    ): ResourcePackBinding? = catalog.presentation.resourcePackBindings.values
         .firstOrNull { binding ->
             binding.enabled &&
                 binding.packId == packId &&
                 binding.sha1 != null &&
                 binding.sha1.equals(sha1, ignoreCase = true)
         }
-        ?.assetProfile
 
     private data class PublishedProjectionCatalog(
         val owner: Any,

@@ -27,7 +27,9 @@ internal object AssetYamlEncoding {
         "asset-profiles" to source.assetProfiles.associate { profile -> profile.id to map("capabilities" to profile.capabilities,
             "metrics-revision" to profile.metricsRevision, "fallback" to profile.fallback) },
         "resource-pack-bindings" to source.resourcePackBindings.associate { binding -> binding.id to map("enabled" to binding.enabled,
-            "pack-id" to binding.packId?.toString(), "sha1" to binding.sha1, "asset-profile" to binding.assetProfile) },
+            "pack-id" to binding.packId?.toString(), "sha1" to binding.sha1, "asset-profile" to binding.assetProfile,
+            // Verified is the default; omitting it keeps existing files and exports byte-identical.
+            "delivery" to binding.delivery.takeIf { it != ResourcePackDelivery.VERIFIED }?.let(YamlEncoding::enum)) },
         "spacing" to source.spacing?.let { map("negative" to range(it.font, it.negative), "positive" to range(it.font, it.positive)) },
     )
 

@@ -134,3 +134,21 @@ export function usesThemeSelectors(
 ): boolean {
     return Object.hasOwn(document, "themeSelectors");
 }
+
+export const RESOURCE_PACK_DELIVERY_CAPABILITY =
+    "assets.resource-pack-bindings.delivery";
+
+export function supportsResourcePackDelivery(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(RESOURCE_PACK_DELIVERY_CAPABILITY) === true;
+}
+
+/** Old strict decoders reject a binding `delivery` property, even VERIFIED. */
+export function usesResourcePackDelivery(
+    document: Pick<ProjectDocument, "resourcePackBindings">,
+): boolean {
+    return document.resourcePackBindings.some((binding) =>
+        Object.hasOwn(binding, "delivery"),
+    );
+}

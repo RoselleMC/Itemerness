@@ -218,6 +218,96 @@ class PresentationCompilerTest {
     }
 
     @Test
+    fun `assumed delivery needs no pack identity`() {
+        val assumed = ResourcePackBindingSource(
+            id = "itemerness:example-pack-v1",
+            enabled = true,
+            assetProfile = "itemerness:example-pack-v1",
+            delivery = ResourcePackDelivery.ASSUMED,
+        )
+
+        val compilation = PresentationCompiler().compile(
+            copySource(PresentationFixtures.source(), bindings = listOf(assumed)),
+        )
+
+        assertTrue(compilation.successful, compilation.diagnostics.joinToString())
+        val binding = requireNotNull(compilation.catalog).resourcePackBindings.values.single()
+        assertEquals(ResourcePackDelivery.ASSUMED, binding.delivery)
+        assertEquals(null, binding.packId)
+        assertEquals(null, binding.sha1)
+    }
+
+    @Test
+    fun `assumed delivery still rejects placeholder or malformed pack identity`() {
+        val assumed = ResourcePackBindingSource(
+            id = "itemerness:example-pack-v1",
+            enabled = true,
+            packId = UUID(0, 0),
+            sha1 = "not-a-sha1",
+            assetProfile = "itemerness:example-pack-v1",
+            delivery = ResourcePackDelivery.ASSUMED,
+        )
+
+        val compilation = PresentationCompiler().compile(
+            copySource(PresentationFixtures.source(), bindings = listOf(assumed)),
+        )
+
+        assertFalse(compilation.successful)
+        assertTrue(compilation.diagnostics.any { it.code == PresentationDiagnosticCode.INVALID_VALUE && it.path.endsWith(".pack-id") })
+        assertTrue(compilation.diagnostics.any { it.code == PresentationDiagnosticCode.INVALID_VALUE && it.path.endsWith(".sha1") })
+    }
+
+    @Test
+    fun `at most one enabled binding may use assumed delivery`() {
+        fun assumed(id: String, enabled: Boolean = true) = ResourcePackBindingSource(
+            id = id,
+            enabled = enabled,
+            assetProfile = "itemerness:example-pack-v1",
+            delivery = ResourcePackDelivery.ASSUMED,
+        )
+
+        val rejected = PresentationCompiler().compile(
+            copySource(PresentationFixtures.source(), bindings = listOf(assumed("example:first"), assumed("example:second"))),
+        )
+        val accepted = PresentationCompiler().compile(
+            copySource(
+                PresentationFixtures.source(),
+                bindings = listOf(assumed("example:first"), assumed("example:second", enabled = false)),
+            ),
+        )
+
+        assertFalse(rejected.successful)
+        assertTrue(rejected.diagnostics.any { it.path == "resource-pack-bindings[1].delivery" })
+        assertTrue(accepted.successful, accepted.diagnostics.joinToString())
+    }
+
+    @Test
+    fun `assumed delivery keeps the duplicate enabled pack id rule`() {
+        val packId = UUID.fromString("7b3f1c2a-0000-4000-8000-000000000001")
+        val verified = ResourcePackBindingSource(
+            "example:verified",
+            true,
+            packId,
+            "1".repeat(40),
+            "itemerness:example-pack-v1",
+        )
+        val assumed = ResourcePackBindingSource(
+            id = "example:assumed",
+            enabled = true,
+            packId = packId,
+            assetProfile = "itemerness:example-pack-v1",
+            delivery = ResourcePackDelivery.ASSUMED,
+        )
+
+        val compilation = PresentationCompiler().compile(
+            copySource(PresentationFixtures.source(), bindings = listOf(verified, assumed)),
+        )
+
+        assertFalse(compilation.successful)
+        assertTrue(compilation.diagnostics.any { it.code == PresentationDiagnosticCode.DUPLICATE_ID && it.path.endsWith(".pack-id") })
+    }
+
+    @Test
     fun `disabled item presentations are validated but omitted from the published snapshot`() {
         val items = PresentationFixtures.items().map { item ->
             if (item.id == "itemerness:travel-token") {

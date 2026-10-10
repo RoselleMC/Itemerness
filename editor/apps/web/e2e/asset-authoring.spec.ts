@@ -295,6 +295,55 @@ test("profiles, pack bindings and tooltip styles expose all runtime fields with 
     );
 });
 
+test("pack binding delivery is written only when assumed and undoes like other inspector edits", async ({
+    page,
+}) => {
+    const plugin = await mockPlugin(page);
+    await enter(page, "resourcePackBindings");
+    await page.getByTestId("asset-entry-itemerness:example-pack-v1").click();
+    const delivery = page.getByTestId("asset-delivery");
+    await expect(delivery).toHaveAttribute("data-field-value", "VERIFIED");
+    await expect(page.getByTestId("asset-delivery-hint")).toContainText(
+        "a granted plugin reports",
+    );
+
+    await page.getByTestId("asset-bindingEnabled").check();
+    await chooseValue(page, delivery, "ASSUMED");
+    await expect(page.getByTestId("asset-delivery-hint")).toContainText(
+        "Treat every viewer as having this pack",
+    );
+    await expect(page.getByText("Pack UUID (optional)")).toBeVisible();
+    await expect(page.getByText("SHA-1 (optional)")).toBeVisible();
+    await commit(page, "asset-packId", "");
+    await commit(page, "asset-sha1", "");
+    await save(page);
+    await expect
+        .poll(() => plugin.writes.at(-1)?.document.resourcePackBindings[0])
+        .toMatchObject({
+            enabled: true,
+            delivery: "ASSUMED",
+            packId: null,
+            sha1: null,
+        });
+
+    await chooseValue(page, delivery, "VERIFIED");
+    await expect(page.getByText("Pack UUID", { exact: true })).toBeVisible();
+    await applicationMenuAction(page, "edit", "undo");
+    await expect(delivery).toHaveAttribute("data-field-value", "ASSUMED");
+    await applicationMenuAction(page, "edit", "redo");
+    await expect(delivery).toHaveAttribute("data-field-value", "VERIFIED");
+    await commit(page, "asset-packId", "10000000-0000-4000-8000-000000000002");
+    await commit(page, "asset-sha1", "b".repeat(40));
+    await save(page);
+    await expect
+        .poll(
+            () => plugin.writes.at(-1)?.document.resourcePackBindings[0]?.sha1,
+        )
+        .toBe("b".repeat(40));
+    const verified = plugin.writes.at(-1)!.document.resourcePackBindings[0]!;
+    expect(Object.hasOwn(verified, "delivery")).toBe(false);
+});
+
 test("spacing creation is explicit and validates signed ranges without saving a pending policy", async ({
     page,
 }) => {

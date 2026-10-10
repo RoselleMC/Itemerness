@@ -220,6 +220,9 @@ export const assetProfileNodeSchema = z.strictObject({
 });
 export type AssetProfileNode = z.infer<typeof assetProfileNodeSchema>;
 
+export const resourcePackDeliverySchema = z.enum(["VERIFIED", "ASSUMED"]);
+export type ResourcePackDelivery = z.infer<typeof resourcePackDeliverySchema>;
+
 export const resourcePackBindingNodeSchema = z
     .strictObject({
         ...nodeIdentity,
@@ -228,6 +231,12 @@ export const resourcePackBindingNodeSchema = z
         packId: uuidSchema.nullable().default(null),
         sha1: z.string().nullable().default(null),
         assetProfile: namespacedIdSchema,
+        /**
+         * Absent means VERIFIED: active only once the client is observed or
+         * reported loading this exact pack. ASSUMED treats every viewer as
+         * having it. Kept absent when verified so existing hashes are stable.
+         */
+        delivery: resourcePackDeliverySchema.optional(),
     })
     .superRefine((binding, context) => {
         if (

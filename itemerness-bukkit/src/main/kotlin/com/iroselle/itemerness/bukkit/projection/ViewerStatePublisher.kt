@@ -25,6 +25,8 @@ import com.iroselle.itemerness.bukkit.placeholder.PlaceholderSnapshotStore
 import com.iroselle.itemerness.bukkit.placeholder.PlaceholderViewerSnapshot
 import com.iroselle.itemerness.bukkit.spi.BukkitCanonicalItemBridge
 import com.iroselle.itemerness.bukkit.spi.CanonicalItemInspection
+import com.iroselle.itemerness.core.presentation.ResourcePackBinding
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.ViewerFactResolver
 import com.iroselle.itemerness.core.presentation.ViewerFactStore
 import com.iroselle.itemerness.core.presentation.ApiViewerFactSnapshot
@@ -181,11 +183,17 @@ internal class ViewerStatePublisher(
         val runtime = captureState.runtime
         val clientLocale = normalizeLocale(player.locale())
         val pack = packs[player.uniqueId]
-        val bukkitProfile = pack?.takeIf { it.loaded }
+        val verified = pack?.takeIf { it.loaded }
             ?.verifiedSha1
-            ?.let { sha1 -> projection.matchAssetProfile(captureState.catalogHandle, pack.id, sha1) }
+            ?.let { sha1 -> projection.matchResourcePackBinding(captureState.catalogHandle, pack.id, sha1) }
+        // Only a verified binding proven by evidence counts; an assumed binding is active without any, so
+        // counting it would hide a verified binding that never matches.
+        if (verified?.delivery == ResourcePackDelivery.VERIFIED) boundProfileSeen.set(true)
+        val bukkitProfile = verified?.assetProfile
+            ?: projection.assumedResourcePackBinding(captureState.catalogHandle)
+                ?.takeUnless { assumed -> pack.contradicts(assumed) }
+                ?.assetProfile
             ?: VANILLA_PROFILE
-        if (bukkitProfile != VANILLA_PROFILE) boundProfileSeen.set(true)
         val resolvedFacts = ViewerFactResolver.resolve(
             runtime.presentation,
             mapOf(
@@ -430,7 +438,8 @@ internal class ViewerStatePublisher(
 
     /**
      * A binding that never matches is otherwise silent: every viewer just falls back to vanilla.
-     * Warn once while bindings are enabled, viewers are online, and none matched in a full period.
+     * Warn once while verified bindings are enabled, viewers are online, and none matched in a full period.
+     * Assumed bindings need no evidence and are reported once at publication instead.
      */
     private fun checkUnmatchedBindings() {
         if (closed) return
@@ -440,7 +449,7 @@ internal class ViewerStatePublisher(
         }
         if (unmatchedBindingsReported || plugin.server.onlinePlayers.isEmpty()) return
         val enabled = catalog.snapshot()?.presentation?.resourcePackBindings?.values
-            ?.filter { binding -> binding.enabled }
+            ?.filter { binding -> binding.enabled && binding.delivery == ResourcePackDelivery.VERIFIED }
             ?.map { binding -> binding.id }
             .orEmpty()
         if (enabled.isEmpty()) return
@@ -801,6 +810,14 @@ internal class ViewerStatePublisher(
         val loaded: Boolean,
         val verifiedSha1: String?,
     )
+
+    /**
+     * An assumed pack is withdrawn only by the client's own status for that exact pack id saying it is not loaded
+     * (declined, failed, discarded, or still downloading). Statuses for other packs say nothing about it, and an
+     * assumed binding without a pack id cannot be contradicted.
+     */
+    private fun PackState?.contradicts(assumed: ResourcePackBinding): Boolean =
+        this != null && assumed.packId != null && id == assumed.packId && !loaded
 
     private companion object {
         const val HEARTBEAT_TICKS = 200L

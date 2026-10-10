@@ -9,6 +9,7 @@ import com.iroselle.itemerness.core.presentation.ConditionOperator
 import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
 import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
 import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
@@ -92,6 +93,40 @@ class ProjectDocumentEncoderTest {
         val defaulted = JsonObject.of(JsonValue.Obj(encoded.entries + ("defaultTheme" to JsonValue.Text("example:charge-frame")) +
             ("defaultLayout" to JsonValue.Text("itemerness:plain"))), "document")
         assertEquals("example:charge-frame", ProjectDocumentCodec.decode(defaulted, metrics).defaultTheme)
+    }
+
+    @Test
+    fun `resource-pack delivery is written only when assumed and unknown values are rejected`() {
+        val original = ProjectDocumentCodec.decode(fixture, metrics)
+        val plain = JsonObject.of(
+            encoder.encode(original.namespace, original.defaultLocale, original.catalog, original.presentation, assets, policies),
+            "plain",
+        )
+        assertTrue(plain.requiredObjects("resourcePackBindings").isNotEmpty())
+        assertTrue(plain.requiredObjects("resourcePackBindings").all { "delivery" !in it.keys })
+
+        val presentation = original.presentation
+        val assumed = PresentationSource(
+            formats = presentation.formats, locales = presentation.locales, fonts = presentation.fonts, glyphs = presentation.glyphs,
+            bitmaps = presentation.bitmaps, assetProfiles = presentation.assetProfiles, viewerFacts = presentation.viewerFacts,
+            resourcePackBindings = presentation.resourcePackBindings.map { binding ->
+                binding.copy(delivery = ResourcePackDelivery.ASSUMED, packId = null, sha1 = null)
+            },
+            layouts = presentation.layouts, themes = presentation.themes,
+            items = presentation.items, spacing = presentation.spacing, tooltipStyles = presentation.tooltipStyles,
+            themeSelectors = presentation.themeSelectors,
+        )
+        val encoded = encoder.encode(original.namespace, original.defaultLocale, original.catalog, assumed, assets, policies)
+        val root = JsonObject.of(encoded, "encoded")
+        assertTrue(root.requiredObjects("resourcePackBindings").all { it.requiredString("delivery") == "ASSUMED" })
+        val decoded = ProjectDocumentCodec.decode(root, metrics)
+        assertEquals(assumed.resourcePackBindings, decoded.presentation.resourcePackBindings)
+        val repeated = encoder.encode(decoded.namespace, decoded.defaultLocale, decoded.catalog, decoded.presentation, assets, policies)
+        assertEquals(Json.canonicalize(encoded), Json.canonicalize(repeated))
+
+        assertThrows(JsonException::class.java) {
+            ProjectDocumentCodec.decode(JsonObject.parse(Json.canonicalize(encoded).replace("\"ASSUMED\"", "\"PROXY\""), "document"), metrics)
+        }
     }
 
     @Test

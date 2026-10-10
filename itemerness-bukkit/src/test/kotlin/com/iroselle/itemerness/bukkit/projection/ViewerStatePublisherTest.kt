@@ -61,6 +61,9 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import org.bukkit.Material
 import org.bukkit.Server
 import org.bukkit.entity.Player
@@ -79,6 +82,16 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 
 class ViewerStatePublisherTest {
+    private companion object {
+        val VERIFIED_PACK: UUID = UUID.fromString("7b3f1c2a-0000-4000-8000-000000000001")
+        val ASSUMED_PACK: UUID = UUID.fromString("7b3f1c2a-0000-4000-8000-000000000002")
+        val VERIFIED_SHA1 = "1".repeat(40)
+        val VERIFIED_PROFILE: ItemKey = ItemKey.parse("example:verified-v1")
+        val ASSUMED_PROFILE: ItemKey = ItemKey.parse("itemerness:example-pack-v1")
+        val VANILLA: ItemKey = ItemKey.parse("itemerness:vanilla")
+        val RESOURCE_PACK_READY: ItemKey = ItemKey.parse("itemerness:resource-pack-ready")
+    }
+
     @TempDir
     lateinit var directory: Path
 
@@ -727,6 +740,221 @@ class ViewerStatePublisherTest {
         assertEquals("Rare", snapshot[quality])
         assertEquals("Harbor Travel Token", snapshot.namePlain)
         publisher.close()
+    }
+
+    @Test
+    fun `verified evidence outranks an assumed pack and contrary status for that pack reverts to vanilla`() {
+        configureBindings(
+            """
+            example:verified:
+              enabled: true
+              pack-id: $VERIFIED_PACK
+              sha1: "$VERIFIED_SHA1"
+              asset-profile: example:verified-v1
+            example:assumed:
+              enabled: true
+              delivery: assumed
+              pack-id: $ASSUMED_PACK
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        withCapturingPublisher { publisher, projection, capture ->
+            val viewerId = UUID.randomUUID()
+            val player = player(viewerId, inventory = inventory(TestItemStack(false), TestItemStack(false)))
+            fun profile(): Pair<ItemKey?, Boolean> {
+                capture(player)
+                val viewer = checkNotNull(projection.viewer(viewerId))
+                val ready = viewer.facts.single { fact -> fact.key == RESOURCE_PACK_READY }.value
+                return viewer.assetProfile to (ready as BooleanProjectionValue).value
+            }
+
+            assertEquals(ASSUMED_PROFILE to true, profile(), "An assumed pack needs no status")
+            setPack(publisher, viewerId, VERIFIED_PACK, loaded = true, sha1 = VERIFIED_SHA1)
+            assertEquals(VERIFIED_PROFILE to true, profile(), "Verified evidence wins over the assumption")
+            setPack(publisher, viewerId, ASSUMED_PACK, loaded = false, sha1 = null)
+            assertEquals(VANILLA to false, profile(), "A non-loaded status for the assumed pack contradicts it")
+            setPack(publisher, viewerId, UUID.randomUUID(), loaded = false, sha1 = null)
+            assertEquals(ASSUMED_PROFILE to true, profile(), "Another pack's status says nothing about the assumed pack")
+            setPack(publisher, viewerId, ASSUMED_PACK, loaded = true, sha1 = null)
+            assertEquals(ASSUMED_PROFILE to true, profile(), "A loaded but unverifiable assumed pack stays assumed")
+            setPack(publisher, viewerId, VERIFIED_PACK, loaded = false, sha1 = VERIFIED_SHA1)
+            assertEquals(ASSUMED_PROFILE to true, profile(), "A declined verified pack falls back to the assumption")
+        }
+    }
+
+    @Test
+    fun `an assumed binding without a pack id cannot be contradicted`() {
+        configureBindings(
+            """
+            example:assumed:
+              enabled: true
+              delivery: assumed
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        withCapturingPublisher { publisher, projection, capture ->
+            val viewerId = UUID.randomUUID()
+            val player = player(viewerId, inventory = inventory(TestItemStack(false), TestItemStack(false)))
+            assertTrue(capture(player))
+            assertEquals(ASSUMED_PROFILE, checkNotNull(projection.viewer(viewerId)).assetProfile)
+            setPack(publisher, viewerId, ASSUMED_PACK, loaded = false, sha1 = null)
+            assertFalse(capture(player), "The status must not change the published viewer")
+            assertEquals(ASSUMED_PROFILE, checkNotNull(projection.viewer(viewerId)).assetProfile)
+        }
+    }
+
+    @Test
+    fun `unmatched binding warning ignores assumed bindings and assumed matches`() {
+        configureBindings(
+            """
+            example:verified:
+              enabled: true
+              pack-id: $VERIFIED_PACK
+              sha1: "$VERIFIED_SHA1"
+              asset-profile: example:verified-v1
+            example:assumed:
+              enabled: true
+              delivery: assumed
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        val records = CopyOnWriteArrayList<String>()
+        withCapturingPublisher(records) { publisher, projection, capture ->
+            val viewerId = UUID.randomUUID()
+            val player = player(viewerId, inventory = inventory(TestItemStack(false), TestItemStack(false)))
+            assertTrue(capture(player))
+            assertEquals(ASSUMED_PROFILE, checkNotNull(projection.viewer(viewerId)).assetProfile)
+            invokePrivate(publisher, "checkUnmatchedBindings")
+            assertEquals(1, records.size, records.joinToString())
+            assertTrue("example:verified" in records.single())
+            assertFalse("example:assumed" in records.single())
+        }
+
+        configureBindings(
+            """
+            example:assumed:
+              enabled: true
+              delivery: assumed
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        records.clear()
+        withCapturingPublisher(records) { publisher, _, capture ->
+            assertTrue(capture(player(UUID.randomUUID(), inventory = inventory(TestItemStack(false), TestItemStack(false)))))
+            invokePrivate(publisher, "checkUnmatchedBindings")
+            assertTrue(records.isEmpty(), records.joinToString())
+        }
+    }
+
+    @Test
+    fun `assumed delivery is announced once per published catalog`() {
+        configureBindings(
+            """
+            example:assumed:
+              enabled: true
+              delivery: assumed
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        val assumed = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
+        val notice = checkNotNull(ResourcePackDeliveryNotice.describe(assumed.presentation))
+        assertTrue("example:assumed" in notice && "not verified" in notice && "Geyser" in notice, notice)
+
+        configureBindings(
+            """
+            example:assumed:
+              enabled: false
+              delivery: assumed
+              asset-profile: itemerness:example-pack-v1
+            """,
+        )
+        val disabled = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
+        assertNull(ResourcePackDeliveryNotice.describe(disabled.presentation))
+    }
+
+    /** Replaces the bundled bindings and adds a distinct profile so verified and assumed results differ. */
+    private fun configureBindings(bindings: String) {
+        if (!Files.exists(directory.resolve("config.yml"))) installBundledResources()
+        val bundled = checkNotNull(javaClass.classLoader.getResourceAsStream("assets/bitmaps.yml"))
+            .use { input -> String(input.readAllBytes(), Charsets.UTF_8) }
+        val start = bundled.indexOf("resource-pack-bindings:\n")
+        val end = bundled.indexOf("\nbitmaps:\n")
+        check(start >= 0 && end > start)
+        val profiles = "asset-profiles:\n  example:verified-v1:\n    capabilities: []\n    fallback: itemerness:vanilla\n\n"
+        Files.writeString(
+            directory.resolve("assets/bitmaps.yml"),
+            bundled.substring(0, start).replaceFirst("asset-profiles:\n", profiles) +
+                "resource-pack-bindings:\n" + bindings.trimIndent().prependIndent("  ") + "\n" + bundled.substring(end),
+        )
+    }
+
+    private fun withCapturingPublisher(
+        records: MutableList<String> = CopyOnWriteArrayList(),
+        test: (ViewerStatePublisher, ProjectionStateStore, (Player) -> Boolean) -> Unit,
+    ) {
+        val catalog = RuntimeCatalogManager(directory, "26.1.2")
+        val published = catalog.reload()
+        require(published is RuntimeCatalogUpdate.Published) { published.diagnostics.joinToString() }
+        val projection = ProjectionStateStore().also { state ->
+            state.publishCatalog(published.active, published.active.presentation)
+        }
+        val logger = Logger.getAnonymousLogger().apply {
+            useParentHandlers = false
+            addHandler(object : Handler() {
+                override fun publish(record: LogRecord) {
+                    records += record.message
+                }
+
+                override fun flush() = Unit
+
+                override fun close() = Unit
+            })
+        }
+        val online = player(UUID.randomUUID())
+        val server = proxy<Server> { _, method, _ ->
+            when (method.name) {
+                "getOnlinePlayers" -> listOf(online)
+                else -> defaultValue(method.returnType)
+            }
+        }
+        val plugin = proxy<Plugin> { proxy, method, arguments ->
+            when (method.name) {
+                "getServer" -> server
+                "getLogger" -> logger
+                "getName" -> "ViewerStatePublisherTest"
+                "isEnabled" -> true
+                "equals" -> proxy === arguments?.singleOrNull()
+                "hashCode" -> System.identityHashCode(proxy)
+                else -> defaultValue(method.returnType)
+            }
+        }
+        val bridge = proxy<BukkitCanonicalItemBridge> { _, method, _ ->
+            when (method.name) {
+                "inspect" -> CanonicalItemInspection.Unmanaged
+                else -> defaultValue(method.returnType)
+            }
+        }
+        val publisher = publisher(plugin = plugin, catalog = catalog, bridge = bridge, projection = projection)
+        try {
+            test(publisher, projection) { player -> publisher.capture(player) }
+        } finally {
+            publisher.close()
+        }
+    }
+
+    private fun setPack(
+        publisher: ViewerStatePublisher,
+        viewerId: UUID,
+        packId: UUID,
+        loaded: Boolean,
+        sha1: String?,
+    ) {
+        val type = ViewerStatePublisher::class.java.declaredClasses.single { it.simpleName == "PackState" }
+        val constructor = type.declaredConstructors.single { it.parameterCount == 3 }.apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val packs = ViewerStatePublisher::class.java.getDeclaredField("packs").apply { isAccessible = true }
+            .get(publisher) as MutableMap<UUID, Any>
+        packs[viewerId] = constructor.newInstance(packId, loaded, sha1)
     }
 
     private fun publisher(

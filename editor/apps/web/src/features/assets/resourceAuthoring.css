@@ -126,6 +126,12 @@
     width: 100%;
     max-width: 100%;
 }
+.asset-field-hint {
+    margin: -6px 0 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--muted);
+}
 .asset-field-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

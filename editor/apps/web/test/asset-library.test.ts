@@ -188,6 +188,45 @@ describe("resource declaration factories and validation", () => {
             "bitmapSourceRequired",
         );
     });
+    it("lets assumed delivery omit pack identity but allows only one enabled assumed binding", () => {
+        const doc = document();
+        const value = {
+            ...(newAsset(
+                doc,
+                "resourcePackBindings",
+            ) as ResourcePackBindingNode),
+            enabled: true,
+            delivery: "ASSUMED" as const,
+        };
+        expect(assetError(doc, "resourcePackBindings", value)).toBeNull();
+        expect(
+            assetError(doc, "resourcePackBindings", {
+                ...value,
+                packId: "00000000-0000-0000-0000-000000000000",
+            }),
+        ).toBe("bindingUuid");
+        expect(
+            assetError(doc, "resourcePackBindings", {
+                ...value,
+                sha1: "0".repeat(40),
+            }),
+        ).toBe("bindingSha1");
+        doc.resourcePackBindings.push(value);
+        const second = {
+            ...value,
+            uuid: crypto.randomUUID(),
+            id: "test:second",
+        };
+        expect(assetError(doc, "resourcePackBindings", second)).toBe(
+            "duplicateAssumedDelivery",
+        );
+        expect(
+            assetError(doc, "resourcePackBindings", {
+                ...second,
+                enabled: false,
+            }),
+        ).toBeNull();
+    });
     it("requires enabled binding identity and detects duplicate active pack UUIDs", () => {
         const doc = document();
         const value = newAsset(

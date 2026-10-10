@@ -14,6 +14,9 @@ asset-profiles:
     fallback: itemerness:vanilla
 
 # Replace this disabled example with the exact UUID and SHA-1 used by the server resource-pack push.
+# delivery: verified (default) activates a binding only after this server observes, or a granted plugin reports,
+# that the client loaded this exact pack. delivery: assumed treats every viewer as having the pack; use it only
+# when the pack is mandatory and every client can load it. pack-id and sha1 are optional for assumed delivery.
 resource-pack-bindings:
   itemerness:example-pack-v1:
     enabled: false

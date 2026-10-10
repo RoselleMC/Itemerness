@@ -163,6 +163,7 @@ data class ResourcePackBinding(
     val packId: UUID?,
     val sha1: String?,
     val assetProfile: ItemKey,
+    val delivery: ResourcePackDelivery = ResourcePackDelivery.VERIFIED,
 )
 
 sealed interface CompiledLayout {

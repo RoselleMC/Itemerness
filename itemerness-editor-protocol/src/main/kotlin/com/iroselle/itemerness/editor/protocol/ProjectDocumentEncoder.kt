@@ -11,6 +11,7 @@ import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.editor.protocol.DocumentEncoding.obj
@@ -65,7 +66,11 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
         ) },
         "resourcePackBindings" to presentation.resourcePackBindings.map { binding -> node("bindings", binding.id,
             "id" to binding.id, "enabled" to binding.enabled, "packId" to binding.packId?.toString(), "sha1" to binding.sha1, "assetProfile" to binding.assetProfile,
-        ) },
+        ).let { node ->
+            // Verified delivery stays absent so existing documents keep their canonical hash.
+            if (binding.delivery == ResourcePackDelivery.VERIFIED) node
+            else JsonValue.Obj(node.entries + ("delivery" to JsonValue.Text(binding.delivery.name)))
+        } },
         "viewerFacts" to presentation.viewerFacts.map { fact -> node("facts", fact.id,
             "id" to fact.id, "type" to fact.type, "providers" to fact.providers, "defaultValue" to fact.defaultValue?.let(DocumentEncoding::typedValue),
             "nullable" to fact.nullable, "cacheKey" to fact.cacheKey, "previewValue" to null,

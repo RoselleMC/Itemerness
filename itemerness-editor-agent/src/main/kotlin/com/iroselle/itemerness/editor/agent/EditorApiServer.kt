@@ -240,7 +240,7 @@ class EditorApiServer(
         "capabilities" to JsonValue.Arr((listOf(
             "draft.read", "draft.write", "presentation.segmented-frame.decorations",
             "catalog.base-components.attributes-enchantments", "catalog.data-keys.field-constraints",
-            "catalog.data-schemas.owner", "presentation.theme-selectors",
+            "catalog.data-schemas.owner", "presentation.theme-selectors", "assets.resource-pack-bindings.delivery",
         ) +
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +

@@ -57,6 +57,7 @@ import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationSource
 import com.iroselle.itemerness.core.presentation.ResourcePackBindingSource
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.SegmentedFrameSource
 import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
@@ -565,13 +566,18 @@ object ProjectDocumentCodec {
     }
 
     private fun resourcePackBinding(node: JsonObject): ResourcePackBindingSource {
-        node.rejectUnknown("uuid", "extensions", "id", "enabled", "packId", "sha1", "assetProfile")
+        node.rejectUnknown("uuid", "extensions", "id", "enabled", "packId", "sha1", "assetProfile", "delivery")
         return ResourcePackBindingSource(
             id = node.requiredString("id"),
             enabled = node.requiredBoolean("enabled"),
             packId = node.optionalString("packId")?.let(UUID::fromString),
             sha1 = node.optionalString("sha1"),
             assetProfile = node.requiredString("assetProfile"),
+            delivery = when (val delivery = node.optionalString("delivery")) {
+                null, "VERIFIED" -> ResourcePackDelivery.VERIFIED
+                "ASSUMED" -> ResourcePackDelivery.ASSUMED
+                else -> throw JsonException("Unsupported resource-pack delivery $delivery")
+            },
         )
     }
 

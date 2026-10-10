@@ -343,6 +343,7 @@ class PresentationCompiler(
     ): Map<ItemKey, ResourcePackBinding> {
         val result = TreeMap<ItemKey, ResourcePackBinding>()
         val enabledPackIds = HashSet<UUID>()
+        var assumedBinding: ItemKey? = null
         sources.forEachIndexed { index, source ->
             val path = "resource-pack-bindings[$index]"
             val id = parseKey(source.id, "$path.id", diagnostics) ?: return@forEachIndexed
@@ -351,16 +352,40 @@ class PresentationCompiler(
                 diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.asset-profile", "Unknown asset profile $profile")
             }
             if (source.enabled) {
-                if (source.packId == null || source.packId == ZERO_UUID) {
+                // Assumed delivery needs no client report, so its pack identity is optional; when present it is still
+                // the identity used to recognise contrary evidence and must therefore be a real value.
+                val identityRequired = source.delivery == ResourcePackDelivery.VERIFIED
+                if (source.packId == null) {
+                    if (identityRequired) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.pack-id", "Enabled bindings require a non-placeholder UUID")
+                    }
+                } else if (source.packId == ZERO_UUID) {
                     diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.pack-id", "Enabled bindings require a non-placeholder UUID")
                 } else if (!enabledPackIds.add(source.packId)) {
                     diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, "$path.pack-id", "Duplicate enabled resource-pack UUID ${source.packId}")
                 }
-                if (source.sha1 == null || !SHA1_PATTERN.matches(source.sha1) || source.sha1.all { it == '0' }) {
+                if (source.sha1 == null) {
+                    if (identityRequired) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.sha1", "Enabled bindings require a non-placeholder 40-character SHA-1")
+                    }
+                } else if (!SHA1_PATTERN.matches(source.sha1) || source.sha1.all { it == '0' }) {
                     diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.sha1", "Enabled bindings require a non-placeholder 40-character SHA-1")
                 }
+                if (source.delivery == ResourcePackDelivery.ASSUMED) {
+                    val previous = assumedBinding
+                    if (previous != null) {
+                        // Two assumed packs would make the viewer's asset profile ambiguous.
+                        diagnostics.add(
+                            PresentationDiagnosticCode.INVALID_VALUE,
+                            "$path.delivery",
+                            "Only one enabled resource-pack binding may use assumed delivery; $previous already does",
+                        )
+                    } else {
+                        assumedBinding = id
+                    }
+                }
             }
-            val binding = ResourcePackBinding(id, source.enabled, source.packId, source.sha1?.lowercase(), profile)
+            val binding = ResourcePackBinding(id, source.enabled, source.packId, source.sha1?.lowercase(), profile, source.delivery)
             if (result.putIfAbsent(id, binding) != null) {
                 diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Duplicate resource-pack binding $id")
             }

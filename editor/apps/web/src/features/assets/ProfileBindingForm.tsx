@@ -195,6 +195,14 @@ export function BindingForm({
     ): void;
 }) {
     const { t } = useTranslation();
+    const delivery = binding.delivery ?? "VERIFIED";
+    const assumed = delivery === "ASSUMED";
+    const optional = (name: string) =>
+        assumed
+            ? t("assetAuthoring.optionalField", {
+                  field: t(`assetAuthoring.${name}`),
+              })
+            : undefined;
     return (
         <section>
             <h3>{t("assetAuthoring.binding")}</h3>
@@ -205,8 +213,41 @@ export function BindingForm({
                     update((source) => ({ ...source, enabled }))
                 }
             />
+            <AssetSelect
+                name="delivery"
+                value={delivery}
+                options={[
+                    {
+                        value: "VERIFIED",
+                        label: t("assetAuthoring.deliveryVerified"),
+                    },
+                    {
+                        value: "ASSUMED",
+                        label: t("assetAuthoring.deliveryAssumed"),
+                    },
+                ]}
+                onChange={(value) =>
+                    update((source) => {
+                        // Verified is the default and stays absent so the
+                        // document hash and older plugins are unaffected.
+                        const rest = { ...source };
+                        delete rest.delivery;
+                        return value === "ASSUMED"
+                            ? { ...rest, delivery: "ASSUMED" }
+                            : rest;
+                    })
+                }
+            />
+            <p className="asset-field-hint" data-testid="asset-delivery-hint">
+                {t(
+                    assumed
+                        ? "assetAuthoring.deliveryAssumedHint"
+                        : "assetAuthoring.deliveryVerifiedHint",
+                )}
+            </p>
             <AssetText
                 name="packId"
+                label={optional("packId")}
                 value={binding.packId ?? ""}
                 owner={binding.uuid}
                 validate={(value) =>
@@ -220,6 +261,7 @@ export function BindingForm({
             />
             <AssetText
                 name="sha1"
+                label={optional("sha1")}
                 value={binding.sha1 ?? ""}
                 owner={binding.uuid}
                 validate={(value) =>

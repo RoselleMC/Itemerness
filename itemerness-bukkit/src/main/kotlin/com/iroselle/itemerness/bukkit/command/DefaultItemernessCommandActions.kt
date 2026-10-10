@@ -27,6 +27,7 @@ import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogSnapshot
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogUpdate
 import com.iroselle.itemerness.bukkit.catalog.DataReadAccess
 import com.iroselle.itemerness.bukkit.catalog.samePhysicalItemStack
+import com.iroselle.itemerness.bukkit.projection.ResourcePackDeliveryNotice
 import com.iroselle.itemerness.bukkit.spi.BukkitCanonicalItemBridge
 import com.iroselle.itemerness.bukkit.spi.CanonicalItemInspection
 import com.iroselle.itemerness.bukkit.spi.PendingItemName
@@ -347,6 +348,7 @@ internal class DefaultItemernessCommandActions(
                 update.completionFailures.forEach { failure ->
                     plugin.logger.log(Level.WARNING, "Catalog post-commit listener failed", failure)
                 }
+                ResourcePackDeliveryNotice.describe(update.active.presentation)?.let(plugin.logger::warning)
                 refreshOnlinePlayers()
                 reply(
                     replyTarget,

@@ -355,14 +355,19 @@ export function assetError(
         )
             return "missingProfile";
         if (binding.enabled) {
+            // Assumed delivery needs no pack identity, but one that is present
+            // must still be real because it identifies contrary client status.
+            const assumed = binding.delivery === "ASSUMED";
             if (
-                !binding.packId ||
-                /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(binding.packId)
+                binding.packId
+                    ? /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(binding.packId)
+                    : !assumed
             )
                 return "bindingUuid";
-            if (!binding.sha1 || /^0{40}$/.test(binding.sha1))
+            if (binding.sha1 ? /^0{40}$/.test(binding.sha1) : !assumed)
                 return "bindingSha1";
             if (
+                binding.packId &&
                 document.resourcePackBindings.some(
                     (entry) =>
                         entry.uuid !== binding.uuid &&
@@ -371,6 +376,16 @@ export function assetError(
                 )
             )
                 return "duplicatePackId";
+            if (
+                assumed &&
+                document.resourcePackBindings.some(
+                    (entry) =>
+                        entry.uuid !== binding.uuid &&
+                        entry.enabled &&
+                        entry.delivery === "ASSUMED",
+                )
+            )
+                return "duplicateAssumedDelivery";
         }
     }
     return null;
@@ -401,7 +416,16 @@ function glyphReferences(theme: ThemeNode): string[] {
     return [
         ...(frame
             ? [frame.top, frame.body, frame.connector, frame.bottom].flatMap(
-                  (row) => (row ? [row.left, row.fill, row.right, row.center, row.kern].filter((id): id is string => id != null) : []),
+                  (row) =>
+                      row
+                          ? [
+                                row.left,
+                                row.fill,
+                                row.right,
+                                row.center,
+                                row.kern,
+                            ].filter((id): id is string => id != null)
+                          : [],
               )
             : []),
         ...(theme.canvas?.layers.map((layer) => layer.asset) ?? []),

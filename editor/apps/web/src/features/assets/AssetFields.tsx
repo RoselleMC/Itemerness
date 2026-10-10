@@ -10,6 +10,7 @@ export function AssetText({
     validate,
     suggestions,
     testId,
+    label,
 }: {
     name: string;
     value: string;
@@ -18,13 +19,16 @@ export function AssetText({
     validate?(value: string): string | null;
     suggestions?: readonly string[];
     testId?: string;
+    /** Overrides the visible label without changing the field's buffer identity. */
+    label?: string;
 }) {
     const { t } = useTranslation();
+    const text = label ?? t(`assetAuthoring.${name}`);
     return (
         <label className="asset-field">
-            <span>{t(`assetAuthoring.${name}`)}</span>
+            <span>{text}</span>
             <BufferedInput
-                label={t(`assetAuthoring.${name}`)}
+                label={text}
                 value={value}
                 owner={`${owner}:${name}`}
                 testId={testId ?? `asset-${name}`}

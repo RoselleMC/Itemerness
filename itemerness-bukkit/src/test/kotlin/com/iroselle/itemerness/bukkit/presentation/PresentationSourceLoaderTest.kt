@@ -14,6 +14,7 @@ import com.iroselle.itemerness.core.presentation.PresentationEngine
 import com.iroselle.itemerness.core.presentation.PresentationRenderRequest
 import com.iroselle.itemerness.core.presentation.PresentationRenderResult
 import com.iroselle.itemerness.core.presentation.PresentationViewer
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.ThemeRenderer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
@@ -409,6 +410,29 @@ class PresentationSourceLoaderTest {
         Files.writeString(directory.resolve("themes/selectors.yml"), SELECTOR_YAML.replace("        theme: itemerness:default", "        theme: itemerness:default\n        priority: 1"))
         assertThrows(StrictYamlException::class.java, ::load)
         Files.writeString(directory.resolve("themes/selectors.yml"), "schema-version: 1\n")
+        assertThrows(StrictYamlException::class.java, ::load)
+    }
+
+    @Test
+    fun `resource-pack bindings default to verified and parse assumed delivery strictly`() {
+        assertEquals(ResourcePackDelivery.VERIFIED, load().source.resourcePackBindings.single().delivery)
+
+        replace(
+            "assets/bitmaps.yml",
+            "    enabled: false\n    pack-id: 00000000-0000-0000-0000-000000000001\n    sha1: \"0000000000000000000000000000000000000001\"\n",
+            "    enabled: true\n    delivery: assumed\n",
+        )
+        val loaded = load()
+        assertTrue(loaded.compilation.successful, loaded.compilation.diagnostics.joinToString())
+        val binding = loaded.source.resourcePackBindings.single()
+        assertEquals(ResourcePackDelivery.ASSUMED, binding.delivery)
+        assertEquals(null, binding.packId)
+        assertEquals(
+            ResourcePackDelivery.ASSUMED,
+            requireNotNull(loaded.compilation.catalog).resourcePackBindings.values.single().delivery,
+        )
+
+        replace("assets/bitmaps.yml", "delivery: assumed", "delivery: proxy")
         assertThrows(StrictYamlException::class.java, ::load)
     }
 

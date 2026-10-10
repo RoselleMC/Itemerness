@@ -59,6 +59,7 @@ import com.iroselle.itemerness.core.presentation.ViewerFactSource
 import com.iroselle.itemerness.core.presentation.ViewerFactType
 import com.iroselle.itemerness.core.presentation.WrappingSource
 import com.iroselle.itemerness.core.presentation.ResourcePackBindingSource
+import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.nio.file.Files
@@ -355,6 +356,12 @@ internal class PresentationSourceLoader(
         )
     }
 
+    private fun parseResourcePackDelivery(value: String, source: Path, path: String): ResourcePackDelivery = when (value) {
+        "verified" -> ResourcePackDelivery.VERIFIED
+        "assumed" -> ResourcePackDelivery.ASSUMED
+        else -> invalid("Unsupported resource-pack delivery", source, path)
+    }
+
     private fun parseOverflow(value: String, source: Path, path: String): OverflowPolicy = when (value) {
         "ellipsis" -> OverflowPolicy.ELLIPSIS
         "error", "reject" -> OverflowPolicy.ERROR
@@ -495,6 +502,7 @@ internal class PresentationSourceLoader(
                         "pack-id",
                         "sha1",
                         "asset-profile",
+                        "delivery",
                     )
                     bindings += ResourcePackBindingSource(
                         id = id,
@@ -502,6 +510,9 @@ internal class PresentationSourceLoader(
                         packId = binding.optionalString("pack-id")?.let { parseUuid(it, path, "resource-pack-bindings.$id.pack-id") },
                         sha1 = binding.optionalString("sha1"),
                         assetProfile = binding.requiredString("asset-profile"),
+                        delivery = binding.optionalString("delivery")
+                            ?.let { parseResourcePackDelivery(it, path, "resource-pack-bindings.$id.delivery") }
+                            ?: ResourcePackDelivery.VERIFIED,
                     )
                 }
             }

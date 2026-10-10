@@ -146,6 +146,10 @@ class EditorApiServerTest {
                     JsonValue.Text("presentation.theme-selectors") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("assets.resource-pack-bindings.delivery") in handshake.requiredArray("capabilities"),
+                    version,
+                )
             }
         }
     }

@@ -16,6 +16,8 @@ import {
     usesCatalogSourceLayout,
     supportsThemeSelectors,
     usesThemeSelectors,
+    supportsResourcePackDelivery,
+    usesResourcePackDelivery,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -339,6 +341,11 @@ export class PluginClient {
             !supportsThemeSelectors(this.capabilities)
         )
             throw new Error("THEME_SELECTORS_UNSUPPORTED");
+        if (
+            usesResourcePackDelivery(document) &&
+            !supportsResourcePackDelivery(this.capabilities)
+        )
+            throw new Error("RESOURCE_PACK_DELIVERY_UNSUPPORTED");
     }
 
     private async json(

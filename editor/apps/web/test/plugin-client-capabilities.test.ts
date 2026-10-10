@@ -5,6 +5,7 @@ import {
     SEGMENTED_FRAME_DECORATIONS_CAPABILITY,
     EXTENDED_BASE_COMPONENTS_CAPABILITY,
     THEME_SELECTORS_CAPABILITY,
+    RESOURCE_PACK_DELIVERY_CAPABILITY,
     type ProjectDocument,
     type PreviewRequest,
 } from "@itemerness/protocol";
@@ -211,6 +212,43 @@ describe.each(operations)("%s document capability gate", (operation) => {
                         capabilities: [
                             ...handshake.capabilities,
                             THEME_SELECTORS_CAPABILITY,
+                        ],
+                    }),
+                )
+                .mockResolvedValueOnce(response(reply(operation, document)));
+            const current = new PluginClient("http://example.test", "");
+            await current.handshake();
+            await send(current, operation, document);
+            expect(JSON.parse(fetch.mock.calls[2]![1].body).document).toEqual(
+                document,
+            );
+            expect(contentHash(document)).toBe(hash);
+        },
+    );
+
+    it.each(["VERIFIED", "ASSUMED"] as const)(
+        "gates an explicit %s binding delivery by its exact capability",
+        async (delivery) => {
+            const document = structuredClone(baselineDocument);
+            document.resourcePackBindings = document.resourcePackBindings.map(
+                (binding) => ({ ...binding, delivery }),
+            );
+            const hash = contentHash(document);
+            const fetch = vi.fn().mockResolvedValueOnce(response(handshake));
+            vi.stubGlobal("fetch", fetch);
+            const old = new PluginClient("http://example.test", "");
+            await old.handshake();
+            await expect(send(old, operation, document)).rejects.toThrow(
+                "RESOURCE_PACK_DELIVERY_UNSUPPORTED",
+            );
+            expect(fetch).toHaveBeenCalledTimes(1);
+            fetch
+                .mockResolvedValueOnce(
+                    response({
+                        ...handshake,
+                        capabilities: [
+                            ...handshake.capabilities,
+                            RESOURCE_PACK_DELIVERY_CAPABILITY,
                         ],
                     }),
                 )

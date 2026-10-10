@@ -162,6 +162,35 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `assumed resource-pack delivery imports exports and verifies losslessly`() {
+        fixture()
+        val assets = directory.resolve("assets/bitmaps.yml")
+        Files.writeString(assets, Files.readString(assets).replace(
+            "    enabled: false\n    pack-id: 00000000-0000-0000-0000-000000000001\n    sha1: \"0000000000000000000000000000000000000001\"\n",
+            "    enabled: true\n    delivery: assumed\n",
+        ))
+
+        val document = requireNotNull(read().raw("document"))
+        val binding = JsonObject.of(document, "document").requiredObjects("resourcePackBindings").single()
+        assertEquals("ASSUMED", binding.requiredString("delivery"))
+        assertEquals(JsonValue.Null, binding.raw("packId"))
+
+        val files = export(document).requiredObjects("files").map { it.requiredString("content") }
+        val exported = files.single { it.contains("resource-pack-bindings:") }
+        assertTrue(exported.contains("delivery: assumed"), exported)
+    }
+
+    @Test
+    fun `verified resource-pack delivery stays absent from documents and exports`() {
+        fixture()
+        val document = requireNotNull(read().raw("document"))
+        val binding = JsonObject.of(document, "document").requiredObjects("resourcePackBindings").single()
+        assertFalse(binding.keys.contains("delivery"))
+        val files = export(document).requiredObjects("files").map { it.requiredString("content") }
+        assertTrue(files.none { it.contains("delivery:") })
+    }
+
+    @Test
     fun `omitted item bindings remain inherited rather than being frozen on import`() {
         fixture()
         val path = directory.resolve("items/examples.yml")

@@ -171,7 +171,19 @@ data class ResourcePackBindingSource(
     val packId: UUID? = null,
     val sha1: String? = null,
     val assetProfile: String,
+    val delivery: ResourcePackDelivery = ResourcePackDelivery.VERIFIED,
 )
+
+/**
+ * How a viewer is known to have a bound resource pack.
+ *
+ * [VERIFIED] activates the binding only after the client reports loading the exact pack. [ASSUMED] is an operator
+ * declaration that every viewer has the pack because it is mandatory and delivered elsewhere, such as by a proxy.
+ */
+enum class ResourcePackDelivery {
+    VERIFIED,
+    ASSUMED,
+}
 
 data class SpacingRangeSource(
     val firstCodePoint: Int,
