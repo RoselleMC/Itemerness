@@ -58,6 +58,10 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 
 class NmsProjectionTest {
     @Test
@@ -652,6 +656,42 @@ class NmsProjectionTest {
 
     private fun decode(stack: ItemStack): com.iroselle.itemerness.projection.CanonicalItemSnapshot =
         (NmsCanonicalItemCodec().decode(stack) as CanonicalDecodeResult.Decoded).snapshot
+
+    @Test
+    fun `unmanaged tooltip components match every component read by the exact tooltip builder`() {
+        val read = dataComponentFieldsRead(ItemStack::class.java, setOf("addDetailsToTooltip", "addAttributeTooltips"))
+            .mapTo(HashSet()) { name -> DataComponents::class.java.getField(name).get(null) }
+        // LORE is replaced atomically by projection; CUSTOM_NAME is read by the name line instead.
+        val expected = NmsVanillaTooltipLines.UNMANAGED_COMPONENTS - DataComponents.CUSTOM_NAME + DataComponents.LORE
+
+        assertEquals(expected, read)
+    }
+
+    private fun dataComponentFieldsRead(type: Class<*>, methods: Set<String>): Set<String> {
+        val resource = "/${type.name.replace('.', '/')}.class"
+        val bytes = requireNotNull(type.getResourceAsStream(resource)) { "Missing class bytes: $resource" }
+            .use { stream -> stream.readAllBytes() }
+        val fields = LinkedHashSet<String>()
+        ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM9) {
+            override fun visitMethod(
+                access: Int,
+                name: String,
+                descriptor: String,
+                signature: String?,
+                exceptions: Array<out String>?,
+            ): MethodVisitor? {
+                if (name !in methods) return null
+                return object : MethodVisitor(Opcodes.ASM9) {
+                    override fun visitFieldInsn(opcode: Int, owner: String, name: String, descriptor: String) {
+                        if (opcode == Opcodes.GETSTATIC && owner == "net/minecraft/core/component/DataComponents") {
+                            fields += name
+                        }
+                    }
+                }
+            }
+        }, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+        return fields
+    }
 
     private fun canonicalStack(
         count: Int = 1,

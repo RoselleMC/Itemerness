@@ -20,7 +20,7 @@ internal object NmsVanillaTooltipLines {
      * independent detail line. CUSTOM_NAME is rejected even though sanitization removes it, so a
      * forged name can never qualify a stack for fixed-geometry tooltip ownership.
      */
-    private val UNMANAGED_COMPONENTS: Set<DataComponentType<*>> = setOf(
+    internal val UNMANAGED_COMPONENTS: Set<DataComponentType<*>> = setOf(
         DataComponents.CUSTOM_NAME,
         DataComponents.TROPICAL_FISH_PATTERN,
         DataComponents.INSTRUMENT,
@@ -41,6 +41,7 @@ internal object NmsVanillaTooltipLines {
         DataComponents.ENCHANTMENTS,
         DataComponents.DYED_COLOR,
         DataComponents.PROFILE,
+        DataComponents.SULFUR_CUBE_CONTENT,
         DataComponents.ATTRIBUTE_MODIFIERS,
         DataComponents.INTANGIBLE_PROJECTILE,
         DataComponents.UNBREAKABLE,
