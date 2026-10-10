@@ -7,6 +7,7 @@ import { freshItemCopyId } from "./itemIdentity.js";
 import { copyItemDocument } from "./itemCreation.js";
 import { useItemCreationDialog } from "./itemCreationDialog.js";
 import { commitInlineEditor } from "../features/common/inlineEdit.js";
+import { setSourceFile } from "./sourceLayout.js";
 
 export function openItemCreation() {
     if (!commitInlineEditor()) return;
@@ -48,6 +49,15 @@ export function duplicateItem(uuid: string, t: TFunction) {
                 `${name} (${t("menus.copySuffix", { lng: locale.startsWith("zh") ? "zh-CN" : "en-US" })})`,
         }),
     );
+    // A copy belongs next to its original when the document remembers catalog files.
+    const sourceFile = state.document.sourceLayout?.files[original.uuid];
+    const copy = useEditorStore
+        .getState()
+        .document.items.find((entry) => entry.id === id);
+    if (sourceFile && copy)
+        state.updateDocument((document) =>
+            setSourceFile(document, copy.uuid, sourceFile),
+        );
     state.selectItem(itemKey(state.document, id));
     state.commitTransaction(transaction);
 }

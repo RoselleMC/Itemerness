@@ -13,7 +13,12 @@ import com.iroselle.itemerness.bukkit.editor.YamlEncoding.mapping as map
 import java.util.UUID
 
 /** Produces configuration files only. The runtime directory and draft store are never mutated. */
-internal class EditorCatalogExporter(private val metrics: BuiltinFontMetricsArtifact, private val compiler: CompilerBridge) {
+internal class EditorCatalogExporter(
+    private val metrics: BuiltinFontMetricsArtifact,
+    private val compiler: CompilerBridge,
+    /** Hash of the catalog currently on disk, comparable with an imported document's baseline. */
+    private val currentSourceHash: () -> String = { error("No source hash is available") },
+) {
     fun export(document: JsonValue): JsonValue {
         val root = JsonObject.of(document, "document")
         if (root.requiredInt("schemaVersion") != 2) throw CatalogTransferException("CATALOG_UPGRADE_REQUIRED")
@@ -27,23 +32,41 @@ internal class EditorCatalogExporter(private val metrics: BuiltinFontMetricsArti
                     "messageKey" to "diagnostics.assets.metadata_missing", "params" to obj("asset" to bitmap.requiredString("id")))))
             }
         }
+        val layout = EditorSourceLayout.resolve(root, decoded.namespace, decoded.schemaVersion)
         val files = LinkedHashMap<String, String>()
-        fun file(path: String, value: Map<String, Any?>) { files[path] = YamlEncoding.dump(value) }
+        fun file(path: String, value: Map<String, Any?>) {
+            // Paths are case-folded because the client and common file systems treat them as one file.
+            if (files.keys.any { it.equals(path, ignoreCase = true) }) {
+                throw CatalogTransferException("CATALOG_EXPORT_INVALID", listOf(obj("code" to "CATALOG.SOURCE_PATH_CONFLICT", "severity" to "ERROR",
+                    "origin" to "agent", "messageKey" to "diagnostics.catalog.source_path_conflict", "params" to obj("path" to path))))
+            }
+            files[path] = YamlEncoding.dump(value)
+        }
+        fun grouped(collection: String, section: String, default: String, entries: Map<String, Any?>, vararg header: Pair<String, Any?>) {
+            if (entries.isEmpty()) return file(default, YamlEncoding.document(*header, section to entries))
+            entries.entries.groupBy { (id, _) -> layout.path(collection, id, default) }.forEach { (path, group) ->
+                file(path, YamlEncoding.document(*header, section to group.associate { it.key to it.value }))
+            }
+        }
         decoded.catalog.schemas.forEachIndexed { index, schema ->
-            file("data-keys/schema-${index.toString().padStart(4, '0')}.yml", CatalogYamlEncoding.schema(schema, decoded.dataKeyIntegrations))
+            file(layout.path("dataSchemas", "${schema.id}@${schema.version}", "data-keys/schema-${index.toString().padStart(4, '0')}.yml"),
+                CatalogYamlEncoding.schema(schema, decoded.dataKeyIntegrations))
         }
         val authoring = root.requiredObjects("items").associateBy { it.itemKey(decoded.namespace, decoded.schemaVersion).toString() }
         val items = decoded.catalog.items.associate { item ->
             val bindings = authoring.getValue(item.id).requiredObject("presentation")
             item.id to CatalogYamlEncoding.item(item, decoded.presentation.items.single { it.id == item.id }, bindings.optionalString("layout"), bindings.optionalString("theme"))
         }
-        file("items/editor.yml", YamlEncoding.document("namespace" to decoded.namespace, "items" to items))
-        file("formats/editor.yml", YamlEncoding.document("formats" to decoded.presentation.formats.associate { it.id to PresentationYamlEncoding.format(it) }))
-        decoded.presentation.locales.forEachIndexed { index, locale -> file("locales/${index.toString().padStart(4, '0')}-${locale.locale}.yml", YamlEncoding.document("locale" to locale.locale, "fallback" to locale.fallback, "messages" to locale.messages)) }
-        file("layouts/editor.yml", YamlEncoding.document("layouts" to decoded.presentation.layouts.associate { it.id to PresentationYamlEncoding.layout(it) }))
-        file("themes/editor.yml", YamlEncoding.document("themes" to decoded.presentation.themes.associate { it.id to PresentationYamlEncoding.theme(it) }))
-        file("viewer-facts/editor.yml", YamlEncoding.document("facts" to decoded.presentation.viewerFacts.associate { it.id to PresentationYamlEncoding.fact(it) }))
-        file("assets/editor.yml", AssetYamlEncoding.encode(root, decoded.presentation))
+        grouped("items", "items", "items/editor.yml", items, "namespace" to decoded.namespace)
+        grouped("formats", "formats", "formats/editor.yml", decoded.presentation.formats.associate { it.id to PresentationYamlEncoding.format(it) })
+        decoded.presentation.locales.forEachIndexed { index, locale ->
+            file(layout.path("locales", locale.locale, "locales/${index.toString().padStart(4, '0')}-${locale.locale}.yml"),
+                YamlEncoding.document("locale" to locale.locale, "fallback" to locale.fallback, "messages" to locale.messages))
+        }
+        grouped("layouts", "layouts", "layouts/editor.yml", decoded.presentation.layouts.associate { it.id to PresentationYamlEncoding.layout(it) })
+        grouped("themes", "themes", "themes/editor.yml", decoded.presentation.themes.associate { it.id to PresentationYamlEncoding.theme(it) })
+        grouped("viewerFacts", "facts", "viewer-facts/editor.yml", decoded.presentation.viewerFacts.associate { it.id to PresentationYamlEncoding.fact(it) })
+        splitAssets(AssetYamlEncoding.encode(root, decoded.presentation), layout).forEach { (path, content) -> file(path, content) }
         try {
             verify(root, decoded, files)
         } catch (failure: StrictYamlException) {
@@ -52,8 +75,42 @@ internal class EditorCatalogExporter(private val metrics: BuiltinFontMetricsArti
         }
         val settingsPatch = map("catalog" to map("default-namespace" to decoded.namespace), "locale" to map("default" to decoded.defaultLocale),
             "presentation" to map("default-layout" to decoded.defaultLayout, "default-theme" to decoded.defaultTheme))
+        // Export never writes the runtime catalog, so a changed baseline is a review warning, not a conflict.
+        val imported = EditorSourceLayout.importedSourceHash(root)
+        val current = imported?.let { runCatching(currentSourceHash).getOrNull() }
+        val warnings = if (imported != null && current != null && current != imported) {
+            listOf(obj("code" to "CATALOG.SOURCE_CHANGED_SINCE_IMPORT", "severity" to "WARNING", "origin" to "agent",
+                "messageKey" to "diagnostics.catalog.source_changed_since_import", "params" to obj()))
+        } else {
+            emptyList()
+        }
         return obj("files" to files.map { (path, content) -> obj("path" to path, "content" to content) },
-            "settingsPatch" to YamlEncoding.dump(settingsPatch), "diagnostics" to emptyList<JsonValue>())
+            "settingsPatch" to YamlEncoding.dump(settingsPatch), "diagnostics" to warnings)
+    }
+
+    /** Splits the asset document by recorded file; singleton policies follow their own recorded file. */
+    private fun splitAssets(assets: Map<String, Any?>, layout: EditorSourceLayout.Resolved): Map<String, Map<String, Any?>> {
+        val default = "assets/editor.yml"
+        val result = LinkedHashMap<String, MutableMap<String, Any?>>()
+        fun target(path: String) = result.getOrPut(path) { linkedMapOf("schema-version" to assets["schema-version"]) }
+        assets.forEach { (section, value) ->
+            val collection = EditorSourceLayout.ASSET_SECTIONS[section]
+            when {
+                section == "schema-version" -> Unit
+                collection != null -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val entries = value as Map<String, Any?>
+                    if (entries.isEmpty()) target(default)[section] = entries
+                    entries.forEach { (id, entry) ->
+                        @Suppress("UNCHECKED_CAST")
+                        val group = target(layout.path(collection, id, default)).getOrPut(section) { LinkedHashMap<String, Any?>() } as MutableMap<String, Any?>
+                        group[id] = entry
+                    }
+                }
+                else -> target(layout.singleton(section, default))[section] = value
+            }
+        }
+        return result
     }
 
     private fun verify(root: JsonObject, decoded: ProjectDocumentCodec.Decoded, files: Map<String, String>) {

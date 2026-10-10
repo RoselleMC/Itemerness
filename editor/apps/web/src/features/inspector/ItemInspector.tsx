@@ -34,6 +34,11 @@ import {
     resolveSampleValue,
     valueKindForType,
 } from "../common/typedValues.js";
+import {
+    itemSourceFiles,
+    setSourceFile,
+    validSourcePath,
+} from "../../state/sourceLayout.js";
 
 /**
  * The inspector: edit what the preview shows, in the words the preview shows it.
@@ -614,6 +619,35 @@ export function ItemInspector({
                         </code>
                     )}
                 </label>
+                {doc.sourceLayout && (
+                    <label className="field">
+                        <span>{t("inspector.advanced.sourceFile")}</span>
+                        <BufferedInput
+                            value={doc.sourceLayout.files[item.uuid] ?? ""}
+                            owner={`${item.uuid}:source-file`}
+                            label={t("inspector.advanced.sourceFile")}
+                            testId="item-source-file"
+                            suggestions={itemSourceFiles(doc)}
+                            validate={(path) =>
+                                path === "" || validSourcePath(path, "items")
+                                    ? null
+                                    : t("inspector.advanced.sourceFileInvalid")
+                            }
+                            onCommit={(path) =>
+                                store.updateDocument((current) =>
+                                    setSourceFile(
+                                        current,
+                                        item.uuid,
+                                        path === "" ? null : path,
+                                    ),
+                                )
+                            }
+                        />
+                        <span className="muted small">
+                            {t("inspector.advanced.sourceFileHint")}
+                        </span>
+                    </label>
+                )}
                 <dl>
                     <dt>{t("inspector.advanced.material")}</dt>
                     <dd>

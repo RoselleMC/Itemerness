@@ -324,6 +324,59 @@ class EditorCatalogReaderTest {
         assertTrue(failure.diagnostics.any { JsonObject.of(it, "diagnostic").optionalString("pointer")?.endsWith("/constraints/maximum") == true })
     }
 
+    @Test
+    fun `exports write imported objects back to their own files`() {
+        fixture()
+        Files.createDirectories(directory.resolve("items/armory"))
+        Files.move(directory.resolve("items/examples.yml"), directory.resolve("items/armory/examples.yml"))
+        val original = EditorCatalogFiles.DOMAINS.flatMap { domain ->
+            Files.walk(directory.resolve(domain)).use { paths ->
+                paths.filter(Files::isRegularFile).map { directory.relativize(it).toString().replace('\\', '/') }.toList()
+            }
+        }.toSet()
+
+        val plain = requireNotNull(read().raw("document")) as JsonValue.Obj
+        assertFalse("sourceLayout" in plain.entries, "Layout is only sent to clients that ask for it")
+        val document = requireNotNull(JsonObject.of(reader().read(includeLayout = true), "response").raw("document")) as JsonValue.Obj
+        val layout = JsonObject.of(document.entries.getValue("sourceLayout"), "layout")
+        assertEquals(reader().currentSourceHash(), layout.requiredString("sourceHash"))
+
+        val exported = JsonObject.of(exporter { reader().currentSourceHash() }.export(document), "export")
+        assertEquals(original, exported.requiredObjects("files").map { it.requiredString("path") }.toSet())
+        assertTrue(exported.requiredArray("diagnostics").isEmpty())
+
+        val copy = (document.entries.getValue("items") as JsonValue.Arr).values.first() as JsonValue.Obj
+        val added = JsonValue.Obj(copy.entries + mapOf(
+            "uuid" to JsonValue.Text(UUID.randomUUID().toString()),
+            "id" to JsonValue.Text("example:added-later"),
+        ))
+        val grown = JsonValue.Obj(document.entries + ("items" to JsonValue.Arr((document.entries.getValue("items") as JsonValue.Arr).values + added)))
+        val paths = export(grown).requiredObjects("files").associate { it.requiredString("path") to it.requiredString("content") }
+        assertTrue(paths.getValue("items/editor.yml").contains("added-later"), "Objects without a recorded file use the default file")
+        assertFalse(paths.getValue("items/armory/examples.yml").contains("added-later"))
+    }
+
+    @Test
+    fun `source layout paths cannot leave their domain and changed sources warn on export`() {
+        fixture()
+        val document = requireNotNull(JsonObject.of(reader().read(includeLayout = true), "response").raw("document")) as JsonValue.Obj
+        val layout = document.entries.getValue("sourceLayout") as JsonValue.Obj
+        val files = layout.entries.getValue("files") as JsonValue.Obj
+        val itemUuid = ((document.entries.getValue("items") as JsonValue.Arr).values.first() as JsonValue.Obj).entries.getValue("uuid") as JsonValue.Text
+        listOf("items/../config.yml", "themes/stolen.yml", "/items/absolute.yml", "items/examples.txt").forEach { path ->
+            val unsafe = JsonValue.Obj(document.entries + ("sourceLayout" to JsonValue.Obj(layout.entries +
+                ("files" to JsonValue.Obj(files.entries + (itemUuid.value to JsonValue.Text(path)))))))
+            val failure = assertThrows(CatalogTransferException::class.java) { exporter().export(unsafe) }
+            assertTrue(Json.canonicalize(JsonValue.Arr(failure.diagnostics)).contains("SOURCE_PATH_INVALID"), path)
+        }
+
+        val stale = JsonObject.of(exporter { "sha256:" + "f".repeat(64) }.export(document), "export")
+        assertEquals(
+            "CATALOG.SOURCE_CHANGED_SINCE_IMPORT",
+            stale.requiredObjects("diagnostics").single().requiredString("code"),
+        )
+    }
+
     private fun updateKey(document: JsonValue.Obj, id: String, update: (JsonValue.Obj) -> JsonValue.Obj): JsonValue.Obj =
         JsonValue.Obj(document.entries + ("dataSchemas" to JsonValue.Arr((document.entries.getValue("dataSchemas") as JsonValue.Arr).values.map { value ->
             val schema = value as JsonValue.Obj
@@ -332,7 +385,8 @@ class EditorCatalogReaderTest {
             })))
         })))
 
-    private fun exporter() = EditorCatalogExporter(metrics, CompilerBridge(BundledBuiltinFontMetrics(metrics), "test"))
+    private fun exporter(currentSourceHash: () -> String = { error("No source hash is available") }) =
+        EditorCatalogExporter(metrics, CompilerBridge(BundledBuiltinFontMetrics(metrics), "test"), currentSourceHash)
     private fun export(document: JsonValue): JsonObject = try {
         JsonObject.of(exporter().export(document), "export")
     } catch (failure: CatalogTransferException) {

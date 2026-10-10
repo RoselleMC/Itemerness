@@ -518,6 +518,9 @@
             "literal": "字面量"
         },
         "advanced": {
+            "sourceFile": "来源文件",
+            "sourceFileInvalid": "请使用 items/ 目录内以 .yml 或 .yaml 结尾的相对路径。",
+            "sourceFileHint": "导出时此物品写入该文件。留空则写入 items/editor.yml。",
             "heading": "高级",
             "id": "物品 ID",
             "material": "基础材质",
@@ -1184,6 +1187,7 @@
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "使用边框装饰需要升级当前插件。文档内容已保留。",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "使用复合字段约束需要升级当前插件。文档内容已保留。",
             "DATA_SCHEMA_OWNERS_UNSUPPORTED": "声明 schema 归属需要升级当前插件。文档内容已保留。",
+            "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "保留目录文件布局需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

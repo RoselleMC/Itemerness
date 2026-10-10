@@ -530,6 +530,15 @@ export const dataKeyNodeSchema = z.strictObject({
 });
 export type DataKeyNode = z.infer<typeof dataKeyNodeSchema>;
 
+export const sourceLayoutSchema = z.strictObject({
+    /** Catalog source hash at import; a different hash at export means the YAML changed since. */
+    sourceHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+    files: z.record(uuidSchema, z.string().min(1).max(256)),
+    measurement: z.string().min(1).max(256).optional(),
+    spacing: z.string().min(1).max(256).optional(),
+});
+export type SourceLayout = z.infer<typeof sourceLayoutSchema>;
+
 export const schemaOwnerSchema = z
     .string()
     .regex(/^plugin:[A-Za-z0-9_.-]{1,64}$/, "expected plugin:<Name>");
@@ -835,6 +844,11 @@ export const projectDocumentSchema = z
         items: z.array(itemNodeSchema),
         accessPolicies: z.array(accessPolicyNodeSchema).max(0),
         extensions: z.record(z.string().max(128), z.unknown()).optional(),
+        /**
+         * Which catalog file each imported node came from, keyed by node UUID. Export writes nodes
+         * back to those files; nodes without an entry use the domain's default file.
+         */
+        sourceLayout: sourceLayoutSchema.optional(),
     })
     .superRefine((document, context) => {
         const report = (path: (string | number)[], message: string) =>

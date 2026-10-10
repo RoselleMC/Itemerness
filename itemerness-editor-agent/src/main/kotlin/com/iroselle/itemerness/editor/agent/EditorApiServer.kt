@@ -26,7 +26,8 @@ class EditorApiServer(
     private val worker: Executor,
     private val scheduler: AgentScheduler,
     private val onFailure: (Throwable) -> Unit,
-    private val readCatalog: (() -> JsonValue)? = null,
+    /** Reads local YAML as an import candidate; `true` also records each object's source file. */
+    private val readCatalog: ((Boolean) -> JsonValue)? = null,
     private val exportCatalog: ((JsonValue) -> JsonValue)? = null,
     private val serverMetadata: ServerMetadataStore? = null,
 ) : AutoCloseable {
@@ -96,7 +97,7 @@ class EditorApiServer(
             if (exchange.requestMethod == "OPTIONS") {
                 if (origin == null) return error(exchange, 403, "ORIGIN_FORBIDDEN")
                 exchange.responseHeaders.set("Access-Control-Allow-Methods", "GET, PUT, POST")
-                exchange.responseHeaders.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Itemerness-Protocol")
+                exchange.responseHeaders.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Itemerness-Protocol, $LAYOUT_HEADER")
                 exchange.sendResponseHeaders(204, -1)
                 return
             }
@@ -131,7 +132,9 @@ class EditorApiServer(
                 "/api/v2/catalog" -> {
                     if (exchange.requestMethod != "GET") return error(exchange, 405, "METHOD_NOT_ALLOWED")
                     val read = readCatalog ?: return error(exchange, 404, "NOT_FOUND")
-                    respondTransfer(exchange, read)
+                    // Only clients that ask for it receive the additive sourceLayout field.
+                    val layout = exchange.requestHeaders[LAYOUT_HEADER] == listOf("1")
+                    respondTransfer(exchange) { read(layout) }
                 }
                 "/api/v2/catalog/export" -> {
                     if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
@@ -243,7 +246,8 @@ class EditorApiServer(
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
             (if (metadata.minecraftVersion in PREVIEW_VERSIONS) listOf("preview.compile") else emptyList()) +
             (if (readCatalog != null) listOf("catalog.read") else emptyList()) +
-            (if (exportCatalog != null) listOf("catalog.export") else emptyList())).map(::text)),
+            (if (exportCatalog != null) listOf("catalog.export") else emptyList()) +
+            (if (readCatalog != null && exportCatalog != null) listOf("catalog.source-layout") else emptyList())).map(::text)),
     )
 
     private fun error(exchange: HttpExchange, status: Int, code: String) = respond(exchange, status, obj("code" to text(code), "serverId" to text(metadata.serverId)))
@@ -275,6 +279,7 @@ class EditorApiServer(
 
     companion object {
         const val PROTOCOL: String = "2.0"
+        const val LAYOUT_HEADER: String = "X-Itemerness-Catalog-Layout"
         private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
         private fun text(value: String): JsonValue = JsonValue.Text(value)
         private fun obj(vararg values: Pair<String, JsonValue>): JsonValue = JsonValue.Obj(mapOf(*values))

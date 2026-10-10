@@ -72,6 +72,7 @@ async fn plugin_request(
     method: String,
     body: Option<String>,
     protocol: Option<String>,
+    layout: Option<bool>,
 ) -> Result<ApiResponse, String> {
     let base = endpoint(&base_url)?;
     if !token.is_empty()
@@ -105,6 +106,10 @@ async fn plugin_request(
     }
     if let Some(protocol) = protocol {
         request = request.header("X-Itemerness-Protocol", protocol);
+    }
+    // The additive catalog source layout is requested only for the import read.
+    if layout == Some(true) && method == "GET" && path == "/api/v2/catalog" {
+        request = request.header("X-Itemerness-Catalog-Layout", "1");
     }
     if let Some(body) = body {
         request = request
@@ -236,6 +241,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn native_transport_requests_the_catalog_layout_only_for_the_catalog_read() {
+        let (url, request) = http_fixture("200 OK", "{}", "Content-Type: application/json\r\n");
+        plugin_request(
+            url,
+            String::new(),
+            "/api/v2/catalog".into(),
+            "GET".into(),
+            None,
+            Some("2.0".into()),
+            Some(true),
+        )
+        .await
+        .unwrap();
+        assert!(request
+            .join()
+            .unwrap()
+            .to_lowercase()
+            .contains("x-itemerness-catalog-layout: 1"));
+        let (url, request) = http_fixture("200 OK", "{}", "Content-Type: application/json\r\n");
+        plugin_request(
+            url,
+            String::new(),
+            "/api/v2/document".into(),
+            "GET".into(),
+            None,
+            Some("2.0".into()),
+            Some(true),
+        )
+        .await
+        .unwrap();
+        assert!(!request
+            .join()
+            .unwrap()
+            .to_lowercase()
+            .contains("x-itemerness-catalog-layout"));
+    }
+
+    #[tokio::test]
     async fn native_transport_sends_bearer_auth_and_does_not_follow_redirects() {
         let (url, request) = http_fixture("200 OK", "{}", "Content-Type: application/json\r\n");
         let result = plugin_request(
@@ -243,6 +286,7 @@ mod tests {
             "a".repeat(48),
             "/api/handshake".into(),
             "GET".into(),
+            None,
             None,
             None,
         )
@@ -260,6 +304,7 @@ mod tests {
             "a".repeat(48),
             "/api/handshake".into(),
             "GET".into(),
+            None,
             None,
             None,
         )
@@ -305,6 +350,7 @@ mod tests {
             "GET".into(),
             None,
             None,
+            None,
         )
         .await
         .unwrap();
@@ -338,6 +384,7 @@ mod tests {
                 method.into(),
                 None,
                 Some("2.0".into()),
+                None,
             )
             .await
             .unwrap();
@@ -361,6 +408,7 @@ mod tests {
                 method.into(),
                 None,
                 Some("2.0".into()),
+                None,
             )
             .await;
             assert!(matches!(result, Err(error) if error == "INVALID_REQUEST"));
@@ -370,6 +418,7 @@ mod tests {
             String::new(),
             "/api/v2/catalog".into(),
             "GET".into(),
+            None,
             None,
             None,
         )
@@ -387,6 +436,7 @@ mod tests {
             "GET".into(),
             None,
             Some("2.0".into()),
+            None,
         )
         .await;
         assert!(matches!(result, Err(error) if error == "RESPONSE_TOO_LARGE"));

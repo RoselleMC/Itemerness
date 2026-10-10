@@ -26,7 +26,10 @@
     "catalog": {
         "export_lossy": "导出会改变 {{path}} 的配置。",
         "source_invalid": "无法加载 YAML 配置：{{detail}}",
-        "export_invalid": "导出的 YAML 无法加载：{{detail}}"
+        "export_invalid": "导出的 YAML 无法加载：{{detail}}",
+        "source_changed_since_import": "导入此文档后，服务器上的 YAML 已发生变化。替换前请将导出的文件与当前配置逐一核对。",
+        "source_path_invalid": "来源文件 {{path}} 必须是 {{domain}}/ 目录内以 .yml 或 .yaml 结尾的相对路径。",
+        "source_path_conflict": "两个需要各自独立文件的对象被分配到了同一个文件 {{path}}。"
     },
     "assets": {
         "metadata_missing": "资源 {{asset}} 需要补全源纹理及尺寸才能导出。",

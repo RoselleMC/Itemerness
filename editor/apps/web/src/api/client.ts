@@ -12,6 +12,8 @@ import {
     usesDataFieldConstraints,
     supportsDataSchemaOwners,
     usesDataSchemaOwners,
+    supportsCatalogSourceLayout,
+    usesCatalogSourceLayout,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -230,8 +232,16 @@ export class PluginClient {
     }
 
     async readCatalog(signal?: AbortSignal) {
+        // Only ask for the additive layout when the plugin can read it back on save and export.
+        const layout = supportsCatalogSourceLayout(this.capabilities);
         const result = catalogReadSchema.parse(
-            await this.json("/api/v2/catalog", "GET", undefined, signal),
+            await this.json(
+                "/api/v2/catalog",
+                "GET",
+                undefined,
+                signal,
+                layout,
+            ),
         );
         this.assertDocumentSupported(result.document);
         return result;
@@ -317,6 +327,11 @@ export class PluginClient {
             !supportsDataSchemaOwners(this.capabilities)
         )
             throw new Error("DATA_SCHEMA_OWNERS_UNSUPPORTED");
+        if (
+            usesCatalogSourceLayout(document) &&
+            !supportsCatalogSourceLayout(this.capabilities)
+        )
+            throw new Error("CATALOG_SOURCE_LAYOUT_UNSUPPORTED");
     }
 
     private async json(
@@ -324,6 +339,7 @@ export class PluginClient {
         method = "GET",
         body?: unknown,
         signal?: AbortSignal,
+        catalogLayout = false,
     ): Promise<unknown> {
         if (this.identityChanged) throw new Error("SERVER_IDENTITY_CHANGED");
         if (this.writesSuspended && method !== "GET")
@@ -356,6 +372,7 @@ export class PluginClient {
                         method,
                         body: encoded ?? null,
                         protocol: this.protocol,
+                        layout: catalogLayout,
                     },
                 );
                 status = response.status;
@@ -376,6 +393,9 @@ export class PluginClient {
                             : {}),
                         ...(this.protocol
                             ? { "X-Itemerness-Protocol": this.protocol }
+                            : {}),
+                        ...(catalogLayout
+                            ? { "X-Itemerness-Catalog-Layout": "1" }
                             : {}),
                     },
                 });

@@ -523,6 +523,9 @@
             "literal": "Literal value"
         },
         "advanced": {
+            "sourceFile": "Source file",
+            "sourceFileInvalid": "Use a relative .yml or .yaml path inside items/.",
+            "sourceFileHint": "Export writes this item to that file. Leave empty for items/editor.yml.",
             "heading": "Advanced",
             "id": "Item ID",
             "material": "Base material",
@@ -1195,6 +1198,7 @@
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "Upgrade the connected plugin to use frame decorations. The document has been preserved.",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "Upgrade the connected plugin to use compound field constraints. The document has been preserved.",
             "DATA_SCHEMA_OWNERS_UNSUPPORTED": "Upgrade the connected plugin to declare schema owners. The document has been preserved.",
+            "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "Upgrade the connected plugin to keep catalog file layout. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

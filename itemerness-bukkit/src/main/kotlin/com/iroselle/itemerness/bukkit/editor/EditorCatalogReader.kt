@@ -29,24 +29,41 @@ internal class EditorCatalogReader(
     private val agentVersion: String,
     private val validator: RuntimeCatalogValidator,
 ) {
-    fun read(): JsonValue {
-        val settings = try {
-            ItemernessSettings.load(root.resolve("config.yml"))
-        } catch (_: Exception) {
-            // Strict YAML parser errors may include the line containing an API token.
-            throw CatalogTransferException("CATALOG_SETTINGS_INVALID")
-        }
+    fun read(includeLayout: Boolean = false): JsonValue {
+        val settings = settings()
         return try {
-            read(settings)
+            read(settings, includeLayout)
         } catch (failure: StrictYamlException) {
             throw CatalogTransferException("CATALOG_INVALID", listOf(obj("code" to "CATALOG.SOURCE_INVALID", "severity" to "ERROR", "origin" to "agent",
                 "messageKey" to "diagnostics.catalog.source_invalid", "params" to obj("detail" to (failure.message ?: "Invalid source").take(2048)))))
         }
     }
 
-    private fun read(settings: ItemernessSettings): JsonValue {
+    /** Hash of the catalog as it is on disk now, comparable with a document's import baseline. */
+    fun currentSourceHash(): String = sourceHash(EditorCatalogFiles.capture(root), settings())
+
+    private fun settings(): ItemernessSettings = try {
+        ItemernessSettings.load(root.resolve("config.yml"))
+    } catch (_: Exception) {
+        // Strict YAML parser errors may include the line containing an API token.
+        throw CatalogTransferException("CATALOG_SETTINGS_INVALID")
+    }
+
+    private fun sourceHash(files: EditorCatalogFiles, settings: ItemernessSettings): String =
+        EditorDraftStore.digest(Json.canonicalize(obj("files" to files.digest,
+            "namespace" to settings.defaultNamespace, "defaultLocale" to settings.defaultLocale,
+            "defaultLayout" to settings.defaultLayout.toString(), "defaultTheme" to settings.defaultTheme.toString(),
+            "pendingNameTemplate" to settings.pendingNameTemplate, "pendingNameColor" to settings.pendingNameColor)))
+
+    private fun read(settings: ItemernessSettings, includeLayout: Boolean): JsonValue {
         val files = EditorCatalogFiles.capture(root)
-        val document = files.withDirectory { directory -> encode(directory, settings) }
+        val sourceHash = sourceHash(files, settings)
+        val document = files.withDirectory { directory ->
+            val encoded = encode(directory, settings)
+            if (!includeLayout) return@withDirectory encoded
+            val layout = EditorSourceLayout.encode(encoded, EditorSourceLayout.scan(directory), sourceHash)
+            JsonValue.Obj((encoded as JsonValue.Obj).entries + ("sourceLayout" to layout))
+        }
         if (Json.canonicalize(document).toByteArray(Charsets.UTF_8).size > EditorDraftStore.MAX_BYTES) {
             throw CatalogTransferException("CATALOG_DOCUMENT_TOO_LARGE")
         }
@@ -55,10 +72,6 @@ internal class EditorCatalogReader(
         }
         val diagnostics = compiler.validateDocument(document)
         if (diagnostics.isNotEmpty()) throw CatalogTransferException("CATALOG_INVALID", diagnostics)
-        val sourceHash = EditorDraftStore.digest(Json.canonicalize(obj("files" to files.digest,
-            "namespace" to settings.defaultNamespace, "defaultLocale" to settings.defaultLocale,
-            "defaultLayout" to settings.defaultLayout.toString(), "defaultTheme" to settings.defaultTheme.toString(),
-            "pendingNameTemplate" to settings.pendingNameTemplate, "pendingNameColor" to settings.pendingNameColor)))
         return obj("document" to document, "sourceHash" to sourceHash, "diagnostics" to emptyList<JsonValue>())
     }
 

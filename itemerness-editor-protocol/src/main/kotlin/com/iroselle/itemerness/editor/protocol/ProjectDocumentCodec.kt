@@ -87,6 +87,8 @@ import java.util.UUID
 object ProjectDocumentCodec {
     const val SUPPORTED_SCHEMA_VERSION: Int = 2
     val SUPPORTED_SCHEMA_VERSIONS: List<Int> = java.util.List.of(1, SUPPORTED_SCHEMA_VERSION)
+    private const val MAX_SOURCE_LAYOUT_FILES = 65_536
+    private const val MAX_SOURCE_PATH_LENGTH = 256
 
     class Decoded(
         val schemaVersion: Int,
@@ -124,7 +126,9 @@ object ProjectDocumentCodec {
             "schemaVersion", "documentId", "namespace", "defaultLocale", "defaultLayout", "defaultTheme", "budgets", "formats", "locales",
             "fonts", "glyphs", "bitmaps", "assetProfiles", "resourcePackBindings", "tooltipStyles", "spacing",
             "viewerFacts", "layouts", "themes", "dataSchemas", "items", "accessPolicies", "measurement", "extensions",
+            "sourceLayout",
         )
+        root.optionalObject("sourceLayout")?.let(::validateSourceLayout)
         if (root.optionalArray("accessPolicies").orEmpty().isNotEmpty()) {
             throw JsonException("document.accessPolicies has no runtime policy mapping and must remain empty")
         }
@@ -346,6 +350,21 @@ object ProjectDocumentCodec {
                 ViewerFactType.UUID -> UuidDataValue(UUID.fromString(text()))
                 ViewerFactType.NAMESPACED_KEY -> NamespacedKeyDataValue(ItemKey.parse(text()))
             }
+        }
+    }
+
+    /** Authoring metadata only; export resolves and validates each path against its node's domain. */
+    private fun validateSourceLayout(layout: JsonObject) {
+        layout.rejectUnknown("sourceHash", "files", "measurement", "spacing")
+        layout.requiredString("sourceHash")
+        val files = layout.requiredObject("files")
+        if (files.keys.size > MAX_SOURCE_LAYOUT_FILES) throw JsonException("document.sourceLayout has too many entries")
+        files.keys.forEach { uuid ->
+            UUID.fromString(uuid)
+            if (files.requiredString(uuid).length > MAX_SOURCE_PATH_LENGTH) throw JsonException("document.sourceLayout path is too long")
+        }
+        listOf("measurement", "spacing").forEach { field ->
+            if ((layout.optionalString(field)?.length ?: 0) > MAX_SOURCE_PATH_LENGTH) throw JsonException("document.sourceLayout.$field is too long")
         }
     }
 

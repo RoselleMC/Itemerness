@@ -24,6 +24,7 @@ export const HANDSHAKE = {
         "catalog.base-components.attributes-enchantments",
         "catalog.data-keys.field-constraints",
         "catalog.data-schemas.owner",
+        "catalog.source-layout",
     ],
 };
 

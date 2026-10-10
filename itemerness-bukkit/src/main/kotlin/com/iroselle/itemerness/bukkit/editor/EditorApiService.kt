@@ -45,7 +45,7 @@ internal class EditorApiService(
         validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
     }
     private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
-    private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge)
+    private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge, catalogReader::currentSourceHash)
     private val serverMetadata by lazy {
         ServerMetadataStore(draftPath.resolveSibling("server-metadata.json"), ServerIdentity.loadOrCreate(draftPath.resolveSibling("server-id")))
     }

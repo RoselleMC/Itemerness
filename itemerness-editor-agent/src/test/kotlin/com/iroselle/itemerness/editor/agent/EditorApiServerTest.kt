@@ -26,7 +26,7 @@ class EditorApiServerTest {
     private val document = Json.parse("""{"schemaVersion":1,"value":"draft"}""")
 
     private fun fixture(version: String = "26.1.2", apiToken: String = token,
-                        readCatalog: (() -> JsonValue)? = null, exportCatalog: ((JsonValue) -> JsonValue)? = null,
+                        readCatalog: ((Boolean) -> JsonValue)? = null, exportCatalog: ((JsonValue) -> JsonValue)? = null,
                         persistentIdentity: Boolean = false,
                         action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
@@ -54,8 +54,10 @@ class EditorApiServerTest {
     }
 
     private fun request(api: EditorApiServer, path: String, method: String = "GET", body: String? = null,
-                        auth: String? = token, protocol: String? = "2.0", origin: String? = null): HttpResponse<String> {
+                        auth: String? = token, protocol: String? = "2.0", origin: String? = null,
+                        headers: Map<String, String> = emptyMap()): HttpResponse<String> {
         val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:${api.port}$path")).timeout(Duration.ofSeconds(5))
+        headers.forEach(builder::header)
         auth?.let { builder.header("Authorization", "Bearer $it") }
         protocol?.let { builder.header("X-Itemerness-Protocol", it) }
         origin?.let { builder.header("Origin", it) }
@@ -204,7 +206,7 @@ class EditorApiServerTest {
     @Test
     fun `every supported version can import its first draft and preview without implicit writes`() {
         for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
-            fixture(version, readCatalog = { document }, exportCatalog = { it }) { api, count ->
+            fixture(version, readCatalog = { _ -> document }, exportCatalog = { it }) { api, count ->
                 val capabilities = JsonObject.parse(request(api, "/api/handshake").body(), "handshake").requiredArray("capabilities")
                 for (capability in listOf("catalog.read", "catalog.export", "preview.compile")) {
                     assertTrue(JsonValue.Text(capability) in capabilities, "$version: $capability")
@@ -222,6 +224,20 @@ class EditorApiServerTest {
                 assertEquals(saved, request(api, "/api/v2/document").body())
             }
             Files.delete(directory.resolve("draft.json"))
+        }
+    }
+
+    @Test
+    fun `the catalog source layout is read only when the client asks for it`() {
+        val layouts = java.util.Collections.synchronizedList(ArrayList<Boolean>())
+        fixture(readCatalog = { layout -> layouts += layout; document }, exportCatalog = { it }) { api, _ ->
+            assertTrue(request(api, "/api/handshake").body().contains("catalog.source-layout"))
+            assertEquals(200, request(api, "/api/v2/catalog").statusCode())
+            assertEquals(200, request(api, "/api/v2/catalog", headers = mapOf(EditorApiServer.LAYOUT_HEADER to "1")).statusCode())
+            assertEquals(listOf(false, true), layouts.toList())
+        }
+        fixture(readCatalog = { _ -> document }) { api, _ ->
+            assertFalse(request(api, "/api/handshake").body().contains("catalog.source-layout"), "Export is required as well")
         }
     }
 
@@ -252,7 +268,7 @@ class EditorApiServerTest {
     fun `configuration transfer is explicit authenticated versioned and never creates drafts`() {
         val reads = AtomicInteger()
         val exports = AtomicInteger()
-        fixture(readCatalog = { reads.incrementAndGet(); document }, exportCatalog = { exports.incrementAndGet(); it }) { api, _ ->
+        fixture(readCatalog = { _ -> reads.incrementAndGet(); document }, exportCatalog = { exports.incrementAndGet(); it }) { api, _ ->
             assertEquals(0, reads.get())
             val handshake = request(api, "/api/handshake")
             assertTrue(handshake.body().contains("catalog.read"))
@@ -284,7 +300,7 @@ class EditorApiServerTest {
             assertFalse(request(api, "/api/handshake").body().contains("catalog.export"))
             assertEquals(404, request(api, "/api/v2/catalog").statusCode())
         }
-        fixture(readCatalog = { throw CatalogTransferException("CATALOG_SETTINGS_INVALID") }) { api, _ ->
+        fixture(readCatalog = { _ -> throw CatalogTransferException("CATALOG_SETTINGS_INVALID") }) { api, _ ->
             val response = request(api, "/api/v2/catalog")
             assertEquals(422, response.statusCode())
             assertEquals("CATALOG_SETTINGS_INVALID", JsonObject.parse(response.body(), "response").requiredString("code"))
@@ -293,7 +309,7 @@ class EditorApiServerTest {
 
     @Test
     fun `transfer response byte limits include the envelope and UTF8 expansion`() {
-        fixture(readCatalog = { JsonValue.Text("\u4e2d".repeat(EditorDraftStore.MAX_BYTES / 2)) }) { api, _ ->
+        fixture(readCatalog = { _ -> JsonValue.Text("\u4e2d".repeat(EditorDraftStore.MAX_BYTES / 2)) }) { api, _ ->
             val response = request(api, "/api/v2/catalog")
             assertEquals(422, response.statusCode())
             assertEquals("CATALOG_RESPONSE_TOO_LARGE", JsonObject.parse(response.body(), "response").requiredString("code"))

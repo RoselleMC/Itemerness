@@ -104,3 +104,18 @@ export function usesDataSchemaOwners(
         Object.hasOwn(schema, "owner"),
     );
 }
+
+export const CATALOG_SOURCE_LAYOUT_CAPABILITY = "catalog.source-layout";
+
+export function supportsCatalogSourceLayout(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(CATALOG_SOURCE_LAYOUT_CAPABILITY) === true;
+}
+
+/** Old strict decoders reject a document-level `sourceLayout`. */
+export function usesCatalogSourceLayout(
+    document: Pick<ProjectDocument, "sourceLayout">,
+): boolean {
+    return document.sourceLayout !== undefined;
+}
