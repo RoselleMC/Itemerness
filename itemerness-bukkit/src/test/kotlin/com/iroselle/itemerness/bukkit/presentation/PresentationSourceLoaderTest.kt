@@ -377,6 +377,42 @@ class PresentationSourceLoaderTest {
     }
 
     @Test
+    fun `theme selectors load from YAML and choose a theme from instance data`() {
+        Files.writeString(directory.resolve("themes/selectors.yml"), SELECTOR_YAML)
+        replace("items/examples.yml", "theme: itemerness:vanilla-frame", "theme: example:charge-frame")
+
+        val loaded = load()
+        assertTrue(loaded.compilation.successful, loaded.compilation.diagnostics.joinToString())
+        val selector = loaded.source.themeSelectors.single()
+        assertEquals("example:charge-frame", selector.id)
+        assertEquals("itemerness:default", selector.cases.single().theme)
+        assertEquals("itemerness:vanilla-frame", selector.defaultTheme)
+
+        replace("items/examples.yml", "  travel-token:\n    enabled: false", "  travel-token:\n    enabled: true")
+        val engine = PresentationEngine(requireNotNull(load().compilation.catalog))
+        fun selected(charges: Int): ItemKey {
+            val result = engine.render(PresentationRenderRequest(
+                ItemKey.parse("itemerness:travel-token"),
+                mapOf(DataKey.parse("example:charges") to IntegerDataValue(charges)),
+                PresentationViewer("en_us"),
+            ))
+            return assertInstanceOf(PresentationRenderResult.Rendered::class.java, result).display.selectedTheme
+        }
+        assertEquals(ItemKey.parse("itemerness:default"), selected(3))
+        assertEquals(ItemKey.parse("itemerness:vanilla-frame"), selected(2))
+    }
+
+    @Test
+    fun `theme selector YAML is strict`() {
+        Files.writeString(directory.resolve("themes/selectors.yml"), SELECTOR_YAML.replace("    default:", "    unexpected: true\n    default:"))
+        assertThrows(StrictYamlException::class.java, ::load)
+        Files.writeString(directory.resolve("themes/selectors.yml"), SELECTOR_YAML.replace("        theme: itemerness:default", "        theme: itemerness:default\n        priority: 1"))
+        assertThrows(StrictYamlException::class.java, ::load)
+        Files.writeString(directory.resolve("themes/selectors.yml"), "schema-version: 1\n")
+        assertThrows(StrictYamlException::class.java, ::load)
+    }
+
+    @Test
     fun `theme fallback cycle rejects the candidate`() {
         replace(
             "themes/vanilla-frame.yml",
@@ -476,5 +512,22 @@ class PresentationSourceLoaderTest {
         checkNotNull(javaClass.classLoader.getResourceAsStream(path)).use { input ->
             Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING)
         }
+    }
+
+    private companion object {
+        val SELECTOR_YAML = """
+            schema-version: 1
+            theme-selectors:
+              example:charge-frame:
+                cases:
+                  - when:
+                      operator: greater-than-or-equal
+                      left:
+                        data: example:charges
+                      right:
+                        literal: 3
+                    theme: itemerness:default
+                default: itemerness:vanilla-frame
+        """.trimIndent() + "\n"
     }
 }

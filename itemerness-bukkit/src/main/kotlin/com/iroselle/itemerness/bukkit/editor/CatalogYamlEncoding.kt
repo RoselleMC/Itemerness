@@ -61,14 +61,17 @@ internal object CatalogYamlEncoding {
         is PresentationBlockSource.Text -> map("type" to "text", "data" to block.data, "wrapping" to block.wrapping, "unbreakable" to block.unbreakable, "missing-policy" to YamlEncoding.enum(block.missingPolicy))
         is PresentationBlockSource.Field -> map("type" to "field", "data" to block.data, "label" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missing-policy" to YamlEncoding.enum(block.missingPolicy))
         is PresentationBlockSource.Description -> map("type" to "description", "message" to block.message, "wrapping" to block.wrapping)
-        is PresentationBlockSource.Conditional -> map("type" to "conditional", "condition" to map("operator" to YamlEncoding.enum(block.condition.operator),
-            "left" to reference(block.condition.left), "right" to block.condition.right?.let(::reference)),
+        is PresentationBlockSource.Conditional -> map("type" to "conditional", "condition" to condition(block.condition),
             "then" to block.thenBlocks.map(::block), "otherwise" to block.otherwiseBlocks.map(::block))
         is PresentationBlockSource.Repeat -> map("type" to "repeat", "data" to block.data, "maximum-elements" to block.maximumElements,
             "missing-policy" to YamlEncoding.enum(block.missingPolicy), "template" to map("type" to "compound-field", "label" to block.template.labelMessage,
                 "value-path" to block.template.valuePath, "missing-message" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format))
         is PresentationBlockSource.NestedItemList -> map("type" to "nested-item-list")
     }
+
+    /** Shared by conditional blocks and theme selector cases, which use the same condition model. */
+    fun condition(condition: ConditionSource): Map<String, Any?> = map("operator" to YamlEncoding.enum(condition.operator),
+        "left" to reference(condition.left), "right" to condition.right?.let(::reference))
 
     private fun reference(reference: ValueReferenceSource): Map<String, Any?> = when (reference) {
         is ValueReferenceSource.Data -> map("data" to reference.key)

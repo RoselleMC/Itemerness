@@ -30,6 +30,7 @@ internal object PresentationFixtures {
         themeSources: List<ThemeSource> = themes(),
         itemSources: List<ItemPresentationSource> = items(),
         viewerFactSources: List<ViewerFactSource> = viewerFacts(),
+        themeSelectorSources: List<ThemeSelectorSource> = emptyList(),
     ): PresentationSource = PresentationSource(
         formats = formats(),
         locales = localeSources,
@@ -48,6 +49,7 @@ internal object PresentationFixtures {
             SpacingRangeSource(0xF0100, 0xF01FF, 1, 256),
         ),
         tooltipStyles = setOf("itemerness:ember", "itemerness:transparent-canvas"),
+        themeSelectors = themeSelectorSources,
     )
 
     fun formats(): List<FormatSource> = listOf(

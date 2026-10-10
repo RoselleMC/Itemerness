@@ -4,7 +4,14 @@ import com.iroselle.itemerness.core.catalog.CompoundFieldSource
 import com.iroselle.itemerness.core.catalog.DataConstraintsSource
 import com.iroselle.itemerness.core.catalog.DataType
 import com.iroselle.itemerness.core.catalog.SourceDataValue
+import com.iroselle.itemerness.api.IntegerDataValue
+import com.iroselle.itemerness.core.presentation.ConditionOperator
+import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
+import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
+import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
+import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.editor.protocol.DocumentEncoding.obj
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -36,6 +43,56 @@ class ProjectDocumentEncoderTest {
             "placeholderApi" to obj("exposed" to false, "formatter" to null),
         )
     } }
+
+    private fun withSelector(presentation: PresentationSource, selector: ThemeSelectorSource): PresentationSource = PresentationSource(
+        formats = presentation.formats, locales = presentation.locales, fonts = presentation.fonts, glyphs = presentation.glyphs,
+        bitmaps = presentation.bitmaps, assetProfiles = presentation.assetProfiles, viewerFacts = presentation.viewerFacts,
+        resourcePackBindings = presentation.resourcePackBindings, layouts = presentation.layouts, themes = presentation.themes,
+        items = presentation.items, spacing = presentation.spacing, tooltipStyles = presentation.tooltipStyles,
+        themeSelectors = listOf(selector),
+    )
+
+    @Test
+    fun `theme selectors encode, decode and re-encode, and stay absent when there are none`() {
+        val original = ProjectDocumentCodec.decode(fixture, metrics)
+        val selector = ThemeSelectorSource(
+            "example:charge-frame",
+            listOf(
+                ThemeSelectorCaseSource(
+                    ConditionSource(ConditionOperator.EQUALS, ValueReferenceSource.Data("example:charges"), ValueReferenceSource.Literal(IntegerDataValue(3))),
+                    "itemerness:vanilla-frame",
+                ),
+                ThemeSelectorCaseSource(ConditionSource(ConditionOperator.EXISTS, ValueReferenceSource.Fact("example:class")), "itemerness:ember"),
+            ),
+            "itemerness:default",
+        )
+        val presentation = withSelector(original.presentation, selector)
+        val encoded = encoder.encode(original.namespace, original.defaultLocale, original.catalog, presentation, assets, policies)
+        val root = JsonObject.of(encoded, "encoded")
+        val node = root.requiredObjects("themeSelectors").single()
+        assertEquals(setOf("uuid", "id", "cases", "defaultTheme"), node.keys)
+        val decoded = ProjectDocumentCodec.decode(root, metrics)
+        val restored = decoded.presentation.themeSelectors.single()
+        assertEquals(selector.id, restored.id)
+        assertEquals(selector.cases, restored.cases)
+        assertEquals(selector.defaultTheme, restored.defaultTheme)
+        val repeated = encoder.encode(decoded.namespace, decoded.defaultLocale, decoded.catalog, decoded.presentation, assets, policies)
+        assertEquals(Json.canonicalize(encoded), Json.canonicalize(repeated))
+
+        val plain = encoder.encode(original.namespace, original.defaultLocale, original.catalog, original.presentation, assets, policies)
+        assertTrue("themeSelectors" !in plain.entries)
+
+        fun mutated(transform: (String) -> String) = JsonObject.parse(transform(Json.canonicalize(encoded)), "document")
+        assertThrows(JsonException::class.java) {
+            ProjectDocumentCodec.decode(mutated { it.replace("\"defaultTheme\":\"itemerness:default\"", "\"defaultTheme\":\"itemerness:default\",\"priority\":1") }, metrics)
+        }
+        assertThrows(JsonException::class.java) {
+            ProjectDocumentCodec.decode(mutated { it.replace("\"theme\":\"itemerness:ember\"", "\"theme\":\"itemerness:ember\",\"weight\":1") }, metrics)
+        }
+        val defaulted = JsonObject.of(JsonValue.Obj(encoded.entries + ("defaultTheme" to JsonValue.Text("example:charge-frame")) +
+            ("defaultLayout" to JsonValue.Text("itemerness:plain"))), "document")
+        assertEquals("example:charge-frame", ProjectDocumentCodec.decode(defaulted, metrics).defaultTheme)
+    }
 
     @Test
     fun `all baseline configuration domains survive stable source document round trips`() {

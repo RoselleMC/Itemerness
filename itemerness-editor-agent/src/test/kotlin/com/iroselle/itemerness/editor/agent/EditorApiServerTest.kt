@@ -142,6 +142,10 @@ class EditorApiServerTest {
                     JsonValue.Text("catalog.data-schemas.owner") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("presentation.theme-selectors") in handshake.requiredArray("capabilities"),
+                    version,
+                )
             }
         }
     }

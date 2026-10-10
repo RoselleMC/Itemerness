@@ -75,6 +75,7 @@ class PresentationCatalogSnapshot internal constructor(
     validationItems: Map<ItemKey, CompiledItemPresentation>,
     val spacing: CompiledSpacing?,
     tooltipStyles: Set<ItemKey>,
+    themeSelectors: Map<ItemKey, CompiledThemeSelector> = emptyMap(),
 ) {
     init {
         require(revision >= 0) { "Presentation catalog revision must not be negative" }
@@ -90,6 +91,8 @@ class PresentationCatalogSnapshot internal constructor(
     val resourcePackBindings: Map<ItemKey, ResourcePackBinding> = immutableSortedMap(resourcePackBindings)
     val layouts: Map<ItemKey, CompiledLayout> = immutableSortedMap(layouts)
     val themes: Map<ItemKey, CompiledTheme> = immutableSortedMap(themes)
+    /** Data-driven theme choices; their ids never collide with [themes]. */
+    val themeSelectors: Map<ItemKey, CompiledThemeSelector> = immutableSortedMap(themeSelectors)
     val items: Map<ItemKey, CompiledItemPresentation> = immutableSortedMap(items)
     /** Every compiled source presentation, including disabled items, used only before publication. */
     val validationItems: Map<ItemKey, CompiledItemPresentation> = immutableSortedMap(validationItems)
@@ -113,6 +116,7 @@ class PresentationCatalogSnapshot internal constructor(
         validationItems = validationItems,
         spacing = spacing,
         tooltipStyles = tooltipStyles,
+        themeSelectors = themeSelectors,
     )
 }
 
@@ -183,6 +187,23 @@ data class CompiledTheme(
     val requiredCapabilities: Set<ItemKey>,
     val fonts: Map<String, ItemKey>,
     val tooltipStyle: ItemKey?,
+)
+
+class CompiledThemeSelector(
+    val id: ItemKey,
+    cases: Collection<CompiledThemeSelectorCase>,
+    val defaultTheme: ItemKey,
+) {
+    val cases: List<CompiledThemeSelectorCase> = java.util.List.copyOf(cases)
+
+    /** Every concrete theme this selector can choose, in evaluation order. */
+    val reachableThemes: Set<ItemKey>
+        get() = (cases.map(CompiledThemeSelectorCase::theme) + defaultTheme).toCollection(LinkedHashSet())
+}
+
+data class CompiledThemeSelectorCase(
+    val condition: CompiledCondition,
+    val theme: ItemKey,
 )
 
 class CompiledItemPresentation internal constructor(

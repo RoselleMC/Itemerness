@@ -28,6 +28,7 @@ internal object EditorSourceLayout {
         "locales" to "locales",
         "layouts" to "layouts",
         "themes" to "themes",
+        "themeSelectors" to "themes",
         "viewerFacts" to "viewer-facts",
         "fonts" to "assets",
         "glyphs" to "assets",
@@ -80,7 +81,7 @@ internal object EditorSourceLayout {
         "locales" -> listOf(ObjectKey("locales", document.requiredString("locale")))
         "formats" -> keys(document, "formats", "formats")
         "layouts" -> keys(document, "layouts", "layouts")
-        "themes" -> keys(document, "themes", "themes")
+        "themes" -> keys(document, "themes", "themes") + keys(document, "theme-selectors", "themeSelectors")
         "viewer-facts" -> keys(document, "facts", "viewerFacts")
         "assets" -> ASSET_SECTIONS.flatMap { (section, collection) -> keys(document, section, collection) } +
             SINGLETONS.keys.filter(document::contains).map { section -> ObjectKey(section, "") }

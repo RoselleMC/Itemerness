@@ -1,4 +1,5 @@
 import { itemLayout, itemTheme } from "@itemerness/protocol";
+import { reachableThemes } from "../../state/themeSelectorLibrary.js";
 import type {
     LayoutNode,
     PresentationBlock,
@@ -53,10 +54,15 @@ export function canvasThemeMismatches(
     document: ProjectDocument,
     layout: CanvasLayout,
 ) {
+    // A selector can choose any of its themes, so each must match the canvas.
     const referenced = new Set(
         document.items
             .filter((item) => itemLayout(document, item) === layout.id)
-            .map((item) => itemTheme(document, item)),
+            .flatMap((item) =>
+                reachableThemes(document, itemTheme(document, item)).map(
+                    (theme) => theme.id,
+                ),
+            ),
     );
     for (const id of referenced) {
         const fallback = document.themes.find(

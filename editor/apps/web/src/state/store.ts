@@ -256,8 +256,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 const itemIds = new Set(
                     document.items.map((item) => itemKey(document, item)),
                 );
+                // The theme library lists selectors alongside themes in one id space.
                 const themeIds = new Set(
-                    document.themes.map((theme) => theme.id),
+                    [
+                        ...document.themes,
+                        ...(document.themeSelectors ?? []),
+                    ].map((theme) => theme.id),
                 );
                 const layoutIds = new Set(
                     document.layouts.map((layout) => layout.id),

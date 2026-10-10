@@ -567,6 +567,30 @@ const conditionSchema = z.strictObject({
     left: valueReferenceSchema,
     right: valueReferenceSchema.nullable().default(null),
 });
+export type PresentationCondition = z.infer<typeof conditionSchema>;
+
+/** Mirrors the compiler's per-selector bound; every case is evaluated on each render. */
+export const MAXIMUM_THEME_SELECTOR_CASES = 64;
+
+export const themeSelectorCaseSchema = z.strictObject({
+    condition: conditionSchema,
+    /** A concrete theme; selectors never choose another selector. */
+    theme: namespacedIdSchema,
+});
+export type ThemeSelectorCase = z.infer<typeof themeSelectorCaseSchema>;
+
+/**
+ * A reusable, data-driven theme choice. Its id shares the theme id space, so items and the
+ * document default theme may reference it. The first matching case wins, otherwise
+ * `defaultTheme` applies. The compiler enforces the case budget as a diagnostic.
+ */
+export const themeSelectorNodeSchema = z.strictObject({
+    ...nodeIdentity,
+    id: namespacedIdSchema,
+    cases: z.array(themeSelectorCaseSchema),
+    defaultTheme: namespacedIdSchema,
+});
+export type ThemeSelectorNode = z.infer<typeof themeSelectorNodeSchema>;
 
 const compoundFieldTemplateSchema = z.strictObject({
     labelMessage: messageKeySchema,
@@ -840,6 +864,8 @@ export const projectDocumentSchema = z
         viewerFacts: z.array(viewerFactNodeSchema).max(256),
         layouts: z.array(layoutNodeSchema),
         themes: z.array(themeNodeSchema),
+        /** Absent, never empty, when a document has no selectors so older hashes stay stable. */
+        themeSelectors: z.array(themeSelectorNodeSchema).optional(),
         dataSchemas: z.array(dataSchemaNodeSchema),
         items: z.array(itemNodeSchema),
         accessPolicies: z.array(accessPolicyNodeSchema).max(0),
@@ -859,9 +885,14 @@ export const projectDocumentSchema = z
         ] as const) {
             if (document.schemaVersion === 1 && document[field] !== undefined)
                 report([field], `${field} requires document schema 2`);
+            // Theme selectors share the theme id space, so a default theme may name one.
+            const declared =
+                library === "themes"
+                    ? [...document.themes, ...(document.themeSelectors ?? [])]
+                    : document[library];
             if (
                 document[field] != null &&
-                !document[library].some((entry) => entry.id === document[field])
+                !declared.some((entry) => entry.id === document[field])
             )
                 report(
                     [field],

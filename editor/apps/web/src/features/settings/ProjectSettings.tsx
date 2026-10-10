@@ -71,10 +71,14 @@ export function ProjectSettings() {
                             kind === "layout"
                                 ? "defaultLayout"
                                 : "defaultTheme";
+                        // A default theme may also name a theme selector.
                         const entries =
                             kind === "layout"
                                 ? document.layouts
-                                : document.themes;
+                                : [
+                                      ...document.themes,
+                                      ...(document.themeSelectors ?? []),
+                                  ];
                         const inheritedCount = document.items.filter(
                             (item) => item.presentation[kind] == null,
                         ).length;

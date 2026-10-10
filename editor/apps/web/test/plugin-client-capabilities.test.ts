@@ -4,6 +4,7 @@ import {
     previewViewerSchema,
     SEGMENTED_FRAME_DECORATIONS_CAPABILITY,
     EXTENDED_BASE_COMPONENTS_CAPABILITY,
+    THEME_SELECTORS_CAPABILITY,
     type ProjectDocument,
     type PreviewRequest,
 } from "@itemerness/protocol";
@@ -177,6 +178,53 @@ describe.each(operations)("%s document capability gate", (operation) => {
             expect(contentHash(document)).toBe(hash);
         },
     );
+    it.each([
+        ["an empty", []],
+        ["a populated", null],
+    ] as const)(
+        "gates %s themeSelectors field by its exact capability",
+        async (_, selectors) => {
+            const document = structuredClone(baselineDocument);
+            document.themeSelectors = selectors
+                ? [...selectors]
+                : [
+                      {
+                          uuid: "8c7c4b1e-6a7e-4a55-9b8e-2f3c0b6d5a10",
+                          id: "example:charge-frame",
+                          cases: [],
+                          defaultTheme: "itemerness:default",
+                      },
+                  ];
+            const hash = contentHash(document);
+            const fetch = vi.fn().mockResolvedValueOnce(response(handshake));
+            vi.stubGlobal("fetch", fetch);
+            const old = new PluginClient("http://example.test", "");
+            await old.handshake();
+            await expect(send(old, operation, document)).rejects.toThrow(
+                "THEME_SELECTORS_UNSUPPORTED",
+            );
+            expect(fetch).toHaveBeenCalledTimes(1);
+            fetch
+                .mockResolvedValueOnce(
+                    response({
+                        ...handshake,
+                        capabilities: [
+                            ...handshake.capabilities,
+                            THEME_SELECTORS_CAPABILITY,
+                        ],
+                    }),
+                )
+                .mockResolvedValueOnce(response(reply(operation, document)));
+            const current = new PluginClient("http://example.test", "");
+            await current.handshake();
+            await send(current, operation, document);
+            expect(JSON.parse(fetch.mock.calls[2]![1].body).document).toEqual(
+                document,
+            );
+            expect(contentHash(document)).toBe(hash);
+        },
+    );
+
     it("sends a legacy document to an old peer without changing its hash", async () => {
         const document = structuredClone(baselineDocument);
         const hash = contentHash(document);

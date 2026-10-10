@@ -349,6 +349,77 @@ class ProjectionStateStoreTest {
     }
 
     @Test
+    fun `theme selectors follow canonical data and viewer facts through the render cache`() {
+        installBundledResources()
+        Files.writeString(
+            directory.resolve("themes/selectors.yml"),
+            """
+            schema-version: 1
+            theme-selectors:
+              example:charge-frame:
+                cases:
+                  - when:
+                      operator: greater-than-or-equal
+                      left:
+                        data: example:charges
+                      right:
+                        literal: 3
+                    theme: itemerness:default
+                  - when:
+                      operator: greater-than-or-equal
+                      left:
+                        fact: example:level
+                      right:
+                        literal: 10
+                    theme: itemerness:default
+                default: itemerness:vanilla-frame
+            """.trimIndent() + "\n",
+        )
+        val itemFile = directory.resolve("items/examples.yml")
+        Files.writeString(
+            itemFile,
+            Files.readString(itemFile)
+                .replaceFirst("enabled: false", "enabled: true")
+                .replace("theme: itemerness:vanilla-frame", "theme: example:charge-frame"),
+        )
+        val update = RuntimeCatalogManager(directory, "26.1.2").reload()
+        require(update is RuntimeCatalogUpdate.Published) { update.diagnostics.joinToString() }
+        val runtime = update.active
+        val itemKey = ItemKey.parse("itemerness:travel-token")
+        val charged = runtime.domain.createInstance(itemKey)
+        val depleted = runtime.domain.editInstance(
+            charged,
+            listOf(InstanceDataMutation.Set(DataKey.parse("example:charges"), IntegerDataValue(1))),
+        )
+        val store = ProjectionStateStore()
+        store.publishCatalog(runtime, runtime.presentation)
+        val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba15a")
+        store.publishViewer(viewer(viewerId, "en_us"))
+        fun framed(instance: CanonicalItemInstance): Boolean {
+            val rendered = store.render(viewerId, canonical(runtime.settings.pendingName(itemKey), instance))
+            return (rendered as ProjectionResult.Rendered).display.lore.first().runs.joinToString("") { it.text }.startsWith("┌")
+        }
+
+        // The cache key covers the canonical data a selector reads, so each stack keeps its own frame.
+        assertFalse(framed(charged))
+        assertTrue(framed(depleted))
+        assertFalse(framed(charged))
+        val cached = store.render(viewerId, canonical(runtime.settings.pendingName(itemKey), depleted))
+        assertSame(cached, store.render(viewerId, canonical(runtime.settings.pendingName(itemKey), depleted)))
+
+        // A newer viewer snapshot invalidates that viewer's renders, so fact-driven cases apply.
+        store.publishViewer(
+            viewer(
+                viewerId,
+                "en_us",
+                revision = 2,
+                facts = listOf(ViewerFact(ItemKey.parse("example:level"), IntegerProjectionValue(12))),
+            ),
+        )
+        assertFalse(framed(depleted))
+    }
+
+    @Test
     fun `projection uses declared PDC only after canonical and definition data`() {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")

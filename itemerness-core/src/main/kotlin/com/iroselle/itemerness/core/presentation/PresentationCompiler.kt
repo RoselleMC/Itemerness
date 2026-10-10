@@ -12,6 +12,9 @@ import com.iroselle.itemerness.api.UuidDataValue
 import java.util.TreeMap
 import java.util.UUID
 
+/** Upper bound on cases in one theme selector; selectors are evaluated for every render. */
+const val MAXIMUM_THEME_SELECTOR_CASES: Int = 64
+
 class PresentationCompiler(
     private val defaultLocale: String = "en_us",
     private val budgets: PresentationBudgets = PresentationBudgets(),
@@ -39,7 +42,8 @@ class PresentationCompiler(
             spacing = spacing,
             diagnostics = diagnostics,
         )
-        val items = compileItems(source.items, formats, layouts, themes, glyphs, diagnostics)
+        val themeSelectors = compileThemeSelectors(source.themeSelectors, themes, diagnostics)
+        val items = compileItems(source.items, formats, layouts, themes, themeSelectors, glyphs, diagnostics)
 
         validateFallbackGraph("locales", locales, { it.fallback }, diagnostics)
         validateFallbackGraph("fonts", fonts, { it.fallback }, diagnostics)
@@ -47,8 +51,9 @@ class PresentationCompiler(
         validateFallbackGraph("themes", themes, { it.fallback }, diagnostics)
         validateFormatGraph(formats, diagnostics)
         validateThemes(themes, diagnostics)
-        validateItemLayoutContracts(items, layouts, themes, diagnostics)
+        validateItemLayoutContracts(items, layouts, themes, themeSelectors, diagnostics)
         validateItemFactReferences(items, viewerFacts, diagnostics)
+        validateThemeSelectorFactReferences(themeSelectors, viewerFacts, diagnostics)
         validateMessages(items, formats, locales, diagnostics)
 
         if (defaultLocale !in locales) {
@@ -80,6 +85,7 @@ class PresentationCompiler(
                 validationItems = items,
                 spacing = spacing,
                 tooltipStyles = tooltipStyles,
+                themeSelectors = themeSelectors,
             ),
             result,
         )
@@ -537,11 +543,59 @@ class PresentationCompiler(
         return result
     }
 
+    private fun compileThemeSelectors(
+        sources: List<ThemeSelectorSource>,
+        themes: Map<ItemKey, CompiledTheme>,
+        diagnostics: Diagnostics,
+    ): Map<ItemKey, CompiledThemeSelector> {
+        val selectorIds = sources.mapNotNullTo(HashSet()) { runCatching { ItemKey.parse(it.id) }.getOrNull() }
+        fun concreteTheme(raw: String, path: String): ItemKey? {
+            val theme = parseKey(raw, path, diagnostics) ?: return null
+            when {
+                theme in themes -> Unit
+                theme in selectorIds -> diagnostics.add(
+                    PresentationDiagnosticCode.INVALID_VALUE,
+                    path,
+                    "Theme selector $theme cannot be chosen by another selector; reference a concrete theme",
+                )
+                else -> diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, path, "Unknown theme $theme")
+            }
+            return theme
+        }
+        val result = TreeMap<ItemKey, CompiledThemeSelector>()
+        sources.forEachIndexed { index, source ->
+            val path = "theme-selectors[$index]"
+            val id = parseKey(source.id, "$path.id", diagnostics) ?: return@forEachIndexed
+            if (id in themes) {
+                diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Theme selector $id collides with a theme of the same id")
+            }
+            if (source.cases.size > MAXIMUM_THEME_SELECTOR_CASES) {
+                diagnostics.add(
+                    PresentationDiagnosticCode.BUDGET_EXCEEDED,
+                    "$path.cases",
+                    "Theme selector has ${source.cases.size} cases; maximum is $MAXIMUM_THEME_SELECTOR_CASES",
+                )
+            }
+            val cases = source.cases.mapIndexedNotNull { caseIndex, case ->
+                val casePath = "$path.cases[$caseIndex]"
+                val condition = compileCondition(case.condition, "$casePath.when", diagnostics)
+                val theme = concreteTheme(case.theme, "$casePath.theme")
+                if (condition == null || theme == null) null else CompiledThemeSelectorCase(condition, theme)
+            }
+            val defaultTheme = concreteTheme(source.defaultTheme, "$path.default") ?: return@forEachIndexed
+            if (result.putIfAbsent(id, CompiledThemeSelector(id, cases, defaultTheme)) != null) {
+                diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Duplicate theme selector $id")
+            }
+        }
+        return result
+    }
+
     private fun compileItems(
         sources: List<ItemPresentationSource>,
         formats: Map<ItemKey, FormatSource>,
         layouts: Map<ItemKey, CompiledLayout>,
         themes: Map<ItemKey, CompiledTheme>,
+        themeSelectors: Map<ItemKey, CompiledThemeSelector>,
         glyphs: Map<String, CompiledGlyph>,
         diagnostics: Diagnostics,
     ): Map<ItemKey, CompiledItemPresentation> {
@@ -552,7 +606,9 @@ class PresentationCompiler(
             val layout = parseKey(source.layout, "$path.layout", diagnostics) ?: return@forEachIndexed
             val theme = parseKey(source.theme, "$path.theme", diagnostics) ?: return@forEachIndexed
             if (layout !in layouts) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.layout", "Unknown layout $layout")
-            if (theme !in themes) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.theme", "Unknown theme $theme")
+            if (theme !in themes && theme !in themeSelectors) {
+                diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.theme", "Unknown theme $theme")
+            }
             validateMessageKey(source.nameMessage, "$path.name-message", diagnostics)
             val counter = BlockCounter()
             val blocks = compileBlocks(source.blocks, "$path.blocks", 1, counter, formats, glyphs, diagnostics)
@@ -884,13 +940,25 @@ class PresentationCompiler(
         items: Map<ItemKey, CompiledItemPresentation>,
         layouts: Map<ItemKey, CompiledLayout>,
         themes: Map<ItemKey, CompiledTheme>,
+        themeSelectors: Map<ItemKey, CompiledThemeSelector>,
         diagnostics: Diagnostics,
     ) {
         items.values.forEach { item ->
             val layout = layouts[item.layout] ?: return@forEach
-            val theme = themes[item.theme] ?: return@forEach
-            if (theme.source.renderer == ThemeRenderer.BITMAP_CANVAS && layout !is CompiledLayout.Canvas) {
-                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "items.${item.key}.layout", "Bitmap canvas theme requires a canvas layout")
+            // A selector can choose any of its themes at runtime, so each must accept the layout.
+            val reachable = themeSelectors[item.theme]?.reachableThemes ?: setOf(item.theme)
+            reachable.mapNotNull(themes::get).forEach { theme ->
+                if (theme.source.renderer == ThemeRenderer.BITMAP_CANVAS && layout !is CompiledLayout.Canvas) {
+                    diagnostics.add(
+                        PresentationDiagnosticCode.INVALID_VALUE,
+                        "items.${item.key}.layout",
+                        if (theme.id == item.theme) {
+                            "Bitmap canvas theme requires a canvas layout"
+                        } else {
+                            "Bitmap canvas theme ${theme.id}, reachable through theme selector ${item.theme}, requires a canvas layout"
+                        },
+                    )
+                }
             }
             validateBlockLayoutReferences(item.blocks, layout, "items.${item.key}.blocks", diagnostics)
         }
@@ -915,21 +983,43 @@ class PresentationCompiler(
         blocks.forEachIndexed { index, block ->
             if (block !is CompiledPresentationBlock.Conditional) return@forEachIndexed
             val blockPath = "$path[$index]"
-            listOfNotNull(block.condition.left, block.condition.right).forEach { reference ->
-                if (reference !is CompiledValueReference.Fact) return@forEach
-                val fact = facts[reference.key]
-                if (fact == null) {
-                    diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.condition", "Unknown viewer fact ${reference.key}")
-                } else if (!fact.cacheKey) {
-                    diagnostics.add(
-                        PresentationDiagnosticCode.INVALID_VALUE,
-                        "$blockPath.condition",
-                        "Presentation-visible viewer fact ${reference.key} must participate in the cache key",
-                    )
-                }
-            }
+            validateConditionFactReferences(block.condition, facts, "$blockPath.condition", diagnostics)
             validateBlockFactReferences(block.thenBlocks, facts, "$blockPath.then", diagnostics)
             validateBlockFactReferences(block.otherwiseBlocks, facts, "$blockPath.otherwise", diagnostics)
+        }
+    }
+
+    private fun validateThemeSelectorFactReferences(
+        selectors: Map<ItemKey, CompiledThemeSelector>,
+        facts: Map<ItemKey, ViewerFactDefinition>,
+        diagnostics: Diagnostics,
+    ) {
+        selectors.values.forEach { selector ->
+            selector.cases.forEachIndexed { index, case ->
+                validateConditionFactReferences(case.condition, facts, "theme-selectors.${selector.id}.cases[$index].when", diagnostics)
+            }
+        }
+    }
+
+    /** Shared by conditional blocks and theme selectors: both are evaluated per viewer. */
+    private fun validateConditionFactReferences(
+        condition: CompiledCondition,
+        facts: Map<ItemKey, ViewerFactDefinition>,
+        path: String,
+        diagnostics: Diagnostics,
+    ) {
+        listOfNotNull(condition.left, condition.right).forEach { reference ->
+            if (reference !is CompiledValueReference.Fact) return@forEach
+            val fact = facts[reference.key]
+            if (fact == null) {
+                diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, path, "Unknown viewer fact ${reference.key}")
+            } else if (!fact.cacheKey) {
+                diagnostics.add(
+                    PresentationDiagnosticCode.INVALID_VALUE,
+                    path,
+                    "Presentation-visible viewer fact ${reference.key} must participate in the cache key",
+                )
+            }
         }
     }
 

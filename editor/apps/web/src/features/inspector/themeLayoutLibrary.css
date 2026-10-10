@@ -28,3 +28,44 @@
     font-size: 12px;
     overflow-wrap: anywhere;
 }
+.theme-selector-cases {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+.theme-selector-case-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.theme-selector-case {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+.theme-selector-case-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.theme-selector-cases .add-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.selector-swatch {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    color: var(--muted);
+}
+.theme-card.selector-card .theme-card-kind {
+    font-style: italic;
+}

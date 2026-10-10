@@ -49,6 +49,8 @@ import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
 import com.iroselle.itemerness.core.presentation.TextStyleSource
 import com.iroselle.itemerness.core.presentation.ThemeRenderer
+import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
+import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ThemeSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
@@ -91,7 +93,9 @@ internal class PresentationSourceLoader(
         val formats = yamlFiles(root, "formats").flatMap(::parseFormats)
         val locales = yamlFiles(root, "locales").map(::parseLocale)
         val layouts = yamlFiles(root, "layouts").flatMap(::parseLayouts)
-        val themes = yamlFiles(root, "themes").flatMap(::parseThemes)
+        val themeFiles = yamlFiles(root, "themes").map(::parseThemeFile)
+        val themes = themeFiles.flatMap(ParsedThemeFile::themes)
+        val themeSelectors = themeFiles.flatMap(ParsedThemeFile::selectors)
         val assets = parseAssets(yamlFiles(root, "assets"))
         val viewerFacts = parseViewerFacts(yamlFiles(root, "viewer-facts"))
         val items = parseItems(catalog.itemDocuments, defaultLayout, defaultTheme)
@@ -109,6 +113,7 @@ internal class PresentationSourceLoader(
             items = items,
             spacing = assets.spacing,
             tooltipStyles = assets.tooltipStyles,
+            themeSelectors = themeSelectors,
         )
         return LoadedPresentationSource(
             source = source,
@@ -647,10 +652,40 @@ internal class PresentationSourceLoader(
         }
     }
 
-    private fun parseThemes(path: Path): List<ThemeSource> {
-        val root = document(path).rejectUnknown("schema-version", "themes")
+    private class ParsedThemeFile(val themes: List<ThemeSource>, val selectors: List<ThemeSelectorSource>)
+
+    private fun parseThemeFile(path: Path): ParsedThemeFile {
+        val root = document(path).rejectUnknown("schema-version", "themes", "theme-selectors")
         requireVersion(root, path)
-        val themes = root.requiredObject("themes")
+        // A file may hold only selectors; one with neither section is still rejected.
+        val themes = if (root.contains("theme-selectors") && !root.contains("themes")) {
+            emptyList()
+        } else {
+            parseThemes(root.requiredObject("themes"), path)
+        }
+        val selectors = root.optionalObject("theme-selectors")?.let { parseThemeSelectors(it, path) }.orEmpty()
+        return ParsedThemeFile(themes, selectors)
+    }
+
+    private fun parseThemeSelectors(selectors: YamlObject, path: Path): List<ThemeSelectorSource> =
+        selectors.keys.map { id ->
+            val node = selectors.child(id, selectors.raw(id)).rejectUnknown("cases", "default")
+            val source = path.toString()
+            ThemeSelectorSource(
+                id = id,
+                cases = node.requiredList("cases").mapIndexed { index, raw ->
+                    val casePath = "theme-selectors.$id.cases[$index]"
+                    val case = objectNode(raw, source, casePath).rejectUnknown("when", "theme")
+                    ThemeSelectorCaseSource(
+                        condition = parseCondition(case.requiredObject("when"), source, "$casePath.when"),
+                        theme = case.requiredString("theme"),
+                    )
+                },
+                defaultTheme = node.requiredString("default"),
+            )
+        }
+
+    private fun parseThemes(themes: YamlObject, path: Path): List<ThemeSource> {
         return themes.keys.map { id ->
             val node = themes.child(id, themes.raw(id))
             val renderer = when (node.requiredString("renderer")) {

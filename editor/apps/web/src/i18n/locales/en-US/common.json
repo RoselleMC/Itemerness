@@ -1103,6 +1103,8 @@
     "themeLayoutLibrary": {
         "add": {
             "theme": "Add theme",
+            "selector": "Add theme selector",
+            "themeEntry": "Add theme or selector",
             "layout": "Add layout",
             "flow": "Add flow layout",
             "canvas": "Add canvas layout"
@@ -1118,6 +1120,24 @@
         "deleteConfirm": "Delete {{id}}?",
         "inUse": "This entry is referenced in the document.",
         "references": "References ({{count}})"
+    },
+    "themeSelector": {
+        "heading": "Theme selector",
+        "id": "Theme selector ID",
+        "kind_one": "Selector · {{count}} case",
+        "kind_other": "Selector · {{count}} cases",
+        "group": "Theme selectors",
+        "duplicate": "Duplicate theme selector",
+        "delete": "Delete theme selector",
+        "hint": "Cases are checked in order against the item's data and the viewer's facts. The first case that matches chooses the theme; otherwise the default theme is used. A viewer's own theme preference still takes precedence.",
+        "case": "Case {{index}}",
+        "when": "When",
+        "theme": "Use theme",
+        "removeCase": "Remove case",
+        "addCase": "Add case",
+        "noCases": "No cases yet. Every item using this selector renders with the default theme.",
+        "defaultTheme": "Otherwise",
+        "caseBudget": "A theme selector can have at most {{count}} cases."
     },
     "projectSettings": {
         "heading": "Document",
@@ -1170,6 +1190,7 @@
             "dataSchemas": "Data schemas",
             "locales": "Languages",
             "themes": "Themes",
+            "themeSelectors": "Theme selectors",
             "layouts": "Layouts",
             "formats": "Formatters",
             "viewerFacts": "Viewer facts",
@@ -1199,6 +1220,7 @@
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "Upgrade the connected plugin to use compound field constraints. The document has been preserved.",
             "DATA_SCHEMA_OWNERS_UNSUPPORTED": "Upgrade the connected plugin to declare schema owners. The document has been preserved.",
             "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "Upgrade the connected plugin to keep catalog file layout. The document has been preserved.",
+            "THEME_SELECTORS_UNSUPPORTED": "Upgrade the connected plugin to use theme selectors. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

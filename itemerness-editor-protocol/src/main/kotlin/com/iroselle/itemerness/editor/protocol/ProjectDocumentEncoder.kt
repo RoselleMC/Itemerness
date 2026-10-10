@@ -11,6 +11,7 @@ import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.editor.protocol.DocumentEncoding.obj
 import java.util.UUID
@@ -74,8 +75,18 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
         "spacing" to presentation.spacing?.let(PresentationDocumentEncoding::spacing),
         "accessPolicies" to emptyList<JsonValue>(),
         )
-        return if (defaults == null) encoded else JsonValue.Obj(encoded.entries + obj("defaultLayout" to defaults.layout, "defaultTheme" to defaults.theme).entries)
+        // Absent selectors stay absent so documents without them keep their canonical hash.
+        val withSelectors = if (presentation.themeSelectors.isEmpty()) encoded else JsonValue.Obj(encoded.entries + (
+            "themeSelectors" to JsonValue.Arr(presentation.themeSelectors.map(::themeSelector))
+        ))
+        return if (defaults == null) withSelectors else JsonValue.Obj(withSelectors.entries + obj("defaultLayout" to defaults.layout, "defaultTheme" to defaults.theme).entries)
     }
+
+    private fun themeSelector(selector: ThemeSelectorSource): JsonValue = node("themeSelectors", selector.id,
+        "id" to selector.id,
+        "cases" to selector.cases.map { case -> obj("condition" to condition(case.condition), "theme" to case.theme) },
+        "defaultTheme" to selector.defaultTheme,
+    )
 
     private fun assetNodes(assets: JsonObject, kind: String): List<JsonValue> = assets.requiredObjects(kind).map { asset ->
         val metadata = JsonValue.Obj((asset.keys - setOf("uuid", "extensions")).associateWith { requireNotNull(asset.raw(it)) })

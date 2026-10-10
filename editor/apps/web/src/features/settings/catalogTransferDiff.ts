@@ -9,6 +9,7 @@ export const CATALOG_DIFF_KINDS = [
     "dataSchemas",
     "locales",
     "themes",
+    "themeSelectors",
     "layouts",
     "formats",
     "viewerFacts",
@@ -114,6 +115,10 @@ function entries(
                 `${schema.id}@${schema.version}`,
                 schema,
             ]),
+        );
+    if (kind === "themeSelectors")
+        return new Map(
+            (document.themeSelectors ?? []).map((entry) => [entry.id, entry]),
         );
     if (kind === "locales")
         return new Map(

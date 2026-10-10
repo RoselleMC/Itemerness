@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     conditionOperatorSchema,
+    type DataKeyNode,
     type DataTypeNode,
     type DataValue,
     type ItemNode,
@@ -22,6 +23,20 @@ type Condition = Extract<
     PresentationBlock,
     { type: "conditional" }
 >["condition"];
+
+/** Presentation-readable keys declared anywhere in the document, first declaration per id. */
+export function documentReadableDataKeys(
+    document: ProjectDocument,
+): DataKeyNode[] {
+    const seen = new Set<string>();
+    return document.dataSchemas
+        .flatMap((schema) => schema.keys)
+        .filter((key) => {
+            if (!key.presentationReadable || seen.has(key.id)) return false;
+            seen.add(key.id);
+            return true;
+        });
+}
 type Reference = Condition["left"];
 
 function literalFromValue(value: DataValue): DataValue | null {
@@ -47,12 +62,20 @@ function literalFromValue(value: DataValue): DataValue | null {
 
 export function referenceValue(
     document: ProjectDocument,
-    item: ItemNode,
+    item: ItemNode | null,
     reference: Reference,
 ): DataValue {
     if (reference.kind === "literal") return reference.value;
     if (reference.kind === "data") {
-        const sample = resolveSampleValue(document, item, reference.key);
+        // Without a concrete item (a shared theme selector), the key's schema supplies the sample.
+        const schemaKey = item
+            ? null
+            : (documentReadableDataKeys(document).find(
+                  (key) => key.id === reference.key,
+              ) ?? null);
+        const sample = item
+            ? resolveSampleValue(document, item, reference.key)
+            : { value: schemaKey?.defaultValue ?? null, schema: schemaKey };
         return (
             (sample.value && literalFromValue(sample.value)) ??
             (sample.schema
@@ -86,12 +109,16 @@ export function referenceValue(
 export function ConditionEditor({
     document,
     item,
+    dataKeys,
     condition,
     onChange,
     testId,
 }: {
     document: ProjectDocument;
-    item: ItemNode;
+    /** The item whose data samples literals; null for conditions shared by several items. */
+    item: ItemNode | null;
+    /** Data keys offered as operands; defaults to the item's own keys. */
+    dataKeys?: readonly DataKeyNode[];
     condition: Condition;
     onChange(condition: Condition): void;
     testId: string;
@@ -111,7 +138,7 @@ export function ConditionEditor({
             label: fact.id,
             group: t("inspector.content.factGroup"),
         })),
-        ...itemDataKeys(document, item)
+        ...(dataKeys ?? (item ? itemDataKeys(document, item) : []))
             .filter((key) => key.presentationReadable)
             .map((key) => ({
                 value: `data:${key.id}`,

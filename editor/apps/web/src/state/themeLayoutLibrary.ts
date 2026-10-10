@@ -8,6 +8,11 @@ import {
     type ThemeNode,
 } from "@itemerness/protocol";
 import { freshNamespacedId } from "./freshId.js";
+import {
+    renameThemeInSelectors,
+    selectorsReferencingTheme,
+    themeSelectorsOf,
+} from "./themeSelectorLibrary.js";
 
 export type ThemeLayoutKind = "themes" | "layouts";
 
@@ -28,6 +33,12 @@ export function themeLayoutIdError(
 ): "invalidId" | "duplicateId" | null {
     if (!namespacedIdSchema.safeParse(id).success) return "invalidId";
     if (document[kind].some((entry) => entry.uuid !== uuid && entry.id === id))
+        return "duplicateId";
+    // Theme selectors share the theme id space.
+    if (
+        kind === "themes" &&
+        themeSelectorsOf(document).some((entry) => entry.id === id)
+    )
         return "duplicateId";
     return null;
 }
@@ -51,7 +62,11 @@ export function newTheme(
         uuid: crypto.randomUUID(),
         id: freshNamespacedId(
             source ? `${source.id}-copy` : `${document.namespace}:new-theme`,
-            new Set(document.themes.map((entry) => entry.id)),
+            new Set(
+                [...document.themes, ...themeSelectorsOf(document)].map(
+                    (entry) => entry.id,
+                ),
+            ),
         ),
     });
 }
@@ -147,6 +162,9 @@ export function themeLayoutReferences(
                               retainedRendererState(theme)?.fallback === id,
                       )
                       .map((theme) => theme.id),
+                  ...selectorsReferencingTheme(document, id).map(
+                      (selector) => selector.id,
+                  ),
                   ...document.viewerFacts
                       .filter(
                           (fact) =>
@@ -178,7 +196,9 @@ export function renameThemeLayout(
     )
         return document;
     return {
-        ...document,
+        ...(kind === "themes"
+            ? renameThemeInSelectors(document, source.id, id)
+            : document),
         ...(kind === "themes" && document.defaultTheme === source.id ? { defaultTheme: id } : {}),
         ...(kind === "layouts" && document.defaultLayout === source.id ? { defaultLayout: id } : {}),
         themes:

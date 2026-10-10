@@ -52,12 +52,12 @@ class ManagedDocumentValidationTest {
         assertRejected(requested("26.1.2"), "CATALOG.INVALID_VALUE", "measurement.clientVersion", unknownMetrics)
     }
 
-    private fun preview(document: JsonValue, compiler: CompilerBridge = bridge): JsonObject {
+    private fun preview(document: JsonValue, compiler: CompilerBridge = bridge, requestedTheme: String? = null): JsonObject {
         val json = Json.canonicalize(document)
         val result = compiler.compilePreview(json, CompilerBridge.PreviewContext(
             itemId = "itemerness:travel-token",
             locale = "en_us",
-            requestedTheme = null,
+            requestedTheme = requestedTheme,
             assetProfile = null,
             capabilities = emptyList(),
             metricsRevision = null,
@@ -110,6 +110,42 @@ class ManagedDocumentValidationTest {
             "CATALOG.INVALID_SCOPE",
             "travel-token.blocks[1].data",
         )
+    }
+
+    private fun withChargeSelector(dataKey: String = "example:charges"): JsonValue {
+        val selector = Json.parse("""
+            {"uuid":"8c7c4b1e-6a7e-4a55-9b8e-2f3c0b6d5a10","id":"example:charge-frame","defaultTheme":"itemerness:vanilla-frame",
+             "cases":[{"theme":"itemerness:default","condition":{"operator":"GREATER_THAN_OR_EQUAL",
+               "left":{"kind":"data","key":"$dataKey"},"right":{"kind":"literal","value":{"kind":"integer","value":"3"}}}}]}
+        """.trimIndent())
+        val root = fixture as JsonValue.Obj
+        return JsonValue.Obj(root.entries + ("themeSelectors" to JsonValue.Arr(listOf(selector))))
+            .withPath("items", 0, "presentation", "theme", value = JsonValue.Text("example:charge-frame"))
+    }
+
+    private fun selectedTheme(document: JsonValue, requestedTheme: String? = null): String {
+        val artifact = preview(document, requestedTheme = requestedTheme)
+        assertEquals(JsonValue.Null, artifact.raw("failure"), artifact.raw("diagnostics")?.let(Json::canonicalize))
+        return artifact.requiredObject("display").requiredString("selectedTheme")
+    }
+
+    @Test
+    fun `verified previews resolve theme selectors from preview data with viewer overrides first`() {
+        // The fixture previews three charges, which satisfies the first case.
+        assertEquals("itemerness:default", selectedTheme(withChargeSelector()))
+        val fewer = withChargeSelector().withPath(
+            "items", 0, "previewData", 1, "value", value = Json.parse("""{"kind":"integer","value":"2"}"""),
+        )
+        assertEquals("itemerness:vanilla-frame", selectedTheme(fewer))
+        assertEquals("itemerness:vanilla-frame", selectedTheme(withChargeSelector(), requestedTheme = "itemerness:vanilla-frame"))
+        // A requested selector is evaluated for the previewed item.
+        assertEquals("itemerness:default", selectedTheme(withChargeSelector(), requestedTheme = "example:charge-frame"))
+    }
+
+    @Test
+    fun `theme selector conditions require presentation-readable item data`() {
+        assertRejected(withChargeSelector("example:bound-player"), "CATALOG.INVALID_SCOPE", "theme-selector.example:charge-frame.cases[0].when")
+        assertRejected(withChargeSelector("example:undeclared"), "CATALOG.MISSING_REFERENCE", "theme-selector.example:charge-frame.cases[0].when")
     }
 
     @Test

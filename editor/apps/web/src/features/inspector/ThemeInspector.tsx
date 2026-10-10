@@ -13,6 +13,8 @@ import { SelectField } from "../common/SelectField.js";
 import { describeContext } from "../../state/interface.js";
 import { themeLayoutActions } from "../common/themeLayoutActions.js";
 import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
+import { ThemeSelectorInspector } from "./ThemeSelectorInspector.js";
+import { themeSelectorById } from "../../state/themeSelectorLibrary.js";
 import { ThemeRoles } from "./ThemeRoles.js";
 import { ThemeContent, ThemeGeometry } from "./ThemeGeometry.js";
 import { AddThemeEntry, ThemeToggle } from "./ThemeFields.js";
@@ -33,6 +35,14 @@ export function ThemeInspector({
         supportsSegmentedFrameDecorations(state.info?.capabilities),
     );
     const doc = store.document;
+    const selector = themeSelectorById(doc, store.selectedThemeId);
+    if (selector)
+        return (
+            <ThemeSelectorInspector
+                selector={selector}
+                previewSettings={previewSettings}
+            />
+        );
     const theme = doc.themes.find(
         (entry) => entry.id === store.selectedThemeId,
     );

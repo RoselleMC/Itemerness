@@ -12,6 +12,7 @@ import {
     CircleDashed,
     LoaderCircle,
     CircleSlash,
+    Split,
 } from "lucide-react";
 import type { PreviewItemState } from "../../api/previewCache.js";
 import { DataLibrary } from "./DataLibrary.js";
@@ -21,7 +22,9 @@ import { commitInlineEditor } from "../common/inlineEdit.js";
 import {
     createThemeLayoutActions,
     themeLayoutActions,
+    themeSelectorActions,
 } from "../common/themeLayoutActions.js";
+import { themeSelectorsOf } from "../../state/themeSelectorLibrary.js";
 import { NewItemDialog } from "../items/NewItemDialog.js";
 import { LibraryCreateControl } from "./LibraryCreateControl.js";
 
@@ -84,7 +87,7 @@ export function Sidebar({
         store.mode === "items"
             ? document.items.length
             : store.mode === "themes"
-              ? document.themes.length
+              ? document.themes.length + themeSelectorsOf(document).length
               : store.mode === "layouts"
                 ? document.layouts.length
                 : store.mode === "formats"
@@ -271,6 +274,59 @@ export function Sidebar({
                                                     {t(
                                                         `inspector.renderer.${theme.renderer}`,
                                                     )}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        {themeSelectorsOf(document)
+                            .filter((selector) => matches(selector.id))
+                            .map((selector) => {
+                                const path =
+                                    selector.id.split(":").pop() ?? selector.id;
+                                return (
+                                    <li key={selector.uuid}>
+                                        <button
+                                            type="button"
+                                            className={`item-row theme-selector-row ${store.selectedThemeId === selector.id ? "selected" : ""}`}
+                                            onClick={() => {
+                                                if (commitInlineEditor())
+                                                    store.selectTheme(
+                                                        selector.id,
+                                                    );
+                                            }}
+                                            data-testid={`theme-selector-${path}`}
+                                            onContextMenu={(event) => {
+                                                if (!commitInlineEditor()) {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    return;
+                                                }
+                                                describeContext(event, {
+                                                    label: humanizePath(path),
+                                                    items: themeSelectorActions(
+                                                        selector.uuid,
+                                                        t,
+                                                    ),
+                                                });
+                                            }}
+                                        >
+                                            <span
+                                                className="selector-swatch"
+                                                aria-hidden="true"
+                                            >
+                                                <Split size={14} />
+                                            </span>
+                                            <span className="item-row-text">
+                                                <span className="item-row-name">
+                                                    {humanizePath(path)}
+                                                </span>
+                                                <span className="item-row-note">
+                                                    {t("themeSelector.kind", {
+                                                        count: selector.cases
+                                                            .length,
+                                                    })}
                                                 </span>
                                             </span>
                                         </button>

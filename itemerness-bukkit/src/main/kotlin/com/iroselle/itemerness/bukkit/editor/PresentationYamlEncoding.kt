@@ -66,5 +66,10 @@ internal object PresentationYamlEncoding {
         }
     }
 
+    fun themeSelector(selector: ThemeSelectorSource): Map<String, Any?> = map(
+        "cases" to selector.cases.map { case -> map("when" to CatalogYamlEncoding.condition(case.condition), "theme" to case.theme) },
+        "default" to selector.defaultTheme,
+    )
+
     private fun row(row: FrameRowSource): Map<String, Any?> = map("left" to row.left, "fill" to row.fill, "right" to row.right, "center" to row.center, "kern" to row.kern)
 }

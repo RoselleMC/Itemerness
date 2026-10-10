@@ -4,7 +4,7 @@ import { enterWorkspace, mockPlugin } from "./fixtures/plugin.js";
 
 const libraries = [
     { mode: "items", add: "add-item", inspector: "name-input" },
-    { mode: "themes", add: "add-theme", inspector: "themes-id" },
+    { mode: "themes", add: "add-theme-menu", inspector: "themes-id" },
     { mode: "layouts", add: "add-layout", inspector: "layouts-id" },
     { mode: "data", add: "add-data-schema", inspector: "data-key-id" },
     { mode: "formats", add: "add-formats", inspector: "formats-id" },

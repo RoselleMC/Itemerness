@@ -40,12 +40,19 @@ export function LibraryCreateControl({
     const label =
         mode === "layouts"
             ? t("themeLayoutLibrary.add.layout")
-            : actions[0]!.label;
+            : mode === "themes"
+              ? t("themeLayoutLibrary.add.themeEntry")
+              : actions[0]!.label;
     const props = {
         className: "icon-button library-create",
         "aria-label": label,
         "data-tooltip": label,
-        "data-testid": actions.length === 1 ? actions[0]!.id : "add-layout",
+        "data-testid":
+            actions.length === 1
+                ? actions[0]!.id
+                : mode === "themes"
+                  ? "add-theme-menu"
+                  : "add-layout",
         disabled: !active || actions.every((action) => action.disabled),
     };
     if (actions.length === 1)

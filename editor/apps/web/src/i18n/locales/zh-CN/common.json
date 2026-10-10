@@ -1096,6 +1096,8 @@
     "themeLayoutLibrary": {
         "add": {
             "theme": "添加主题",
+            "selector": "添加主题选择器",
+            "themeEntry": "添加主题或选择器",
             "layout": "添加布局",
             "flow": "添加流式布局",
             "canvas": "添加画布布局"
@@ -1108,6 +1110,24 @@
         "deleteConfirm": "删除 {{id}}？",
         "inUse": "此项已在文档中被引用。",
         "references": "引用（{{count}}）"
+    },
+    "themeSelector": {
+        "heading": "主题选择器",
+        "id": "主题选择器 ID",
+        "kind_one": "选择器 · {{count}} 个条件",
+        "kind_other": "选择器 · {{count}} 个条件",
+        "group": "主题选择器",
+        "duplicate": "复制主题选择器",
+        "delete": "删除主题选择器",
+        "hint": "条件会按顺序对照物品数据和观察者信息进行检查。第一个满足的条件决定主题；都不满足时使用默认主题。观察者自己的主题偏好仍然优先。",
+        "case": "条件 {{index}}",
+        "when": "当",
+        "theme": "使用主题",
+        "removeCase": "移除条件",
+        "addCase": "添加条件",
+        "noCases": "尚无条件。使用此选择器的物品都会以默认主题渲染。",
+        "defaultTheme": "否则",
+        "caseBudget": "一个主题选择器最多可以有 {{count}} 个条件。"
     },
     "projectSettings": {
         "heading": "文档",
@@ -1159,6 +1179,7 @@
             "dataSchemas": "数据模式",
             "locales": "语言",
             "themes": "主题",
+            "themeSelectors": "主题选择器",
             "layouts": "布局",
             "formats": "格式化器",
             "viewerFacts": "观察者事实",
@@ -1188,6 +1209,7 @@
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "使用复合字段约束需要升级当前插件。文档内容已保留。",
             "DATA_SCHEMA_OWNERS_UNSUPPORTED": "声明 schema 归属需要升级当前插件。文档内容已保留。",
             "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "保留目录文件布局需要升级当前插件。文档内容已保留。",
+            "THEME_SELECTORS_UNSUPPORTED": "使用主题选择器需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

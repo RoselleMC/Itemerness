@@ -141,7 +141,10 @@ function NewItemForm({ request }: { request: ItemCreationRequest }) {
         }
     };
     const choice = (kind: "theme" | "layout") => {
-        const entries = document[kind === "theme" ? "themes" : "layouts"];
+        const entries =
+            kind === "theme"
+                ? [...document.themes, ...(document.themeSelectors ?? [])]
+                : document.layouts;
         const projectDefault =
             document[kind === "theme" ? "defaultTheme" : "defaultLayout"];
         const original = source?.presentation[kind];

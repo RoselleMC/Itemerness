@@ -6,6 +6,7 @@ import type {
     ProjectDocument,
 } from "@itemerness/protocol";
 import { useEditorStore } from "./store.js";
+import { representativeTheme } from "./themeSelectorLibrary.js";
 import { humanizePath } from "../features/common/messages.js";
 import {
     editBlockTree,
@@ -99,8 +100,9 @@ export function insertContent(
         state.document.viewerFacts.find((entry) =>
             ["INTEGER", "LONG"].includes(entry.type),
         ) ?? state.document.viewerFacts[0];
-    const theme = state.document.themes.find(
-        (entry) => entry.id === itemTheme(state.document, item),
+    const theme = representativeTheme(
+        state.document,
+        itemTheme(state.document, item),
     );
     const layout = state.document.layouts.find(
         (entry) => entry.id === itemLayout(state.document, item),

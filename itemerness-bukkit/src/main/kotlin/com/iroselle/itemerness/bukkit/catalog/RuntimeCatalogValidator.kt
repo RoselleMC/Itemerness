@@ -166,7 +166,8 @@ internal class RuntimeCatalogValidator(
                 "Default layout ${settings.defaultLayout} is not defined",
             )
         }
-        if (settings.defaultTheme !in presentation.themes) {
+        // The default may name a theme selector; selectors share the theme id space.
+        if (settings.defaultTheme !in presentation.themes && settings.defaultTheme !in presentation.themeSelectors) {
             diagnostics += CatalogDiagnostic(
                 CatalogDiagnosticCode.MISSING_REFERENCE,
                 "config.presentation.default-theme",

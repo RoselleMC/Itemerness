@@ -62,6 +62,8 @@ import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
 import com.iroselle.itemerness.core.presentation.TextStyleSource
 import com.iroselle.itemerness.core.presentation.ThemeRenderer
+import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
+import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ThemeSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
@@ -125,7 +127,7 @@ object ProjectDocumentCodec {
         root.rejectUnknown(
             "schemaVersion", "documentId", "namespace", "defaultLocale", "defaultLayout", "defaultTheme", "budgets", "formats", "locales",
             "fonts", "glyphs", "bitmaps", "assetProfiles", "resourcePackBindings", "tooltipStyles", "spacing",
-            "viewerFacts", "layouts", "themes", "dataSchemas", "items", "accessPolicies", "measurement", "extensions",
+            "viewerFacts", "layouts", "themes", "themeSelectors", "dataSchemas", "items", "accessPolicies", "measurement", "extensions",
             "sourceLayout",
         )
         root.optionalObject("sourceLayout")?.let(::validateSourceLayout)
@@ -139,19 +141,20 @@ object ProjectDocumentCodec {
         val namespace = root.requiredString("namespace")
         ItemKey(namespace, "validation")
         val defaultLocale = root.requiredString("defaultLocale")
-        fun defaultReference(field: String, library: String): String? {
+        fun defaultReference(field: String, vararg libraries: String): String? {
             if (schemaVersion == 1 && root.raw(field) != null) {
                 throw JsonException("document.$field requires document schema 2")
             }
             return root.optionalString(field)?.also { id ->
                 ItemKey.parse(id)
-                if (root.optionalObjects(library).none { it.requiredString("id") == id }) {
-                    throw JsonException("document.$field must reference a declared $library entry")
+                if (libraries.none { library -> root.optionalObjects(library).any { it.requiredString("id") == id } }) {
+                    throw JsonException("document.$field must reference a declared ${libraries.joinToString(" or ")} entry")
                 }
             }
         }
         val defaultLayout = defaultReference("defaultLayout", "layouts")
-        val defaultTheme = defaultReference("defaultTheme", "themes")
+        // Theme selectors share the theme id space, so the default theme may name either.
+        val defaultTheme = defaultReference("defaultTheme", "themes", "themeSelectors")
         var measurementClientVersion: String? = null
         val boldExtraAdvancePixels = if (schemaVersion == 1) {
             if (root.raw("measurement") != null) {
@@ -202,6 +205,7 @@ object ProjectDocumentCodec {
             items = root.optionalObjects("items").map { itemPresentation(it, namespace, schemaVersion, defaultLayout, defaultTheme) },
             spacing = root.optionalObject("spacing")?.let(::spacing),
             tooltipStyles = root.optionalObjects("tooltipStyles").map { it.requiredString("id") },
+            themeSelectors = root.optionalObjects("themeSelectors").map(::themeSelector),
         )
 
         val integrations = LinkedHashMap<ItemKey, DocumentDataKeyIntegration>()
@@ -808,6 +812,27 @@ object ProjectDocumentCodec {
             else -> throw JsonException("Unknown value reference kind \"$kind\"")
         }
 
+    private fun condition(node: JsonObject): ConditionSource {
+        node.rejectUnknown("operator", "left", "right")
+        return ConditionSource(
+            operator = enum<ConditionOperator>(node.requiredString("operator")),
+            left = valueReference(node.requiredObject("left")),
+            right = node.optionalObject("right")?.let(::valueReference),
+        )
+    }
+
+    private fun themeSelector(node: JsonObject): ThemeSelectorSource {
+        node.rejectUnknown("uuid", "extensions", "id", "cases", "defaultTheme")
+        return ThemeSelectorSource(
+            id = node.requiredString("id"),
+            cases = node.requiredObjects("cases").map { case ->
+                case.rejectUnknown("condition", "theme")
+                ThemeSelectorCaseSource(condition(case.requiredObject("condition")), case.requiredString("theme"))
+            },
+            defaultTheme = node.requiredString("defaultTheme"),
+        )
+    }
+
     private fun block(node: JsonObject): PresentationBlockSource {
         val style = node.optionalString("style")
         val anchor = node.optionalString("anchor")
@@ -855,14 +880,8 @@ object ProjectDocumentCodec {
 
             "conditional" -> {
                 node.rejectUnknown("uuid", "type", "condition", "thenBlocks", "otherwiseBlocks", "style", "anchor")
-                val condition = node.requiredObject("condition")
-                condition.rejectUnknown("operator", "left", "right")
                 PresentationBlockSource.Conditional(
-                    condition = ConditionSource(
-                        operator = enum<ConditionOperator>(condition.requiredString("operator")),
-                        left = valueReference(condition.requiredObject("left")),
-                        right = condition.optionalObject("right")?.let(::valueReference),
-                    ),
+                    condition = condition(node.requiredObject("condition")),
                     thenBlocks = node.requiredObjects("thenBlocks").map(::block),
                     otherwiseBlocks = node.optionalObjects("otherwiseBlocks").map(::block),
                     style = style,

@@ -6,6 +6,7 @@ import type {
     ItemNode,
     LayoutNode,
     PresentationBlock,
+    PresentationCondition,
     PreviewDisplay,
     PreviewLine,
     PreviewRun,
@@ -180,6 +181,51 @@ function compare(
     if (operator === "EQUALS") return equal;
     if (operator === "NOT_EQUALS") return !equal;
     return false;
+}
+
+type ConditionReference = PresentationCondition["left"];
+
+function resolveReference(
+    reference: ConditionReference,
+    data: ReadonlyMap<string, DataValue>,
+    facts: ReadonlyMap<string, DataValue>,
+): DataValue | null {
+    if (reference.kind === "data") return data.get(reference.key) ?? null;
+    if (reference.kind === "fact") return facts.get(reference.key) ?? null;
+    return reference.value;
+}
+
+/** The one local condition evaluation, shared by conditional blocks and theme selectors. */
+export function conditionHolds(
+    condition: PresentationCondition,
+    data: ReadonlyMap<string, DataValue>,
+    facts: ReadonlyMap<string, DataValue>,
+): boolean {
+    return compare(
+        condition.operator,
+        resolveReference(condition.left, data, facts),
+        condition.right ? resolveReference(condition.right, data, facts) : null,
+    );
+}
+
+/**
+ * Resolves a theme binding to the concrete theme that starts the fallback chain, exactly like
+ * the compiler: a selector picks its first matching case, otherwise its default theme. Any
+ * other id is returned unchanged.
+ */
+export function selectTheme(
+    document: Pick<ProjectDocument, "themeSelectors">,
+    id: string,
+    data: ReadonlyMap<string, DataValue>,
+    facts: ReadonlyMap<string, DataValue>,
+): string {
+    const selector = document.themeSelectors?.find((entry) => entry.id === id);
+    if (!selector) return id;
+    return (
+        selector.cases.find((entry) =>
+            conditionHolds(entry.condition, data, facts),
+        )?.theme ?? selector.defaultTheme
+    );
 }
 
 /** Walks the theme fallback chain, recording why each theme was rejected. */
@@ -429,21 +475,10 @@ function blockRuns(
                 },
             ];
         case "conditional": {
-            const resolve = (reference: {
-                kind: string;
-                key?: string;
-                value?: DataValue;
-            }): DataValue | null => {
-                if (reference.kind === "data")
-                    return context.data.get(reference.key!) ?? null;
-                if (reference.kind === "fact")
-                    return context.facts.get(reference.key!) ?? null;
-                return reference.value ?? null;
-            };
-            const matched = compare(
-                block.condition.operator,
-                resolve(block.condition.left),
-                block.condition.right ? resolve(block.condition.right) : null,
+            const matched = conditionHolds(
+                block.condition,
+                context.data,
+                context.facts,
             );
             const branch = matched ? block.thenBlocks : block.otherwiseBlocks;
             // Nested blocks keep their own uuids, so a click on a conditional's output selects the
@@ -617,8 +652,15 @@ function composeAttempt(
         };
     }
 
-    const requestedTheme =
-        viewer.requestedTheme ?? itemTheme(document, item) ?? "";
+    const { data, dataTypes } = previewData(document, item);
+    const facts = previewFacts(document);
+    // A viewer override outranks the item binding; either may name a selector.
+    const requestedTheme = selectTheme(
+        document,
+        viewer.requestedTheme ?? itemTheme(document, item) ?? "",
+        data,
+        facts,
+    );
     const { theme, chain, reasons } = resolveTheme(
         document,
         requestedTheme,
@@ -664,30 +706,6 @@ function composeAttempt(
 
     const messages = new MessageCatalog(document, viewer.locale, diagnostics);
     const formatter = new LocalValueFormatter(document.formats, messages);
-    const dataTypes = new Map<string, DataTypeNode>();
-    const data = new Map<string, DataValue>();
-    for (const reference of item.definition.instance.schemas) {
-        const schema = document.dataSchemas.find(
-            (entry) =>
-                entry.id === reference.id &&
-                entry.version === reference.version,
-        );
-        for (const key of schema?.keys ?? []) {
-            dataTypes.set(key.id, key.type);
-            if (key.defaultValue !== null) data.set(key.id, key.defaultValue);
-        }
-    }
-    for (const assignment of item.definition.instance.defaults)
-        data.set(assignment.key, assignment.value);
-    for (const assignment of item.definition.definitionData)
-        data.set(assignment.key, assignment.value);
-    for (const assignment of item.previewData)
-        data.set(assignment.key, assignment.value);
-    const facts = new Map<string, DataValue>();
-    for (const fact of document.viewerFacts) {
-        const value = fact.previewValue ?? fact.defaultValue;
-        if (value) facts.set(fact.id, value);
-    }
 
     const context: ComposeContext = {
         document,
@@ -822,6 +840,43 @@ function composeAttempt(
         lineOrigins: composed.map((entry) => entry.origin),
         ...(canvasElements ? { canvasElements } : {}),
     };
+}
+
+/** The item data a local preview reads: schema and instance defaults, definition and preview data. */
+function previewData(
+    document: ProjectDocument,
+    item: ItemNode,
+): { data: Map<string, DataValue>; dataTypes: Map<string, DataTypeNode> } {
+    const dataTypes = new Map<string, DataTypeNode>();
+    const data = new Map<string, DataValue>();
+    for (const reference of item.definition.instance.schemas) {
+        const schema = document.dataSchemas.find(
+            (entry) =>
+                entry.id === reference.id &&
+                entry.version === reference.version,
+        );
+        for (const key of schema?.keys ?? []) {
+            dataTypes.set(key.id, key.type);
+            if (key.defaultValue !== null) data.set(key.id, key.defaultValue);
+        }
+    }
+    for (const assignment of item.definition.instance.defaults)
+        data.set(assignment.key, assignment.value);
+    for (const assignment of item.definition.definitionData)
+        data.set(assignment.key, assignment.value);
+    for (const assignment of item.previewData)
+        data.set(assignment.key, assignment.value);
+    return { data, dataTypes };
+}
+
+/** Persona preview values, falling back to each fact's declared default like the compiler. */
+function previewFacts(document: ProjectDocument): Map<string, DataValue> {
+    const facts = new Map<string, DataValue>();
+    for (const fact of document.viewerFacts) {
+        const value = fact.previewValue ?? fact.defaultValue;
+        if (value) facts.set(fact.id, value);
+    }
+    return facts;
 }
 
 function emptyDisplay(itemId: string): PreviewDisplay {

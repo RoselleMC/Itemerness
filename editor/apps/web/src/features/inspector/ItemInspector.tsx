@@ -25,6 +25,11 @@ import { BufferedInput } from "../common/BufferedInput.js";
 import { ItemDefinitionEditor } from "./ItemDefinitionEditor.js";
 import { itemIdIssue, renameItem } from "../../state/itemIdentity.js";
 import {
+    representativeTheme,
+    themeSelectorById,
+    themeSelectorsOf,
+} from "../../state/themeSelectorLibrary.js";
+import {
     inferContentComponent,
     normalizeMaterial,
 } from "./itemDefinitionEditing.js";
@@ -195,9 +200,9 @@ export function ItemInspector({
                             options={[
                                 { value: "", label: t("inspector.none") },
                                 ...Object.keys(
-                                    doc.themes.find(
-                                        (theme) =>
-                                            theme.id === itemTheme(doc, item),
+                                    representativeTheme(
+                                        doc,
+                                        itemTheme(doc, item),
                                     )?.styles ?? {},
                                 ).map((style) => ({
                                     value: style,
@@ -241,9 +246,12 @@ export function ItemInspector({
 
     const selectedTheme =
         preview.display?.selectedTheme ?? itemTheme(doc, item) ?? "";
+    // A selector names no theme itself; compare against the concrete theme it chose.
+    const boundTheme = themeSelectorById(doc, itemTheme(doc, item))
+        ? preview.display?.requestedTheme
+        : itemTheme(doc, item);
     const themeFellBack =
-        preview.display != null &&
-        preview.display.selectedTheme !== itemTheme(doc, item);
+        preview.display != null && preview.display.selectedTheme !== boundTheme;
 
     return (
         <aside
@@ -517,6 +525,69 @@ export function ItemInspector({
                                     {t("inspector.appearance.requiresPack")}
                                 </span>
                             ) : null}
+                        </button>
+                    ))}
+                    {themeSelectorsOf(doc).map((selector) => (
+                        <button
+                            key={selector.uuid}
+                            type="button"
+                            className={`theme-card selector-card ${item.presentation.theme === selector.id ? "selected" : ""}`}
+                            onClick={() =>
+                                store.updateItem(item.uuid, (current) => ({
+                                    ...current,
+                                    presentation: {
+                                        ...current.presentation,
+                                        theme: selector.id,
+                                    },
+                                }))
+                            }
+                            data-testid={`theme-selector-card-${selector.id.split(":").pop()}`}
+                            onContextMenu={(event) =>
+                                describeContext(event, {
+                                    label: selector.id,
+                                    items: [
+                                        {
+                                            id: "apply-theme",
+                                            label: t("menus.applyTheme"),
+                                            checked:
+                                                item.presentation.theme ===
+                                                selector.id,
+                                            run: () =>
+                                                store.updateItem(
+                                                    item.uuid,
+                                                    (current) => ({
+                                                        ...current,
+                                                        presentation: {
+                                                            ...current.presentation,
+                                                            theme: selector.id,
+                                                        },
+                                                    }),
+                                                ),
+                                        },
+                                        {
+                                            id: "edit-theme",
+                                            label: t("menus.editTheme"),
+                                            run: () => {
+                                                if (!commitInlineEditor())
+                                                    return;
+                                                store.setMode("themes");
+                                                store.selectTheme(selector.id);
+                                            },
+                                        },
+                                    ],
+                                })
+                            }
+                        >
+                            <span className="theme-card-name">
+                                {humanizePath(
+                                    selector.id.split(":").pop() ?? selector.id,
+                                )}
+                            </span>
+                            <span className="theme-card-kind">
+                                {t("themeSelector.kind", {
+                                    count: selector.cases.length,
+                                })}
+                            </span>
                         </button>
                     ))}
                 </div>

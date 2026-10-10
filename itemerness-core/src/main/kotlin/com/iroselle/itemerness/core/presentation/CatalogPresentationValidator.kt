@@ -65,6 +65,18 @@ object CatalogPresentationValidator {
                 presentation,
                 diagnostics,
             )
+            // Selector conditions read the same item data as conditional blocks, so every item
+            // bound to a selector must define and expose each referenced data key.
+            presentation.themeSelectors[item.theme]?.cases?.forEachIndexed { index, case ->
+                validateCondition(
+                    case.condition,
+                    "presentation.items.${item.key}.theme-selector.${item.theme}.cases[$index].when",
+                    definition,
+                    domain,
+                    presentation,
+                    diagnostics,
+                )
+            }
         }
     }
 

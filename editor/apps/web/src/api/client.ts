@@ -14,6 +14,8 @@ import {
     usesDataSchemaOwners,
     supportsCatalogSourceLayout,
     usesCatalogSourceLayout,
+    supportsThemeSelectors,
+    usesThemeSelectors,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -332,6 +334,11 @@ export class PluginClient {
             !supportsCatalogSourceLayout(this.capabilities)
         )
             throw new Error("CATALOG_SOURCE_LAYOUT_UNSUPPORTED");
+        if (
+            usesThemeSelectors(document) &&
+            !supportsThemeSelectors(this.capabilities)
+        )
+            throw new Error("THEME_SELECTORS_UNSUPPORTED");
     }
 
     private async json(

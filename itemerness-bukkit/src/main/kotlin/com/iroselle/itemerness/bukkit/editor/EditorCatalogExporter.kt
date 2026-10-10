@@ -48,6 +48,17 @@ internal class EditorCatalogExporter(
                 file(path, YamlEncoding.document(*header, section to group.associate { it.key to it.value }))
             }
         }
+        fun groupedThemes(themes: Map<String, Any?>, selectors: Map<String, Any?>) {
+            // A theme file may hold themes, selectors, or both; an empty selector section is omitted.
+            val byPath = LinkedHashMap<String, Pair<MutableMap<String, Any?>, MutableMap<String, Any?>>>()
+            fun target(path: String) = byPath.getOrPut(path) { linkedMapOf<String, Any?>() to linkedMapOf() }
+            if (themes.isEmpty() && selectors.isEmpty()) target("themes/editor.yml")
+            themes.forEach { (id, value) -> target(layout.path("themes", id, "themes/editor.yml")).first[id] = value }
+            selectors.forEach { (id, value) -> target(layout.path("themeSelectors", id, "themes/editor.yml")).second[id] = value }
+            byPath.forEach { (path, sections) ->
+                file(path, YamlEncoding.document("themes" to sections.first, "theme-selectors" to sections.second.takeIf { it.isNotEmpty() }))
+            }
+        }
         decoded.catalog.schemas.forEachIndexed { index, schema ->
             file(layout.path("dataSchemas", "${schema.id}@${schema.version}", "data-keys/schema-${index.toString().padStart(4, '0')}.yml"),
                 CatalogYamlEncoding.schema(schema, decoded.dataKeyIntegrations))
@@ -64,7 +75,10 @@ internal class EditorCatalogExporter(
                 YamlEncoding.document("locale" to locale.locale, "fallback" to locale.fallback, "messages" to locale.messages))
         }
         grouped("layouts", "layouts", "layouts/editor.yml", decoded.presentation.layouts.associate { it.id to PresentationYamlEncoding.layout(it) })
-        grouped("themes", "themes", "themes/editor.yml", decoded.presentation.themes.associate { it.id to PresentationYamlEncoding.theme(it) })
+        groupedThemes(
+            decoded.presentation.themes.associate { it.id to PresentationYamlEncoding.theme(it) },
+            decoded.presentation.themeSelectors.associate { it.id to PresentationYamlEncoding.themeSelector(it) },
+        )
         grouped("viewerFacts", "facts", "viewer-facts/editor.yml", decoded.presentation.viewerFacts.associate { it.id to PresentationYamlEncoding.fact(it) })
         splitAssets(AssetYamlEncoding.encode(root, decoded.presentation), layout).forEach { (path, content) -> file(path, content) }
         try {

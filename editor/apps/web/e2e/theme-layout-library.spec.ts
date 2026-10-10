@@ -45,7 +45,8 @@ test("themes can be created, duplicated, renamed with references, and safely del
     await expect(page.getByTestId("themes-id")).toHaveValue(
         "itemerness:default-copy",
     );
-    await page.getByTestId("add-theme").click();
+    await page.getByTestId("add-theme-menu").click();
+    await page.getByTestId("menu-add-theme").click();
     await expect(page.getByTestId("themes-id")).toHaveValue(
         `${baselineDocument.namespace}:new-theme`,
     );

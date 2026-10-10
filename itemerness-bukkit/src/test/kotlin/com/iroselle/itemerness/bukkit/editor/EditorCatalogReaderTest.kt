@@ -109,6 +109,59 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `theme selectors import export and verify losslessly through the YAML loaders`() {
+        fixture()
+        Files.writeString(directory.resolve("themes/selectors.yml"), """
+            schema-version: 1
+            theme-selectors:
+              example:charge-frame:
+                cases:
+                  - when:
+                      operator: greater-than-or-equal
+                      left:
+                        data: example:charges
+                      right:
+                        literal: 3
+                    theme: itemerness:default
+                  - when:
+                      operator: exists
+                      left:
+                        fact: example:class
+                    theme: itemerness:ember
+                default: itemerness:vanilla-frame
+        """.trimIndent() + "\n")
+        val items = directory.resolve("items/examples.yml")
+        Files.writeString(items, Files.readString(items).replace("theme: itemerness:vanilla-frame", "theme: example:charge-frame"))
+        val config = directory.resolve("config.yml")
+        Files.writeString(config, Files.readString(config).replace("default-theme: itemerness:default", "default-theme: example:charge-frame"))
+
+        val document = requireNotNull(read().raw("document"))
+        val root = JsonObject.of(document, "document")
+        assertEquals("example:charge-frame", root.requiredString("defaultTheme"))
+        val selector = root.requiredObjects("themeSelectors").single()
+        assertEquals("example:charge-frame", selector.requiredString("id"))
+        assertEquals(listOf("itemerness:default", "itemerness:ember"), selector.requiredObjects("cases").map { it.requiredString("theme") })
+        val decoded = ProjectDocumentCodec.decode(Json.canonicalize(document), BundledBuiltinFontMetrics(metrics))
+        assertEquals("itemerness:vanilla-frame", decoded.presentation.themeSelectors.single().defaultTheme)
+
+        val exported = export(document)
+        val themes = exported.requiredObjects("files").single { it.requiredString("path") == "themes/editor.yml" }.requiredString("content")
+        assertTrue(themes.contains("theme-selectors:"), themes)
+        assertTrue(themes.contains("example:charge-frame:"), themes)
+        assertTrue(exported.requiredString("settingsPatch").contains("default-theme: example:charge-frame"))
+    }
+
+    @Test
+    fun `documents without theme selectors keep the field absent`() {
+        fixture()
+        val document = read().requiredObject("document")
+        assertFalse(document.keys.contains("themeSelectors"))
+        val themes = export(JsonValue.Obj(document.keys.associateWith { requireNotNull(document.raw(it)) }))
+            .requiredObjects("files").single { it.requiredString("path") == "themes/editor.yml" }.requiredString("content")
+        assertFalse(themes.contains("theme-selectors"))
+    }
+
+    @Test
     fun `omitted item bindings remain inherited rather than being frozen on import`() {
         fixture()
         val path = directory.resolve("items/examples.yml")
@@ -354,6 +407,25 @@ class EditorCatalogReaderTest {
         val paths = export(grown).requiredObjects("files").associate { it.requiredString("path") to it.requiredString("content") }
         assertTrue(paths.getValue("items/editor.yml").contains("added-later"), "Objects without a recorded file use the default file")
         assertFalse(paths.getValue("items/armory/examples.yml").contains("added-later"))
+    }
+
+    @Test
+    fun `theme selectors keep their own file through the source layout`() {
+        fixture()
+        Files.writeString(directory.resolve("themes/selectors.yml"), """
+            schema-version: 1
+            theme-selectors:
+              example:locale-frame:
+                cases:
+                  - when: { operator: exists, left: { fact: itemerness:locale } }
+                    theme: itemerness:default
+                default: itemerness:default
+        """.trimIndent())
+        val document = requireNotNull(JsonObject.of(reader().read(includeLayout = true), "response").raw("document"))
+        val files = export(document).requiredObjects("files").associate { it.requiredString("path") to it.requiredString("content") }
+        assertTrue(files.getValue("themes/selectors.yml").contains("example:locale-frame"))
+        assertTrue(files.filterKeys { it != "themes/selectors.yml" }.values.none { it.contains("example:locale-frame") })
+        assertFalse("themes/editor.yml" in files)
     }
 
     @Test

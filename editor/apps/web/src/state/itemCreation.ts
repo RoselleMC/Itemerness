@@ -147,12 +147,12 @@ export function itemCreationIssue(
             (document.schemaVersion === 2
                 ? document[kind === "layout" ? "defaultLayout" : "defaultTheme"]
                 : undefined);
-        if (
-            !resolved ||
-            !document[kind === "layout" ? "layouts" : "themes"].some(
-                (entry) => entry.id === resolved,
-            )
-        )
+        // Theme bindings may name a theme selector as well as a concrete theme.
+        const declared =
+            kind === "layout"
+                ? document.layouts
+                : [...document.themes, ...(document.themeSelectors ?? [])];
+        if (!resolved || !declared.some((entry) => entry.id === resolved))
             return kind === "layout" ? "missingLayout" : "missingTheme";
     }
     return null;

@@ -65,7 +65,14 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         } catch (exception: RuntimePresentationException) {
             return rejected(exception.code, exception.message)
         }
-        val requestedTheme = request.viewer.requestedTheme ?: item.theme
+        // A viewer-level override (for example an accessibility preference) outranks the item's
+        // binding. Either may name a selector, which picks the concrete theme from the same data
+        // and viewer facts that conditional blocks read; the fallback chain then applies unchanged.
+        val requestedTheme = try {
+            resolveRequestedTheme(request.viewer.requestedTheme ?: item.theme, request)
+        } catch (exception: RuntimePresentationException) {
+            return rejected(exception.code, exception.message)
+        }
         if (requestedTheme !in catalog.themes) {
             return rejected(PresentationRenderFailureCode.NO_SAFE_THEME, "Unknown requested theme $requestedTheme")
         }
@@ -104,6 +111,11 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
             PresentationRenderFailureCode.NO_SAFE_THEME,
             "No safe theme could render ${request.itemKey}: ${fallbacks.joinToString { "${it.theme}:${it.code}" }}",
         )
+    }
+
+    private fun resolveRequestedTheme(id: ItemKey, request: PresentationRenderRequest): ItemKey {
+        val selector = catalog.themeSelectors[id] ?: return id
+        return selector.cases.firstOrNull { case -> evaluate(case.condition, request) }?.theme ?: selector.defaultTheme
     }
 
     private fun capabilityFailure(theme: CompiledTheme, viewer: PresentationViewer): ThemeFallbackReason? {

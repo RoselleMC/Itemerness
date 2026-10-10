@@ -13,6 +13,93 @@ import {
 } from "../../state/themeLayoutLibrary.js";
 import { commitInlineEditor } from "./inlineEdit.js";
 import { copyAction, relatedItems } from "./contextActions.js";
+import {
+    newThemeSelector,
+    removeThemeSelector,
+    themeSelectorItems,
+    themeSelectorReferences,
+    themeSelectorsOf,
+    withThemeSelectors,
+} from "../../state/themeSelectorLibrary.js";
+
+/** Creates a theme selector, or duplicates one with a fresh uuid, and selects it. */
+export function addThemeSelector(sourceUuid?: string) {
+    if (!commitInlineEditor()) return;
+    const store = useEditorStore.getState();
+    const source = themeSelectorsOf(store.document).find(
+        (entry) => entry.uuid === sourceUuid,
+    );
+    if (sourceUuid && !source) return;
+    const entry = newThemeSelector(store.document, source);
+    if (!entry) return;
+    store.updateDocument((document) =>
+        withThemeSelectors(document, [...themeSelectorsOf(document), entry]),
+    );
+    store.selectTheme(entry.id);
+}
+
+export function themeSelectorActions(uuid: string, t: TFunction): MenuAction[] {
+    const document = useEditorStore.getState().document;
+    const entry = themeSelectorsOf(document).find(
+        (selector) => selector.uuid === uuid,
+    );
+    if (!entry) return [];
+    return [
+        copyAction("copy-id", t("menus.copyId"), entry.id),
+        {
+            id: "duplicate-theme-selector",
+            label: t("themeSelector.duplicate"),
+            icon: Copy,
+            run: () => addThemeSelector(uuid),
+        },
+        relatedItems(themeSelectorItems(document, entry.id), t),
+        {
+            id: "delete-theme-selector",
+            label: t("themeSelector.delete"),
+            icon: Trash2,
+            danger: true,
+            disabled: themeSelectorReferences(document, entry.id).length > 0,
+            run: async () => {
+                if (!commitInlineEditor()) return;
+                const source = themeSelectorsOf(
+                    useEditorStore.getState().document,
+                ).find((selector) => selector.uuid === uuid);
+                if (
+                    !source ||
+                    !(await confirmAction({
+                        title: t("themeSelector.delete"),
+                        message: t("themeLayoutLibrary.deleteConfirm", {
+                            id: source.id,
+                        }),
+                        accept: t("menus.delete"),
+                    }))
+                )
+                    return;
+                const store = useEditorStore.getState();
+                store.updateDocument((document) =>
+                    removeThemeSelector(document, uuid),
+                );
+                const current = useEditorStore.getState();
+                if (
+                    current.selectedThemeId === source.id &&
+                    !themeSelectorsOf(current.document).some(
+                        (selector) => selector.uuid === uuid,
+                    )
+                )
+                    useEditorStore.setState({
+                        selectedThemeId: current.document.themes[0]?.id ?? null,
+                    });
+                if (current.themeOverride === source.id)
+                    store.setThemeOverride(
+                        current.mode === "themes"
+                            ? (useEditorStore.getState().selectedThemeId ??
+                                  null)
+                            : null,
+                    );
+            },
+        },
+    ];
+}
 
 export function addThemeLayout(
     kind: ThemeLayoutKind,
@@ -50,16 +137,29 @@ export function createThemeLayoutActions(
     kind: ThemeLayoutKind,
     t: TFunction,
 ): MenuAction[] {
-    return (kind === "themes" ? ["theme"] : ["flow", "canvas"]).map((type) => ({
+    if (kind === "themes")
+        return [
+            {
+                id: "add-theme",
+                label: t("themeLayoutLibrary.add.theme"),
+                icon: Plus,
+                run: () => addThemeLayout("themes"),
+            },
+            {
+                id: "add-theme-selector",
+                label: t("themeLayoutLibrary.add.selector"),
+                icon: Plus,
+                // A selector needs at least one concrete theme to fall back to.
+                disabled:
+                    useEditorStore.getState().document.themes.length === 0,
+                run: () => addThemeSelector(),
+            },
+        ];
+    return (["flow", "canvas"] as const).map((type) => ({
         id: `add-${type}`,
         label: t(`themeLayoutLibrary.add.${type}`),
         icon: Plus,
-        run: () =>
-            addThemeLayout(
-                kind,
-                undefined,
-                type === "canvas" ? "canvas" : "flow",
-            ),
+        run: () => addThemeLayout(kind, undefined, type),
     }));
 }
 

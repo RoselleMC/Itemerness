@@ -19,6 +19,7 @@ class PresentationSource(
     items: Collection<ItemPresentationSource>,
     val spacing: SpacingSource? = null,
     tooltipStyles: Collection<String> = emptyList(),
+    themeSelectors: Collection<ThemeSelectorSource> = emptyList(),
 ) {
     val formats: List<FormatSource> = java.util.List.copyOf(formats)
     val locales: List<LocaleSource> = java.util.List.copyOf(locales)
@@ -30,6 +31,7 @@ class PresentationSource(
     val resourcePackBindings: List<ResourcePackBindingSource> = java.util.List.copyOf(resourcePackBindings)
     val layouts: List<LayoutSource> = java.util.List.copyOf(layouts)
     val themes: List<ThemeSource> = java.util.List.copyOf(themes)
+    val themeSelectors: List<ThemeSelectorSource> = java.util.List.copyOf(themeSelectors)
     val items: List<ItemPresentationSource> = java.util.List.copyOf(items)
     val tooltipStyles: Set<String> = immutableSet(tooltipStyles)
 }
@@ -365,6 +367,24 @@ class CanvasThemeSource(
 ) {
     val layers: List<CanvasLayerSource> = java.util.List.copyOf(layers)
 }
+
+/**
+ * A reusable, data-driven choice between concrete themes. Selector ids share the theme id space,
+ * so an item or the settings default theme may reference either. The first case whose condition
+ * holds wins; otherwise [defaultTheme] applies. Cases never reference another selector.
+ */
+class ThemeSelectorSource(
+    val id: String,
+    cases: Collection<ThemeSelectorCaseSource>,
+    val defaultTheme: String,
+) {
+    val cases: List<ThemeSelectorCaseSource> = java.util.List.copyOf(cases)
+}
+
+data class ThemeSelectorCaseSource(
+    val condition: ConditionSource,
+    val theme: String,
+)
 
 class ItemPresentationSource(
     val id: String,

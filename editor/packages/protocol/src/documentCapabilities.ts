@@ -119,3 +119,18 @@ export function usesCatalogSourceLayout(
 ): boolean {
     return document.sourceLayout !== undefined;
 }
+
+export const THEME_SELECTORS_CAPABILITY = "presentation.theme-selectors";
+
+export function supportsThemeSelectors(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(THEME_SELECTORS_CAPABILITY) === true;
+}
+
+/** Old strict decoders reject a `themeSelectors` property, even an empty one. */
+export function usesThemeSelectors(
+    document: Pick<ProjectDocument, "themeSelectors">,
+): boolean {
+    return Object.hasOwn(document, "themeSelectors");
+}
