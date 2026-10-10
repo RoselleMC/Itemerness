@@ -14,15 +14,18 @@ internal object CatalogYamlEncoding {
     private fun key(key: DataKeySource, policy: DocumentDataKeyIntegration): Map<String, Any?> = map(
         "type" to type(key.type), "scope" to YamlEncoding.enum(key.scope), "nullable" to key.nullable,
         "affects-stacking" to key.affectsStacking, "presentation-readable" to key.presentationReadable,
-        "constraints" to map("minimum" to key.constraints.minimum?.let(YamlEncoding::exactNumber), "maximum" to key.constraints.maximum?.let(YamlEncoding::exactNumber), "scale" to key.constraints.scale,
-            "maximum-codepoints" to key.constraints.maximumCodePoints, "maximum-elements" to key.constraints.maximumElements,
-            "maximum-entries" to key.constraints.maximumEntries, "maximum-depth" to key.constraints.maximumDepth,
-            "allowed" to key.constraints.allowedValues.map(YamlEncoding::source)),
+        "constraints" to constraints(key.constraints),
         "read-sources" to (listOf(if (key.scope == DataScope.DEFINITION) "catalog-definition" else "canonical-nbt") +
             policy.pdcFallbackKeys.map { map("pdc" to map("key" to it.toString(), "mode" to "fallback-read-only")) }),
         "access" to map("read" to YamlEncoding.enum(policy.readAccess), "write" to policy.writePrincipals.toList()),
         "placeholder-api" to map("exposed" to policy.placeholderExposed, "formatter" to policy.placeholderFormatter?.toString()),
     ) + (key.defaultValue?.let { mapOf("default" to YamlEncoding.source(it)) } ?: emptyMap())
+
+    private fun constraints(constraints: DataConstraintsSource): Map<String, Any?> = map(
+        "minimum" to constraints.minimum?.let(YamlEncoding::exactNumber), "maximum" to constraints.maximum?.let(YamlEncoding::exactNumber), "scale" to constraints.scale,
+        "maximum-codepoints" to constraints.maximumCodePoints, "maximum-elements" to constraints.maximumElements,
+        "maximum-entries" to constraints.maximumEntries, "maximum-depth" to constraints.maximumDepth,
+        "allowed" to constraints.allowedValues.map(YamlEncoding::source))
 
     private fun type(type: DataType): Any = when (type) {
         DataType.BooleanType -> "boolean"
@@ -34,7 +37,8 @@ internal object CatalogYamlEncoding {
         DataType.NamespacedKeyType -> "namespaced-key"
         is DataType.ListType -> map("kind" to "list", "element" to type(type.element))
         is DataType.CompoundType -> type.fields?.let { fields -> map("kind" to "compound",
-            "fields" to fields.associate { it.name to map("type" to type(it.type), "nullable" to it.nullable) }) } ?: "compound"
+            "fields" to fields.associate { field -> field.name to map("type" to type(field.type), "nullable" to field.nullable) +
+                (if (field.constraints.isEmpty) emptyMap() else mapOf("constraints" to constraints(field.constraints))) }) } ?: "compound"
     }
 
     fun item(item: ItemDefinitionSource, presentation: ItemPresentationSource, layout: String?, theme: String?): Map<String, Any?> = map(

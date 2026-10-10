@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import type { DataTypeNode, DataValue } from "@itemerness/protocol";
+import type {
+    DataConstraints,
+    DataTypeNode,
+    DataValue,
+} from "@itemerness/protocol";
 import { SelectField } from "./SelectField.js";
 import {
     initialDataValue,
@@ -12,6 +16,15 @@ import {
 import { commitInlineEditor } from "./inlineEdit.js";
 import { BufferedInput } from "./BufferedInput.js";
 import { validCompoundFieldName } from "../inspector/dataKeyEditing.js";
+import {
+    constraintViolation,
+    elementLimit,
+    entryLimit,
+    sameDataValue,
+    scalarText,
+    selectableAllowedValues,
+    type ConstraintViolation,
+} from "./constraintValidation.js";
 
 export function DataValueEditor({
     value,
@@ -24,6 +37,7 @@ export function DataValueEditor({
     owner = testId,
     allowNull = true,
     validateValue,
+    constraints,
 }: {
     value: DataValue;
     onChange(value: DataValue): void;
@@ -35,8 +49,16 @@ export function DataValueEditor({
     owner?: string;
     allowNull?: boolean;
     validateValue?(value: DataValue): string | null;
+    /** Constraints of this value position; nested fields take theirs from `type`. */
+    constraints?: DataConstraints;
 }) {
     const { t } = useTranslation();
+    const describe = (violation: ConstraintViolation) =>
+        t(`values.constraints.${violation.code}`, {
+            limit: "limit" in violation ? violation.limit : undefined,
+        });
+    const currentViolation = constraintViolation(constraints, value, type);
+    const allowedChoices = selectableAllowedValues(constraints);
     const [constraintError, setConstraintError] = useState<string | null>(null);
     useEffect(() => setConstraintError(null), [owner, value]);
     const onChange = (next: DataValue) => {
@@ -131,6 +153,15 @@ export function DataValueEditor({
                     {constraintError}
                 </p>
             )}
+            {!constraintError && currentViolation && (
+                <p
+                    className="error small"
+                    role="status"
+                    data-testid={`${testId}-constraint`}
+                >
+                    {describe(currentViolation)}
+                </p>
+            )}
             {showTypeSelector && (
                 <div className="typed-value-toolbar">
                     <SelectField
@@ -161,36 +192,90 @@ export function DataValueEditor({
                     />
                 </div>
             )}
-            {(value.kind === "string" ||
-                value.kind === "integer" ||
-                value.kind === "decimal") && (
-                <BufferedInput
-                    key={value.kind}
-                    multiline={value.kind === "string"}
-                    owner={`${owner}:${value.kind}`}
-                    value={value.value}
-                    label={label}
-                    testId={`${testId}-input`}
-                    inputMode={
-                        value.kind === "integer"
-                            ? "numeric"
-                            : value.kind === "decimal"
-                              ? "decimal"
-                              : "text"
-                    }
-                    validate={(raw) => {
-                        const result = parseScalarValue(value.kind, raw, type);
-                        return result.error
-                            ? t(`values.errors.${result.error}`)
-                            : (validateValue?.(result.value) ?? null);
-                    }}
-                    onCommit={(raw) => {
-                        const result = parseScalarValue(value.kind, raw, type);
-                        if (result.value) onChange(result.value);
-                    }}
-                />
-            )}
-            {value.kind === "boolean" && (
+            {allowedChoices.length > 0 &&
+                value.kind !== "null" &&
+                value.kind !== "list" &&
+                value.kind !== "compound" && (
+                    <SelectField
+                        label={label}
+                        data-testid={`${testId}-allowed`}
+                        value={String(
+                            allowedChoices.findIndex((allowed) =>
+                                sameDataValue(allowed, value, type),
+                            ),
+                        )}
+                        options={[
+                            // Keep a disallowed current value visible instead of replacing it.
+                            ...(allowedChoices.some((allowed) =>
+                                sameDataValue(allowed, value, type),
+                            )
+                                ? []
+                                : [
+                                      {
+                                          value: "-1",
+                                          label: t("values.notAllowed", {
+                                              value: scalarText(value),
+                                          }),
+                                          disabled: true,
+                                      },
+                                  ]),
+                            ...allowedChoices.map((allowed, index) => ({
+                                value: String(index),
+                                label: scalarText(allowed),
+                            })),
+                        ]}
+                        onValueChange={(index) => {
+                            const next = allowedChoices[Number(index)];
+                            if (next && commitInlineEditor()) onChange(next);
+                        }}
+                    />
+                )}
+            {allowedChoices.length === 0 &&
+                (value.kind === "string" ||
+                    value.kind === "integer" ||
+                    value.kind === "decimal") && (
+                    <BufferedInput
+                        key={value.kind}
+                        multiline={value.kind === "string"}
+                        owner={`${owner}:${value.kind}`}
+                        value={value.value}
+                        label={label}
+                        testId={`${testId}-input`}
+                        inputMode={
+                            value.kind === "integer"
+                                ? "numeric"
+                                : value.kind === "decimal"
+                                  ? "decimal"
+                                  : "text"
+                        }
+                        validate={(raw) => {
+                            const result = parseScalarValue(
+                                value.kind,
+                                raw,
+                                type,
+                            );
+                            if (result.error)
+                                return t(`values.errors.${result.error}`);
+                            const violation = constraintViolation(
+                                constraints,
+                                result.value,
+                                type,
+                            );
+                            return violation
+                                ? describe(violation)
+                                : (validateValue?.(result.value) ?? null);
+                        }}
+                        onCommit={(raw) => {
+                            const result = parseScalarValue(
+                                value.kind,
+                                raw,
+                                type,
+                            );
+                            if (result.value) onChange(result.value);
+                        }}
+                    />
+                )}
+            {allowedChoices.length === 0 && value.kind === "boolean" && (
                 <label className="typed-boolean">
                     <input
                         type="checkbox"
@@ -285,7 +370,8 @@ export function DataValueEditor({
                         Plus,
                         !canNest ||
                             (type?.kind === "list" &&
-                                value.values.length >= 256),
+                                value.values.length >=
+                                    elementLimit(constraints)),
                         () =>
                             onChange({
                                 kind: "list",
@@ -318,6 +404,7 @@ export function DataValueEditor({
                                     value={entry}
                                     type={field?.type}
                                     nullable={field?.nullable ?? true}
+                                    constraints={field?.constraints}
                                     label={name}
                                     testId={`${testId}-${name}`}
                                     depth={depth + 1}
@@ -381,7 +468,11 @@ export function DataValueEditor({
                         {action(
                             "addField",
                             Plus,
-                            !canNest || !validFieldName || duplicate,
+                            !canNest ||
+                                !validFieldName ||
+                                duplicate ||
+                                Object.keys(value.entries).length >=
+                                    entryLimit(constraints),
                             addField,
                         )}
                     </div>

@@ -370,11 +370,12 @@ object ProjectDocumentCodec {
                         null
                     } else {
                         node.requiredObjects("fields").map { field ->
-                            field.rejectUnknown("name", "type", "nullable")
+                            field.rejectUnknown("name", "type", "nullable", "constraints")
                             CompoundFieldSource(
                                 name = field.requiredString("name"),
                                 type = dataType(field.requiredObject("type")),
                                 nullable = field.optionalBoolean("nullable", false),
+                                constraints = constraints(field.optionalObject("constraints")),
                             )
                         }
                     },
@@ -940,11 +941,6 @@ object ProjectDocumentCodec {
             "uuid", "extensions", "id", "type", "scope", "nullable", "defaultValue", "affectsStacking",
             "presentationReadable", "constraints", "integration",
         )
-        val constraints = node.optionalObject("constraints")
-        constraints?.rejectUnknown(
-            "minimum", "maximum", "scale", "maximumCodePoints", "maximumElements", "maximumEntries",
-            "maximumDepth", "allowedValues",
-        )
         return DataKeySource(
             id = node.requiredString("id"),
             type = dataType(node.requiredObject("type")),
@@ -953,20 +949,25 @@ object ProjectDocumentCodec {
             defaultValue = node.optionalObject("defaultValue")?.let(::sourceDataValue),
             affectsStacking = node.optionalBoolean("affectsStacking", true),
             presentationReadable = node.optionalBoolean("presentationReadable", false),
-            constraints = if (constraints == null) {
-                DataConstraintsSource()
-            } else {
-                DataConstraintsSource(
-                    minimum = constraints.optionalDecimalString("minimum"),
-                    maximum = constraints.optionalDecimalString("maximum"),
-                    scale = constraints.optionalInt("scale"),
-                    maximumCodePoints = constraints.optionalInt("maximumCodePoints"),
-                    maximumElements = constraints.optionalInt("maximumElements"),
-                    maximumEntries = constraints.optionalInt("maximumEntries"),
-                    maximumDepth = constraints.optionalInt("maximumDepth"),
-                    allowedValues = constraints.optionalObjects("allowedValues").map(::sourceDataValue),
-                )
-            },
+            constraints = constraints(node.optionalObject("constraints")),
+        )
+    }
+
+    private fun constraints(node: JsonObject?): DataConstraintsSource {
+        if (node == null) return DataConstraintsSource()
+        node.rejectUnknown(
+            "minimum", "maximum", "scale", "maximumCodePoints", "maximumElements", "maximumEntries",
+            "maximumDepth", "allowedValues",
+        )
+        return DataConstraintsSource(
+            minimum = node.optionalDecimalString("minimum"),
+            maximum = node.optionalDecimalString("maximum"),
+            scale = node.optionalInt("scale"),
+            maximumCodePoints = node.optionalInt("maximumCodePoints"),
+            maximumElements = node.optionalInt("maximumElements"),
+            maximumEntries = node.optionalInt("maximumEntries"),
+            maximumDepth = node.optionalInt("maximumDepth"),
+            allowedValues = node.optionalObjects("allowedValues").map(::sourceDataValue),
         )
     }
 

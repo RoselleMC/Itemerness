@@ -75,10 +75,15 @@ sealed interface DataType {
     }
 }
 
+/**
+ * [constraints] apply to the field's value wherever the compound occurs, including inside lists.
+ * They take part in type equality because they are part of the declared shape.
+ */
 data class CompoundFieldSource(
     val name: String,
     val type: DataType,
     val nullable: Boolean = false,
+    val constraints: DataConstraintsSource = DataConstraintsSource(),
 )
 
 class DataConstraintsSource(
@@ -92,6 +97,23 @@ class DataConstraintsSource(
     allowedValues: Collection<SourceDataValue> = emptyList(),
 ) {
     val allowedValues: List<SourceDataValue> = java.util.List.copyOf(allowedValues)
+
+    val isEmpty: Boolean
+        get() = minimum == null && maximum == null && scale == null && maximumCodePoints == null &&
+            maximumElements == null && maximumEntries == null && maximumDepth == null && allowedValues.isEmpty()
+
+    override fun equals(other: Any?): Boolean = other is DataConstraintsSource &&
+        sameNumber(minimum, other.minimum) && sameNumber(maximum, other.maximum) && scale == other.scale &&
+        maximumCodePoints == other.maximumCodePoints && maximumElements == other.maximumElements &&
+        maximumEntries == other.maximumEntries && maximumDepth == other.maximumDepth && allowedValues == other.allowedValues
+
+    override fun hashCode(): Int = listOf(
+        minimum?.stripTrailingZeros(), maximum?.stripTrailingZeros(), scale, maximumCodePoints,
+        maximumElements, maximumEntries, maximumDepth, allowedValues,
+    ).hashCode()
+
+    private fun sameNumber(left: BigDecimal?, right: BigDecimal?): Boolean =
+        if (left == null || right == null) left == right else left.compareTo(right) == 0
 }
 
 class ItemDefinitionSource(

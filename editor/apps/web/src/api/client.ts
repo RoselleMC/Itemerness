@@ -8,6 +8,8 @@ import {
     previewArtifactSchema,
     projectDocumentSchema,
     supportsSegmentedFrameDecorations,
+    supportsDataFieldConstraints,
+    usesDataFieldConstraints,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -303,6 +305,11 @@ export class PluginClient {
             !supportsSegmentedFrameDecorations(this.capabilities)
         )
             throw new Error("SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED");
+        if (
+            usesDataFieldConstraints(document) &&
+            !supportsDataFieldConstraints(this.capabilities)
+        )
+            throw new Error("DATA_FIELD_CONSTRAINTS_UNSUPPORTED");
     }
 
     private async json(

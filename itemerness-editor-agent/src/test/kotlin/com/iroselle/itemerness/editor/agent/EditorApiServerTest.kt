@@ -132,6 +132,10 @@ class EditorApiServerTest {
                     JsonValue.Text("catalog.base-components.attributes-enchantments") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("catalog.data-keys.field-constraints") in handshake.requiredArray("capabilities"),
+                    version,
+                )
             }
         }
     }

@@ -236,7 +236,7 @@ class EditorApiServer(
         "previewSchemas" to JsonValue.Arr(listOf(JsonValue.Num(1.0))),
         "capabilities" to JsonValue.Arr((listOf(
             "draft.read", "draft.write", "presentation.segmented-frame.decorations",
-            "catalog.base-components.attributes-enchantments",
+            "catalog.base-components.attributes-enchantments", "catalog.data-keys.field-constraints",
         ) +
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +

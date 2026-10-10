@@ -208,6 +208,7 @@
         "clearDefault": "Remove default value",
         "noDefault": "No default value",
         "constraintsHeading": "Constraints",
+        "fieldConstraints": "Field constraints",
         "addAllowed": "Add allowed value",
         "constraints": {
             "minimum": "Minimum",
@@ -742,6 +743,17 @@
         }
     },
     "values": {
+        "notAllowed": "{{value}} (not allowed)",
+        "constraints": {
+            "minimum": "Must be at least {{limit}}.",
+            "maximum": "Must be at most {{limit}}.",
+            "scale": "Use at most {{limit}} decimal places.",
+            "maximumCodePoints": "Use at most {{limit}} characters.",
+            "maximumElements": "Use at most {{limit}} entries.",
+            "maximumEntries": "Use at most {{limit}} fields.",
+            "maximumDepth": "Nesting must not exceed {{limit}} levels.",
+            "allowedValues": "This value is not in the allowed set."
+        },
         "type": "Type",
         "literalValue": "Value",
         "true": "True",
@@ -1173,6 +1185,7 @@
             "REQUEST_TOO_LARGE": "The document exceeds the request size limit.",
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "The connected plugin does not support this document format.",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "Upgrade the connected plugin to use frame decorations. The document has been preserved.",
+            "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "Upgrade the connected plugin to use compound field constraints. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

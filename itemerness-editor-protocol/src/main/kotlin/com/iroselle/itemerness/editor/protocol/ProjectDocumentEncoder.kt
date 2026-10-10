@@ -96,12 +96,7 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
             "id" to key.id, "type" to DocumentEncoding.type(key.type), "scope" to key.scope, "nullable" to key.nullable,
             "defaultValue" to key.defaultValue?.let(DocumentEncoding::sourceValue),
             "affectsStacking" to key.affectsStacking, "presentationReadable" to key.presentationReadable,
-            "constraints" to obj(
-                "minimum" to key.constraints.minimum?.toString(), "maximum" to key.constraints.maximum?.toString(), "scale" to key.constraints.scale,
-                "maximumCodePoints" to key.constraints.maximumCodePoints, "maximumElements" to key.constraints.maximumElements,
-                "maximumEntries" to key.constraints.maximumEntries, "maximumDepth" to key.constraints.maximumDepth,
-                "allowedValues" to key.constraints.allowedValues.map(DocumentEncoding::sourceValue),
-            ),
+            "constraints" to DocumentEncoding.constraints(key.constraints),
             "integration" to requireNotNull(integrations[key.id]) { "Missing integration policy for ${key.id}" },
         ) },
     )

@@ -208,6 +208,7 @@
         "clearDefault": "移除默认值",
         "noDefault": "未设置默认值",
         "constraintsHeading": "约束",
+        "fieldConstraints": "字段约束",
         "addAllowed": "添加允许值",
         "constraints": {
             "minimum": "最小值",
@@ -737,6 +738,17 @@
         }
     },
     "values": {
+        "notAllowed": "{{value}}（不在允许范围内）",
+        "constraints": {
+            "minimum": "不能小于 {{limit}}。",
+            "maximum": "不能大于 {{limit}}。",
+            "scale": "最多保留 {{limit}} 位小数。",
+            "maximumCodePoints": "最多 {{limit}} 个字符。",
+            "maximumElements": "最多 {{limit}} 项。",
+            "maximumEntries": "最多 {{limit}} 个字段。",
+            "maximumDepth": "嵌套不能超过 {{limit}} 层。",
+            "allowedValues": "该值不在允许的取值中。"
+        },
         "type": "类型",
         "literalValue": "值",
         "true": "真",
@@ -1162,6 +1174,7 @@
             "REQUEST_TOO_LARGE": "文档超过请求大小上限。",
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "当前插件不支持此文档格式。",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "使用边框装饰需要升级当前插件。文档内容已保留。",
+            "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "使用复合字段约束需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

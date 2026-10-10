@@ -184,6 +184,7 @@ function Assignments({
                             value={entry.value}
                             type={key?.type}
                             nullable={key?.nullable ?? true}
+                            constraints={key?.constraints}
                             label={t("itemDefinition.overrideValue")}
                             owner={owner}
                             testId={`${prefix}-${index}-value`}

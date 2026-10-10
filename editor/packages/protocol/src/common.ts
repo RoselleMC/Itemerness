@@ -137,6 +137,60 @@ export interface CompoundFieldNode {
     name: string;
     type: DataTypeNode;
     nullable: boolean;
+    /** Absent when the field declares no constraints; see `DataConstraintsSource`. */
+    constraints?: DataConstraints;
+}
+
+/**
+ * Mirrors `DataConstraintsSource`; applies to one value position. Compound fields embed the
+ * complete form so that one {@link DataTypeNode} shape serves as both parser input and output.
+ */
+export const completeDataConstraintsSchema = z.strictObject({
+    minimum: decimalStringSchema.nullable(),
+    maximum: decimalStringSchema.nullable(),
+    scale: z.number().int().min(0).max(32).nullable(),
+    maximumCodePoints: z.number().int().min(0).nullable(),
+    maximumElements: z.number().int().min(0).nullable(),
+    maximumEntries: z.number().int().min(0).nullable(),
+    maximumDepth: z.number().int().min(0).nullable(),
+    allowedValues: z.array(dataValueSchema),
+});
+export type DataConstraints = z.output<typeof completeDataConstraintsSchema>;
+
+/** Data-key constraints, where omitted entries default to unconstrained. */
+export const dataConstraintsSchema = z.strictObject({
+    minimum: decimalStringSchema.nullable().default(null),
+    maximum: decimalStringSchema.nullable().default(null),
+    scale: z.number().int().min(0).max(32).nullable().default(null),
+    maximumCodePoints: z.number().int().min(0).nullable().default(null),
+    maximumElements: z.number().int().min(0).nullable().default(null),
+    maximumEntries: z.number().int().min(0).nullable().default(null),
+    maximumDepth: z.number().int().min(0).nullable().default(null),
+    allowedValues: z.array(dataValueSchema).default([]),
+});
+
+export const EMPTY_DATA_CONSTRAINTS: DataConstraints = Object.freeze({
+    minimum: null,
+    maximum: null,
+    scale: null,
+    maximumCodePoints: null,
+    maximumElements: null,
+    maximumEntries: null,
+    maximumDepth: null,
+    allowedValues: [],
+}) as DataConstraints;
+
+export function isEmptyDataConstraints(constraints: DataConstraints): boolean {
+    return (
+        constraints.minimum === null &&
+        constraints.maximum === null &&
+        constraints.scale === null &&
+        constraints.maximumCodePoints === null &&
+        constraints.maximumElements === null &&
+        constraints.maximumEntries === null &&
+        constraints.maximumDepth === null &&
+        constraints.allowedValues.length === 0
+    );
 }
 
 export const dataTypeSchema: z.ZodType<DataTypeNode> = z.lazy(() =>
@@ -157,6 +211,7 @@ export const dataTypeSchema: z.ZodType<DataTypeNode> = z.lazy(() =>
                         name: z.string().min(1).max(256),
                         type: dataTypeSchema,
                         nullable: z.boolean(),
+                        constraints: completeDataConstraintsSchema.optional(),
                     }),
                 )
                 .nullable(),

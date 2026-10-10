@@ -155,11 +155,12 @@ internal class CatalogSourceLoader {
                     DataType.CompoundType(
                         fields.keys.map { name ->
                             val field = fields.child(name, fields.raw(name))
-                                .rejectUnknown("type", "nullable")
+                                .rejectUnknown("type", "nullable", "constraints")
                             CompoundFieldSource(
                                 name = name,
                                 type = parseType(field.raw("type"), "$path.fields.$name.type"),
                                 nullable = field.optionalBoolean("nullable", false),
+                                constraints = parseConstraints(field.optionalObject("constraints"), "$path.fields.$name.constraints"),
                             )
                         },
                     )

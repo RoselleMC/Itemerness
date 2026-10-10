@@ -1,7 +1,14 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
-import type { DataTypeNode } from "@itemerness/protocol";
+import {
+    EMPTY_DATA_CONSTRAINTS,
+    isEmptyDataConstraints,
+    type CompoundFieldNode,
+    type DataConstraints,
+    type DataTypeNode,
+} from "@itemerness/protocol";
+import { DataConstraintsEditor } from "./DataConstraintsEditor.js";
 import { SelectField } from "./SelectField.js";
 import { BufferedInput } from "./BufferedInput.js";
 import { commitInlineEditor } from "./inlineEdit.js";
@@ -28,12 +35,15 @@ export function DataTypeEditor({
     label,
     testId,
     depth = 0,
+    fieldConstraints = false,
 }: {
     type: DataTypeNode;
     onChange(type: DataTypeNode): void;
     label: string;
     testId: string;
     depth?: number;
+    /** Offers per-field constraints; existing ones stay visible either way. */
+    fieldConstraints?: boolean;
 }) {
     const { t } = useTranslation();
     const remembered = useRef(new Map<DataTypeNode["kind"], DataTypeNode>());
@@ -70,6 +80,7 @@ export function DataTypeEditor({
                     label={t("dataEditing.elementType")}
                     testId={`${testId}-element`}
                     depth={depth + 1}
+                    fieldConstraints={fieldConstraints}
                     onChange={(element) => onChange({ ...type, element })}
                 />
             )}
@@ -168,6 +179,7 @@ export function DataTypeEditor({
                                 label={t("dataEditing.type")}
                                 testId={`${testId}-field-${index}`}
                                 depth={depth + 1}
+                                fieldConstraints={fieldConstraints}
                                 onChange={(value) =>
                                     onChange({
                                         ...type,
@@ -179,6 +191,40 @@ export function DataTypeEditor({
                                     })
                                 }
                             />
+                            {(fieldConstraints ||
+                                field.constraints !== undefined) && (
+                                <details
+                                    className="data-field-constraints"
+                                    open={field.constraints !== undefined}
+                                >
+                                    <summary>
+                                        {t("dataEditing.fieldConstraints")}
+                                    </summary>
+                                    <DataConstraintsEditor
+                                        constraints={
+                                            field.constraints ??
+                                            EMPTY_DATA_CONSTRAINTS
+                                        }
+                                        type={field.type}
+                                        owner={`${testId}-${index}`}
+                                        testId={`${testId}-field-${index}`}
+                                        onChange={(constraints) =>
+                                            onChange({
+                                                ...type,
+                                                fields: type.fields!.map(
+                                                    (other, i) =>
+                                                        i === index
+                                                            ? withConstraints(
+                                                                  other,
+                                                                  constraints,
+                                                              )
+                                                            : other,
+                                                ),
+                                            })
+                                        }
+                                    />
+                                </details>
+                            )}
                         </div>
                     ))}
                     {type.fields !== null && (
@@ -218,4 +264,15 @@ export function DataTypeEditor({
             )}
         </fieldset>
     );
+}
+
+/** Empty constraints are omitted so documents stay readable by plugins without the capability. */
+function withConstraints(
+    field: CompoundFieldNode,
+    constraints: DataConstraints,
+): CompoundFieldNode {
+    const { constraints: _previous, ...rest } = field;
+    return isEmptyDataConstraints(constraints)
+        ? rest
+        : { ...rest, constraints };
 }

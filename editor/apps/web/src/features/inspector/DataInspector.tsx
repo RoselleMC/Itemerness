@@ -1,8 +1,13 @@
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { namespacedIdSchema, type DataKeyNode } from "@itemerness/protocol";
+import {
+    namespacedIdSchema,
+    supportsDataFieldConstraints,
+    type DataKeyNode,
+} from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
+import { useConnectionStore } from "../../state/connection.js";
 import { resolveMessage } from "../common/messages.js";
 import { describeContext, runMenuAction } from "../../state/interface.js";
 import { dataKeyActions } from "../common/dataLibraryActions.js";
@@ -11,16 +16,12 @@ import { DataSchemaInspector } from "./DataSchemaInspector.js";
 import { DataIntegrationEditor } from "./DataIntegrationEditor.js";
 import { DataTypeEditor } from "../common/DataTypeEditor.js";
 import { DataValueEditor } from "../common/DataValueEditor.js";
+import { DataConstraintsEditor } from "../common/DataConstraintsEditor.js";
 import { BufferedInput } from "../common/BufferedInput.js";
 import { SelectField } from "../common/SelectField.js";
 import { initialDataValue, valueKindForType } from "../common/typedValues.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
-import {
-    applicableConstraints,
-    constraintLimits,
-    dataKeyReferences,
-    validOptionalConstraint,
-} from "./dataKeyEditing.js";
+import { dataKeyReferences } from "./dataKeyEditing.js";
 import "./dataEditor.css";
 
 export function DataInspector({
@@ -30,6 +31,9 @@ export function DataInspector({
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
+    const fieldConstraintsSupported = useConnectionStore((state) =>
+        supportsDataFieldConstraints(state.info?.capabilities),
+    );
     const doc = store.document;
     const schema = doc.dataSchemas.find((entry) =>
         entry.keys.some((key) => key.uuid === store.selectedDataKeyUuid),
@@ -42,59 +46,6 @@ export function DataInspector({
     const references = dataKeyReferences(doc, dataKey.uuid);
     const patch = (changes: Partial<DataKeyNode>) =>
         store.updateDataKey(dataKey.uuid, (key) => ({ ...key, ...changes }));
-    const applicable = applicableConstraints(dataKey.type.kind);
-    const constraint = (
-        key: "minimum" | "maximum" | keyof typeof constraintLimits,
-    ) => {
-        const value = dataKey.constraints[key];
-        if (!applicable.has(key) && value === null) return null;
-        const maximum =
-            key === "minimum" || key === "maximum"
-                ? undefined
-                : constraintLimits[key];
-        return (
-            <div className="data-constraint" key={key}>
-                <span className="field-label">
-                    {t(`dataEditing.constraints.${key}`)}
-                </span>
-                <BufferedInput
-                    value={value === null ? "" : String(value)}
-                    owner={`${dataKey.uuid}-${key}`}
-                    label={t(`dataEditing.constraints.${key}`)}
-                    testId={`data-constraint-${key}`}
-                    inputMode="decimal"
-                    validate={(raw) =>
-                        validOptionalConstraint(raw, maximum)
-                            ? null
-                            : t(
-                                  maximum === undefined
-                                      ? "dataEditing.invalidNumber"
-                                      : "dataEditing.invalidLimit",
-                                  { maximum },
-                              )
-                    }
-                    onCommit={(raw) =>
-                        patch({
-                            constraints: {
-                                ...dataKey.constraints,
-                                [key]:
-                                    raw === ""
-                                        ? null
-                                        : maximum === undefined
-                                          ? raw
-                                          : Number(raw),
-                            },
-                        })
-                    }
-                />
-                {!applicable.has(key) && (
-                    <span className="error small">
-                        {t("dataEditing.incompatibleConstraint")}
-                    </span>
-                )}
-            </div>
-        );
-    };
     return (
         <aside
             className="inspector"
@@ -228,6 +179,7 @@ export function DataInspector({
                     type={dataKey.type}
                     label={t("dataEditing.type")}
                     testId="data-type"
+                    fieldConstraints={fieldConstraintsSupported}
                     onChange={(type) => patch({ type })}
                 />
                 <label className="field-label">{t("dataEditing.scope")}</label>
@@ -322,6 +274,7 @@ export function DataInspector({
                         value={dataKey.defaultValue}
                         type={dataKey.type}
                         nullable={dataKey.nullable}
+                        constraints={dataKey.constraints}
                         label={t("inspector.data.defaultValue")}
                         testId="data-default"
                         onChange={(defaultValue) => patch({ defaultValue })}
@@ -330,84 +283,13 @@ export function DataInspector({
             </section>
             <section>
                 <h3>{t("dataEditing.constraintsHeading")}</h3>
-                <div className="data-constraints">
-                    {constraint("minimum")}
-                    {constraint("maximum")}
-                    {Object.keys(constraintLimits).map((key) =>
-                        constraint(key as keyof typeof constraintLimits),
-                    )}
-                </div>
-                <div className="data-editor-row">
-                    <h4>{t("inspector.data.allowed")}</h4>
-                    <button
-                        type="button"
-                        className="icon-button"
-                        aria-label={t("dataEditing.addAllowed")}
-                        data-tooltip={t("dataEditing.addAllowed")}
-                        data-testid="data-add-allowed"
-                        onClick={() => {
-                            if (commitInlineEditor())
-                                patch({
-                                    constraints: {
-                                        ...dataKey.constraints,
-                                        allowedValues: [
-                                            ...dataKey.constraints
-                                                .allowedValues,
-                                            initialDataValue(
-                                                valueKindForType(dataKey.type),
-                                                dataKey.type,
-                                            ),
-                                        ],
-                                    },
-                                });
-                        }}
-                    >
-                        <Plus size={16} />
-                    </button>
-                </div>
-                {dataKey.constraints.allowedValues.map((value, index) => (
-                    <div className="data-allowed-entry" key={index}>
-                        <DataValueEditor
-                            value={value}
-                            type={dataKey.type}
-                            nullable={false}
-                            label={t("values.entry", { index: index + 1 })}
-                            testId={`data-allowed-${index}`}
-                            onChange={(next) =>
-                                patch({
-                                    constraints: {
-                                        ...dataKey.constraints,
-                                        allowedValues:
-                                            dataKey.constraints.allowedValues.map(
-                                                (old, i) =>
-                                                    i === index ? next : old,
-                                            ),
-                                    },
-                                })
-                            }
-                        />
-                        <button
-                            type="button"
-                            className="icon-button"
-                            aria-label={t("values.remove")}
-                            data-tooltip={t("values.remove")}
-                            onClick={() => {
-                                if (commitInlineEditor())
-                                    patch({
-                                        constraints: {
-                                            ...dataKey.constraints,
-                                            allowedValues:
-                                                dataKey.constraints.allowedValues.filter(
-                                                    (_, i) => i !== index,
-                                                ),
-                                        },
-                                    });
-                            }}
-                        >
-                            <Trash2 size={15} />
-                        </button>
-                    </div>
-                ))}
+                <DataConstraintsEditor
+                    constraints={dataKey.constraints}
+                    type={dataKey.type}
+                    owner={dataKey.uuid}
+                    testId="data"
+                    onChange={(constraints) => patch({ constraints })}
+                />
             </section>
             <DataIntegrationEditor document={doc} dataKey={dataKey} />
             {previewSettings}

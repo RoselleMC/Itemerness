@@ -3,6 +3,7 @@ import {
     canvasLayerAnchorSchema,
     characterFramePresetSchema,
     conditionOperatorSchema,
+    dataConstraintsSchema,
     dataScopeSchema,
     dataTypeSchema,
     dataValueSchema,
@@ -525,18 +526,7 @@ export const dataKeyNodeSchema = z.strictObject({
     presentationReadable: z.boolean().default(false),
     /** Required in schema 2. Legacy documents keep this absent until explicitly upgraded. */
     integration: dataKeyIntegrationSchema.optional(),
-    constraints: z
-        .strictObject({
-            minimum: decimalStringSchema.nullable().default(null),
-            maximum: decimalStringSchema.nullable().default(null),
-            scale: z.number().int().min(0).max(32).nullable().default(null),
-            maximumCodePoints: z.number().int().min(0).nullable().default(null),
-            maximumElements: z.number().int().min(0).nullable().default(null),
-            maximumEntries: z.number().int().min(0).nullable().default(null),
-            maximumDepth: z.number().int().min(0).nullable().default(null),
-            allowedValues: z.array(dataValueSchema).default([]),
-        })
-        .default({}),
+    constraints: dataConstraintsSchema.default({}),
 });
 export type DataKeyNode = z.infer<typeof dataKeyNodeSchema>;
 

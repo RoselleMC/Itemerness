@@ -1,5 +1,7 @@
 package com.iroselle.itemerness.editor.protocol
 
+import com.iroselle.itemerness.core.catalog.CompoundFieldSource
+import com.iroselle.itemerness.core.catalog.DataConstraintsSource
 import com.iroselle.itemerness.core.catalog.DataType
 import com.iroselle.itemerness.core.catalog.SourceDataValue
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
@@ -9,6 +11,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -114,5 +117,19 @@ class ProjectDocumentEncoderTest {
         assertEquals(obj("kind" to "decimal", "value" to "1.234567890123456789"), DocumentEncoding.sourceValue(SourceDataValue.DecimalValue("1.234567890123456789".toBigDecimal())))
         val compound = SourceDataValue.CompoundValue(mapOf("long" to SourceDataValue.IntegerValue(1), "absent" to SourceDataValue.NullValue))
         assertEquals(obj("kind" to "compound", "entries" to mapOf("long" to obj("kind" to "integer", "value" to "1"), "absent" to obj("kind" to "null"))), DocumentEncoding.sourceValue(compound))
+    }
+
+    @Test
+    fun `compound field constraints are emitted only when declared`() {
+        val plain = DataType.CompoundType(listOf(CompoundFieldSource("name", DataType.StringType)))
+        assertEquals(
+            obj("kind" to "compound", "fields" to listOf(obj("name" to "name", "type" to obj("kind" to "string"), "nullable" to false))),
+            DocumentEncoding.type(plain),
+        )
+        val constrained = DataType.CompoundType(
+            listOf(CompoundFieldSource("level", DataType.IntegerType, constraints = DataConstraintsSource(minimum = BigDecimal.ONE))),
+        )
+        val field = (DocumentEncoding.type(constrained) as JsonValue.Obj).entries.getValue("fields").let { (it as JsonValue.Arr).values.single() as JsonValue.Obj }
+        assertEquals(DocumentEncoding.constraints(DataConstraintsSource(minimum = BigDecimal.ONE)), field.entries["constraints"])
     }
 }

@@ -729,6 +729,7 @@ function BlockRow({
                         onChange={commit}
                         type={sample.schema?.type}
                         nullable={sample.schema?.nullable ?? true}
+                        constraints={sample.schema?.constraints}
                         label={t("inspector.content.sample")}
                         testId={`sample-${block.uuid}`}
                     />

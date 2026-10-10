@@ -142,3 +142,55 @@ test("recursive types, container defaults and constraints remain editable in a n
         path: info.outputPath("data-container-narrow.png"),
     });
 });
+
+test("compound fields carry their own constraints into the saved schema", async ({
+    page,
+}) => {
+    const plugin = await mockPlugin(page);
+    await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
+    await page.getByTestId("mode-data").click();
+    await page.getByTestId("datakey-custom-label").click();
+    await chooseValue(page, page.getByTestId("data-type-kind"), "compound");
+    await page
+        .getByTestId("data-type")
+        .getByRole("checkbox", { name: "Allow arbitrary fields" })
+        .uncheck();
+    await page
+        .getByTestId("data-type")
+        .getByRole("button", { name: "Add field", exact: true })
+        .click();
+    const field = page.getByTestId("data-type-field-0-name");
+    await field.fill("trigger");
+    await field.press("Enter");
+    await page.locator(".data-field-constraints > summary").first().click();
+    const limit = page.getByTestId(
+        "data-type-field-0-constraint-maximumCodePoints",
+    );
+    await limit.fill("4");
+    await limit.press("Enter");
+    await expect
+        .poll(
+            () =>
+                plugin.writes
+                    .at(-1)
+                    ?.document.dataSchemas[0]!.keys.find(
+                        (key) => key.id === "example:custom-label",
+                    )?.type,
+        )
+        .toMatchObject({
+            kind: "compound",
+            fields: [
+                {
+                    name: "trigger",
+                    constraints: { maximumCodePoints: 4, allowedValues: [] },
+                },
+            ],
+        });
+
+    await page.getByTestId("data-default-toggle").click();
+    const value = page.getByTestId("data-default-trigger-input");
+    await value.fill("toolong");
+    await value.press("Enter");
+    await expect(value).toHaveAttribute("aria-invalid", "true");
+});

@@ -111,4 +111,74 @@ class CatalogValidationTest {
         assertTrue(compilation.diagnostics.any { it.code == CatalogDiagnosticCode.DUPLICATE_ID })
         assertTrue(compilation.diagnostics.any { it.code == CatalogDiagnosticCode.INVALID_CONSTRAINT })
     }
+
+    @Test
+    fun `applies compound field constraints inside lists`() {
+        fun skills(trigger: String, cooldown: String) = SourceDataValue.ListValue(
+            listOf(
+                SourceDataValue.CompoundValue(
+                    mapOf(
+                        "trigger" to SourceDataValue.StringValue(trigger),
+                        "cooldown" to SourceDataValue.DecimalValue(BigDecimal(cooldown)),
+                    ),
+                ),
+            ),
+        )
+        fun source(fieldConstraints: DataConstraintsSource, default: SourceDataValue) = CatalogSource(
+            schemas = listOf(
+                DataSchemaSource(
+                    id = "example:skills",
+                    version = 1,
+                    keys = listOf(
+                        DataKeySource(
+                            id = "example:skills",
+                            type = DataType.ListType(
+                                DataType.CompoundType(
+                                    listOf(
+                                        CompoundFieldSource("trigger", DataType.NamespacedKeyType, constraints = fieldConstraints),
+                                        CompoundFieldSource(
+                                            "cooldown",
+                                            DataType.DecimalType,
+                                            constraints = DataConstraintsSource(minimum = BigDecimal.ZERO),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            scope = DataScope.INSTANCE,
+                        ),
+                    ),
+                ),
+            ),
+            items = listOf(
+                ItemDefinitionSource(
+                    id = "example:sword",
+                    enabled = true,
+                    material = "minecraft:iron_sword",
+                    instance = ItemInstanceSource(
+                        mode = ItemInstanceMode.UNIQUE,
+                        idGenerator = InstanceIdGenerator.UUID_V4,
+                        schemas = listOf(SchemaReferenceSource("example:skills", 1)),
+                        defaults = listOf(DataAssignmentSource("example:skills", default)),
+                    ),
+                ),
+            ),
+        )
+        val triggers = DataConstraintsSource(allowedValues = listOf(SourceDataValue.StringValue("example:on_hit")))
+
+        assertTrue(CatalogCompiler().compile(source(triggers, skills("example:on_hit", "1.5"))).successful)
+
+        val invalid = CatalogCompiler().compile(source(triggers, skills("example:on_hti", "-1")))
+        assertFalse(invalid.successful)
+        val messages = invalid.diagnostics.filter { it.code == CatalogDiagnosticCode.INVALID_VALUE }.map { it.message }
+        assertTrue(messages.any { "[0].trigger" in it && "allowed" in it }, messages.toString())
+        assertTrue(messages.any { "[0].cooldown" in it && "minimum" in it }, messages.toString())
+
+        val misplaced = CatalogCompiler().compile(source(DataConstraintsSource(maximumElements = 2), skills("example:on_hit", "0")))
+        assertTrue(
+            misplaced.diagnostics.any {
+                it.code == CatalogDiagnosticCode.INVALID_CONSTRAINT && "fields.trigger.constraints" in it.path
+            },
+            misplaced.diagnostics.toString(),
+        )
+    }
 }

@@ -44,6 +44,10 @@ class DataKeyDefinition internal constructor(
     internal val constraints: CompiledDataConstraints,
 )
 
+/**
+ * Constraints for one value position. [element] and [fields] mirror the data type, so constraints
+ * declared on compound fields also apply inside lists of those compounds.
+ */
 internal class CompiledDataConstraints(
     val minimum: BigDecimal?,
     val maximum: BigDecimal?,
@@ -53,8 +57,15 @@ internal class CompiledDataConstraints(
     val maximumEntries: Int?,
     val maximumDepth: Int?,
     allowedValues: Collection<ItemDataValue>,
+    val element: CompiledDataConstraints? = null,
+    fields: Map<String, CompiledDataConstraints> = emptyMap(),
 ) {
     val allowedValues: Set<ItemDataValue> = Collections.unmodifiableSet(LinkedHashSet(allowedValues))
+    val fields: Map<String, CompiledDataConstraints> = immutableSortedMap(fields)
+
+    fun withNested(element: CompiledDataConstraints?, fields: Map<String, CompiledDataConstraints>) = CompiledDataConstraints(
+        minimum, maximum, scale, maximumCodePoints, maximumElements, maximumEntries, maximumDepth, allowedValues, element, fields,
+    )
 }
 
 internal fun <K : Comparable<K>, V> immutableSortedMap(source: Map<K, V>): Map<K, V> {

@@ -1,3 +1,4 @@
+import type { DataTypeNode } from "./common.js";
 import type { ProjectDocument } from "./document.js";
 
 export const EXTENDED_BASE_COMPONENTS_CAPABILITY =
@@ -57,4 +58,32 @@ export function usesSegmentedFrameDecorations(
                 ))
         );
     });
+}
+
+export const DATA_FIELD_CONSTRAINTS_CAPABILITY =
+    "catalog.data-keys.field-constraints";
+
+export function supportsDataFieldConstraints(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(DATA_FIELD_CONSTRAINTS_CAPABILITY) === true;
+}
+
+function typeUsesFieldConstraints(type: DataTypeNode): boolean {
+    if (type.kind === "list") return typeUsesFieldConstraints(type.element);
+    if (type.kind !== "compound") return false;
+    return (type.fields ?? []).some(
+        (field) =>
+            Object.hasOwn(field, "constraints") ||
+            typeUsesFieldConstraints(field.type),
+    );
+}
+
+/** Old strict decoders reject a `constraints` property on compound fields. */
+export function usesDataFieldConstraints(
+    document: Pick<ProjectDocument, "dataSchemas">,
+): boolean {
+    return document.dataSchemas.some((schema) =>
+        schema.keys.some((key) => typeUsesFieldConstraints(key.type)),
+    );
 }

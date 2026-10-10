@@ -82,7 +82,7 @@ class CatalogCompiler {
         diagnostics: DiagnosticCollector,
     ): DataKeyDefinition? {
         val type = normalizeType(source.type, "$path.type", 1, diagnostics) ?: return null
-        val constraints = compileConstraints(source.constraints, type, "$path.constraints", diagnostics)
+        val constraints = compileConstraintTree(source.constraints, type, "$path.constraints", "$path.type", diagnostics)
             ?: return null
 
         val rawDefault = source.defaultValue
@@ -165,6 +165,52 @@ class CatalogCompiler {
             else -> type
         }
     }
+
+    /** Compiles [source] for the value itself and the field constraints nested in [type]. */
+    private fun compileConstraintTree(
+        source: DataConstraintsSource,
+        type: DataType,
+        path: String,
+        typePath: String,
+        diagnostics: DiagnosticCollector,
+    ): CompiledDataConstraints? {
+        val own = compileConstraints(source, type, path, diagnostics) ?: return null
+        val nested = compileNestedConstraints(type, typePath, diagnostics) ?: return null
+        return own.withNested(nested.first, nested.second)
+    }
+
+    private fun compileNestedConstraints(
+        type: DataType,
+        typePath: String,
+        diagnostics: DiagnosticCollector,
+    ): Pair<CompiledDataConstraints?, Map<String, CompiledDataConstraints>>? = when (type) {
+        is DataType.ListType -> {
+            val element = compileConstraintTree(DataConstraintsSource(), type.element, "$typePath.element", "$typePath.element", diagnostics)
+            element?.let { (if (it.isUnconstrained) null else it) to emptyMap() }
+        }
+
+        is DataType.CompoundType -> {
+            val fields = LinkedHashMap<String, CompiledDataConstraints>()
+            var valid = true
+            type.fields.orEmpty().forEach { field ->
+                val fieldPath = "$typePath.fields.${field.name}"
+                val compiled = compileConstraintTree(field.constraints, field.type, "$fieldPath.constraints", "$fieldPath.type", diagnostics)
+                if (compiled == null) {
+                    valid = false
+                } else if (!compiled.isUnconstrained) {
+                    fields[field.name] = compiled
+                }
+            }
+            if (valid) null to fields else null
+        }
+
+        else -> null to emptyMap()
+    }
+
+    private val CompiledDataConstraints.isUnconstrained: Boolean
+        get() = minimum == null && maximum == null && scale == null && maximumCodePoints == null &&
+            maximumElements == null && maximumEntries == null && maximumDepth == null &&
+            allowedValues.isEmpty() && element == null && fields.isEmpty()
 
     private fun compileConstraints(
         source: DataConstraintsSource,
@@ -1495,6 +1541,21 @@ internal object DataValueValidator {
         if (physicalFailures.isNotEmpty()) return physicalFailures
         val violations = ArrayList<String>()
         validateType(type, value, 0, ValidationBudget(), violations)
+        if (violations.isEmpty()) {
+            validateConstraints(type, constraints, value, "", violations)
+        }
+        return violations
+    }
+
+    /** Applies [constraints] to [value], then the nested field and element constraints. */
+    private fun validateConstraints(
+        type: DataType,
+        constraints: CompiledDataConstraints,
+        value: ItemDataValue,
+        location: String,
+        violations: MutableList<String>,
+    ) {
+        val prefix = if (location.isEmpty()) "" else "At $location: "
         val number = when (value) {
             is IntegerDataValue -> BigDecimal.valueOf(value.value.toLong())
             is LongDataValue -> BigDecimal.valueOf(value.value)
@@ -1503,47 +1564,60 @@ internal object DataValueValidator {
         }
         if (number != null) {
             if (constraints.minimum != null && number < constraints.minimum) {
-                violations += "Value is less than the minimum ${constraints.minimum}"
+                violations += prefix + "Value is less than the minimum ${constraints.minimum}"
             }
             if (constraints.maximum != null && number > constraints.maximum) {
-                violations += "Value is greater than the maximum ${constraints.maximum}"
+                violations += prefix + "Value is greater than the maximum ${constraints.maximum}"
             }
         }
         if (value is DecimalDataValue && constraints.scale != null) {
             val scale = BigDecimal.valueOf(value.value).stripTrailingZeros().scale().coerceAtLeast(0)
             if (scale > constraints.scale) {
-                violations += "Decimal scale $scale exceeds ${constraints.scale}"
+                violations += prefix + "Decimal scale $scale exceeds ${constraints.scale}"
             }
         }
         if (value is StringDataValue) {
             val codePoints = value.value.codePointCount(0, value.value.length)
             val maximum = constraints.maximumCodePoints ?: HARD_STRING_CODEPOINTS
             if (codePoints > maximum) {
-                violations += "String contains $codePoints codepoints; maximum is $maximum"
+                violations += prefix + "String contains $codePoints codepoints; maximum is $maximum"
             }
         }
         if (value is ListDataValue) {
             val maximum = constraints.maximumElements ?: HARD_CONTAINER_ELEMENTS
             if (value.values.size > maximum) {
-                violations += "List contains ${value.values.size} elements; maximum is $maximum"
+                violations += prefix + "List contains ${value.values.size} elements; maximum is $maximum"
             }
         }
         if (value is CompoundDataValue) {
             val maximum = constraints.maximumEntries ?: HARD_CONTAINER_ELEMENTS
             if (value.entries.size > maximum) {
-                violations += "Compound contains ${value.entries.size} entries; maximum is $maximum"
+                violations += prefix + "Compound contains ${value.entries.size} entries; maximum is $maximum"
             }
         }
         if ((value is ListDataValue || value is CompoundDataValue) && constraints.maximumDepth != null) {
             val depth = containerDepth(value)
             if (depth > constraints.maximumDepth) {
-                violations += "Value depth $depth exceeds ${constraints.maximumDepth}"
+                violations += prefix + "Value depth $depth exceeds ${constraints.maximumDepth}"
             }
         }
         if (constraints.allowedValues.isNotEmpty() && value !in constraints.allowedValues) {
-            violations += "Value is not in the allowed set"
+            violations += prefix + "Value is not in the allowed set"
         }
-        return violations
+        if (value is ListDataValue && type is DataType.ListType) {
+            constraints.element?.let { element ->
+                value.values.forEachIndexed { index, entry ->
+                    validateConstraints(type.element, element, entry, "$location[$index]", violations)
+                }
+            }
+        }
+        if (value is CompoundDataValue && type is DataType.CompoundType) {
+            constraints.fields.forEach { (name, field) ->
+                val entry = value.entries[name] ?: return@forEach
+                val fieldType = type.fields?.firstOrNull { it.name == name }?.type ?: return@forEach
+                validateConstraints(fieldType, field, entry, if (location.isEmpty()) name else "$location.$name", violations)
+            }
+        }
     }
 
     private fun validateType(

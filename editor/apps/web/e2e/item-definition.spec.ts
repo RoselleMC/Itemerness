@@ -154,6 +154,82 @@ test("definition and instance overrides are typed, distinguish null from inherit
     );
 });
 
+test("instance default forms enforce the key's own constraints", async ({
+    page,
+}) => {
+    const { document, schema } = fixture();
+    const unconstrained = schema.keys[0]!.constraints;
+    schema.keys.push(
+        dataKeyNodeSchema.parse({
+            uuid: crypto.randomUUID(),
+            id: "test:tier",
+            scope: "INSTANCE",
+            type: { kind: "string" },
+            constraints: {
+                ...unconstrained,
+                allowedValues: [
+                    { kind: "string", value: "common" },
+                    { kind: "string", value: "rare" },
+                ],
+            },
+        }),
+        dataKeyNodeSchema.parse({
+            uuid: crypto.randomUUID(),
+            id: "test:tags",
+            scope: "INSTANCE",
+            type: { kind: "list", element: { kind: "string" } },
+            constraints: { ...unconstrained, maximumElements: 2 },
+        }),
+    );
+    const plugin = await start(page, document);
+    await open(page, "instance-defaults");
+
+    await page.getByTestId("instance-defaults-override-test:power").click();
+    const power = page.getByTestId("instance-defaults-0-value-input");
+    await power.fill("11");
+    await power.press("Enter");
+    await expect(power).toHaveAttribute("aria-invalid", "true");
+    await power.fill("2.5");
+    await power.press("Enter");
+    await expect(power).not.toHaveAttribute("aria-invalid", "true");
+
+    await page.getByTestId("instance-defaults-override-test:tier").click();
+    await chooseValue(
+        page,
+        page.getByTestId("instance-defaults-1-value-allowed"),
+        "1",
+    );
+
+    await page.getByTestId("instance-defaults-override-test:tags").click();
+    const tags = page.getByTestId("instance-defaults-2-value");
+    const add = tags.getByRole("button", { name: "Add entry", exact: true });
+    await add.click();
+    await add.click();
+    await expect(add).toBeDisabled();
+
+    await page.keyboard.press("Control+s");
+    await expect
+        .poll(
+            () =>
+                plugin.writes.at(-1)?.document.items[0]?.definition.instance
+                    .defaults,
+        )
+        .toEqual([
+            { key: "test:power", value: { kind: "decimal", value: "2.5" } },
+            { key: "test:tier", value: { kind: "string", value: "rare" } },
+            {
+                key: "test:tags",
+                value: {
+                    kind: "list",
+                    values: [
+                        { kind: "string", value: "" },
+                        { kind: "string", value: "" },
+                    ],
+                },
+            },
+        ]);
+});
+
 test("schema versions and identity are atomic history edits while orphaned data remains repairable", async ({
     page,
 }) => {

@@ -22,6 +22,7 @@ export const HANDSHAKE = {
         "preview.compile",
         "presentation.segmented-frame.decorations",
         "catalog.base-components.attributes-enchantments",
+        "catalog.data-keys.field-constraints",
     ],
 };
 

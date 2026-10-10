@@ -10,6 +10,7 @@ import com.iroselle.itemerness.api.LongDataValue
 import com.iroselle.itemerness.api.NamespacedKeyDataValue
 import com.iroselle.itemerness.api.StringDataValue
 import com.iroselle.itemerness.api.UuidDataValue
+import com.iroselle.itemerness.core.catalog.DataConstraintsSource
 import com.iroselle.itemerness.core.catalog.DataType
 import com.iroselle.itemerness.core.catalog.SourceDataValue
 
@@ -39,9 +40,18 @@ internal object DocumentEncoding {
         DataType.NamespacedKeyType -> obj("kind" to "namespacedKey")
         is DataType.ListType -> obj("kind" to "list", "element" to type(type.element))
         is DataType.CompoundType -> obj("kind" to "compound", "fields" to type.fields?.map { field ->
-            obj("name" to field.name, "type" to type(field.type), "nullable" to field.nullable)
+            val base = obj("name" to field.name, "type" to type(field.type), "nullable" to field.nullable)
+            // Absent field constraints keep older documents and their canonical hashes unchanged.
+            if (field.constraints.isEmpty) base else JsonValue.Obj(base.entries + ("constraints" to constraints(field.constraints)))
         })
     }
+
+    fun constraints(constraints: DataConstraintsSource): JsonValue.Obj = obj(
+        "minimum" to constraints.minimum?.toString(), "maximum" to constraints.maximum?.toString(), "scale" to constraints.scale,
+        "maximumCodePoints" to constraints.maximumCodePoints, "maximumElements" to constraints.maximumElements,
+        "maximumEntries" to constraints.maximumEntries, "maximumDepth" to constraints.maximumDepth,
+        "allowedValues" to constraints.allowedValues.map(::sourceValue),
+    )
 
     fun sourceValue(value: SourceDataValue): JsonValue = when (value) {
         SourceDataValue.NullValue -> obj("kind" to "null")

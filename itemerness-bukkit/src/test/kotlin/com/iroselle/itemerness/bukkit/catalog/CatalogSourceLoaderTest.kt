@@ -2,6 +2,8 @@ package com.iroselle.itemerness.bukkit.catalog
 
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.core.catalog.CatalogCompiler
+import com.iroselle.itemerness.core.catalog.CompoundFieldSource
+import com.iroselle.itemerness.core.catalog.DataType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -313,6 +315,42 @@ class CatalogSourceLoaderTest {
         }
 
         assertTrue(failure.message.orEmpty().contains("cannot be exposed through PlaceholderAPI"))
+    }
+
+    @Test
+    fun `parses compound field constraints and rejects unknown constraint keys`() {
+        installEmptyItems()
+        fun schema(triggerConstraints: String) = write(
+            "data-keys/skills.yml",
+            """
+            schema-version: 1
+            id: example:skills
+            keys:
+              example:skills:
+                type:
+                  kind: list
+                  element:
+                    kind: compound
+                    fields:
+                      trigger: {type: namespaced-key, constraints: $triggerConstraints}
+                      cooldown-seconds: {type: decimal, constraints: {minimum: 0}}
+                scope: instance
+                read-sources: [canonical-nbt]
+                access: {read: public, write: ['plugin:ExampleConsumer']}
+                placeholder-api: {exposed: false}
+            """.trimIndent(),
+        )
+
+        schema("{allowed: ['example:on_hit', 'example:on_use']}")
+        val loaded = CatalogSourceLoader().load(directory)
+        val type = loaded.source.schemas.single().keys.single().type as DataType.ListType
+        val fields = (type.element as DataType.CompoundType).fields.orEmpty().associateBy(CompoundFieldSource::name)
+        assertEquals(2, fields.getValue("trigger").constraints.allowedValues.size)
+        assertEquals(0, fields.getValue("cooldown-seconds").constraints.minimum?.signum())
+        assertTrue(CatalogCompiler().compile(loaded.source).successful)
+
+        schema("{allowed-values: ['example:on_hit']}")
+        assertThrows(IllegalArgumentException::class.java) { CatalogSourceLoader().load(directory) }
     }
 
     private fun copyResource(path: String) {
