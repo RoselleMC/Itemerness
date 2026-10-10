@@ -275,7 +275,7 @@ class EditorApiServer(
 
     companion object {
         const val PROTOCOL: String = "2.0"
-        private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2")
+        private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
         private fun text(value: String): JsonValue = JsonValue.Text(value)
         private fun obj(vararg values: Pair<String, JsonValue>): JsonValue = JsonValue.Obj(mapOf(*values))
     }

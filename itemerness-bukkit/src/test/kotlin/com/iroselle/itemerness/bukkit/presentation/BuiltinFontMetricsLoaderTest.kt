@@ -19,6 +19,7 @@ class BuiltinFontMetricsLoaderTest {
             "26.1.1" to "377031a9e733ba8ab4d355959a8f6fb8eb707556",
             "26.1.2" to "4e618f09a0c649dde3fdf829df443ce0b8831e65",
             "26.2" to "2dc72797acbc1b63fc16a11c4ac393605f453754",
+            "26.3" to "e877b6a07acd633fb3bb475002175cec036e7b87",
         )
 
         expectedClients.forEach { (version, clientSha1) ->
@@ -57,7 +58,7 @@ class BuiltinFontMetricsLoaderTest {
     @Test
     fun `unknown client version fails closed`() {
         val exception = assertThrows(StrictYamlException::class.java) {
-            BuiltinFontMetricsLoader.bundled("26.3")
+            BuiltinFontMetricsLoader.bundled("26.4")
         }
 
         assertTrue(exception.message.orEmpty().contains("Unsupported font metrics client version"))

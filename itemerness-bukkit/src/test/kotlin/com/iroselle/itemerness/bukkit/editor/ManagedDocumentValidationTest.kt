@@ -37,7 +37,7 @@ class ManagedDocumentValidationTest {
         for (version in listOf(null, "server", "26.1.2")) {
             assertTrue(bridge.validateDocument(requested(version)).isEmpty(), "Matching measurement version $version")
         }
-        for (version in listOf("1.21.11", "26.1.1", "26.2")) {
+        for (version in listOf("1.21.11", "26.1.1", "26.2", "26.3")) {
             val candidate = requested(version)
             val diagnostics = bridge.validateDocument(candidate).map { JsonObject.of(it, "diagnostic") }
             assertTrue(diagnostics.any {

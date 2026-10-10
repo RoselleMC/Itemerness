@@ -157,7 +157,7 @@ object ProjectDocumentCodec {
         } else {
             val measurement = root.requiredObject("measurement").rejectUnknown("boldExtraAdvancePixels", "clientVersion", "missingGlyph")
             measurement.optionalString("clientVersion")?.let {
-                if (it !in setOf("server", "1.21.11", "26.1.1", "26.1.2", "26.2")) {
+                if (it !in setOf("server", "1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
                     throw JsonException("document.measurement.clientVersion must be server or a supported Minecraft client version")
                 }
                 measurementClientVersion = it

@@ -175,7 +175,7 @@ internal class PixelMeasurer(private val catalog: PresentationCatalogSnapshot) {
     )
 
     private companion object {
-        // Client geometry audited for 1.21.11, 26.1.1, 26.1.2, and 26.2. Logical advance remains
+        // Client geometry audited for 1.21.11, 26.1.1, 26.1.2, 26.2, and 26.3. Logical advance remains
         // a GlyphInfo concern; these constants account only for pixels emitted by style decoration.
         const val BOLD_RENDER_THICKNESS_PIXELS = 0.1
         const val EFFECT_LEADING_OVERHANG_PIXELS = 1.0

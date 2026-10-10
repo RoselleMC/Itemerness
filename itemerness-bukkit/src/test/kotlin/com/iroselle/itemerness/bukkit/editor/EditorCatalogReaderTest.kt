@@ -35,7 +35,7 @@ class EditorCatalogReaderTest {
         Files.writeString(items, Files.readString(items).replace("enabled: false", "enabled: true"))
         val before = EditorCatalogFiles.capture(directory).digest
         val digests = mutableSetOf<String>()
-        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
             val artifact = BuiltinFontMetricsLoader.bundled(version)
             val metrics = BundledBuiltinFontMetrics(artifact)
             val bridge = CompilerBridge(metrics, "test")
@@ -62,7 +62,7 @@ class EditorCatalogReaderTest {
             assertEquals(before, EditorCatalogFiles.capture(directory).digest)
             assertFalse(Files.exists(directory.resolve("editor")))
         }
-        assertEquals(4, digests.size)
+        assertEquals(5, digests.size)
     }
 
     @Test

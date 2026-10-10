@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
 class BundledBuiltinFontMetricsTest {
     @Test
     fun `unversioned aliases select the current client metrics without guessing adjacent versions`() {
-        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
             val metrics = BundledBuiltinFontMetrics(BuiltinFontMetricsArtifact(
                 clientVersion = version,
                 clientSha1 = "",
@@ -29,7 +29,7 @@ class BundledBuiltinFontMetricsTest {
             for (name in listOf("default", "uniform")) {
                 assertEquals("builtin:minecraft-$name-$version", metrics.table("minecraft-$name")?.metricsRevision)
                 assertEquals("builtin:minecraft-$name-$version", metrics.table("minecraft-$name-$version")?.metricsRevision)
-                assertNull(metrics.table("minecraft-$name-26.3"))
+                assertNull(metrics.table("minecraft-$name-26.4"))
             }
             assertNull(metrics.table("unknown"))
         }

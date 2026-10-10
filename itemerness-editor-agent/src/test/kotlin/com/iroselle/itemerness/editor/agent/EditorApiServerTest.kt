@@ -121,7 +121,7 @@ class EditorApiServerTest {
 
     @Test
     fun `segmented frame document capability is advertised independently of preview ABI`() {
-        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
             fixture(version) { api, _ ->
                 val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
                 assertTrue(
@@ -203,7 +203,7 @@ class EditorApiServerTest {
 
     @Test
     fun `every supported version can import its first draft and preview without implicit writes`() {
-        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2")) {
+        for (version in listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")) {
             fixture(version, readCatalog = { document }, exportCatalog = { it }) { api, count ->
                 val capabilities = JsonObject.parse(request(api, "/api/handshake").body(), "handshake").requiredArray("capabilities")
                 for (capability in listOf("catalog.read", "catalog.export", "preview.compile")) {

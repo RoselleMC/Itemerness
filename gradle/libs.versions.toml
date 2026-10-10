@@ -12,6 +12,9 @@ canvas2612 = "26.1.2.build.876-stable"
 paper262 = "26.2.build.116-stable"
 folia262 = "26.2.build.6-beta"
 canvas262 = "26.2.build.936-stable"
+# Folia has not published a 26.3 line; only Paper and Canvas 26.3 are compile targets.
+paper263 = "26.3.build.169-beta"
+canvas263 = "26.3.build.972-beta"
 junit = "5.14.2"
 snakeyaml = "2.6"
 placeholderapi = "2.12.3"
@@ -28,6 +31,8 @@ canvas2612-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canv
 paper262-api = { module = "io.papermc.paper:paper-api", version.ref = "paper262" }
 folia262-api = { module = "dev.folia:folia-api", version.ref = "folia262" }
 canvas262-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas262" }
+paper263-api = { module = "io.papermc.paper:paper-api", version.ref = "paper263" }
+canvas263-api = { module = "io.canvasmc.canvas:canvas-api", version.ref = "canvas263" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

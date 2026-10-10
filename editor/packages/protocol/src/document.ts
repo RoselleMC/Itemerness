@@ -796,7 +796,7 @@ export const SUPPORTED_PROJECT_DOCUMENT_SCHEMA_VERSIONS = [1, 2] as const;
 export const measurementSchema = z.strictObject({
     boldExtraAdvancePixels: z.number().finite().min(0).max(4096),
     clientVersion: z
-        .enum(["server", "1.21.11", "26.1.1", "26.1.2", "26.2"])
+        .enum(["server", "1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"])
         .optional(),
     missingGlyph: z.literal("error").optional(),
 });

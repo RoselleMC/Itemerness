@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 class NmsProviderDiscoveryTest {
     @Test
     fun `all exact providers load without resolving an unselected server ABI`() {
-        val expected = setOf("1.21.11", "26.1.1", "26.1.2", "26.2")
+        val expected = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
 
         val projectionVersions = ServiceLoader.load(
             ProjectionAdapterFactory::class.java,

@@ -65,6 +65,7 @@ val exactNmsAdapters = linkedMapOf(
     "26.1.1" to "26_1_1",
     "26.1.2" to "26_1_2",
     "26.2" to "26_2",
+    "26.3" to "26_3",
 )
 
 dependencies {
@@ -77,6 +78,7 @@ dependencies {
     runtimeOnly(project(":itemerness-nms-26_1_1"))
     runtimeOnly(project(":itemerness-nms-26_1_2"))
     runtimeOnly(project(":itemerness-nms-26_2"))
+    runtimeOnly(project(":itemerness-nms-26_3"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.snakeyaml)
     compileOnly(libs.paper.api)
@@ -244,6 +246,41 @@ kotlin {
             }
         }
     }
+
+    // Folia has not published a 26.3 line, so 26.3 is compiled against Paper and Canvas only.
+    target.compilations.create("paper263Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-bukkit-api"))
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.paper263.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
+
+    target.compilations.create("canvas263Compatibility") {
+        defaultSourceSet {
+            kotlin.srcDirs(mainSources)
+            dependencies {
+                implementation(project(":itemerness-bukkit-api"))
+                implementation(project(":itemerness-core"))
+                implementation(project(":itemerness-projection-spi"))
+                implementation(project(":itemerness-bukkit-spi"))
+                implementation(project(":itemerness-editor-agent"))
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.snakeyaml)
+                compileOnly(libs.canvas263.api)
+                compileOnly(libs.placeholderapi)
+            }
+        }
+    }
 }
 
 sourceSets.named("foliaCompatibility") {
@@ -262,6 +299,8 @@ listOf(
     "paper262Compatibility",
     "folia262Compatibility",
     "canvas262Compatibility",
+    "paper263Compatibility",
+    "canvas263Compatibility",
 ).forEach { sourceSetName ->
     sourceSets.named(sourceSetName) {
         java.srcDir("src/main/java")
@@ -271,7 +310,12 @@ listOf(
 configurations.configureEach {
     if (
         isCanBeResolved &&
-        (name.contains("2611Compatibility") || name.contains("2612Compatibility") || name.contains("262Compatibility"))
+        (
+            name.contains("2611Compatibility") ||
+                name.contains("2612Compatibility") ||
+                name.contains("262Compatibility") ||
+                name.contains("263Compatibility")
+            )
     ) {
         attributes.attribute(
             org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,
@@ -291,6 +335,8 @@ tasks.named("check") {
         "compilePaper262CompatibilityKotlin",
         "compileFolia262CompatibilityKotlin",
         "compileCanvas262CompatibilityKotlin",
+        "compilePaper263CompatibilityKotlin",
+        "compileCanvas263CompatibilityKotlin",
     )
 }
 

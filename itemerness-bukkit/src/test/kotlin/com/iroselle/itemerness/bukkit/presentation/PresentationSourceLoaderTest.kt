@@ -108,7 +108,7 @@ class PresentationSourceLoaderTest {
 
     @Test
     fun `server font selector resolves each supported client revision`() {
-        listOf("1.21.11", "26.1.1", "26.1.2", "26.2").forEach { version ->
+        listOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3").forEach { version ->
             val fonts = load(clientVersion = version).source.fonts.associateBy { it.id }
             assertEquals(
                 "builtin:minecraft-default-$version",

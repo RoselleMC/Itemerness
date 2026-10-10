@@ -32,7 +32,7 @@ class EditorMeasurementVersionGoldenTest {
     @Test
     fun `every supported measurement target imports and exports through its real YAML loader`() {
         fixture()
-        val actual = JsonValue.Obj(listOf("server", "1.21.11", "26.1.1", "26.1.2", "26.2").associateWith { target ->
+        val actual = JsonValue.Obj(listOf("server", "1.21.11", "26.1.1", "26.1.2", "26.2", "26.3").associateWith { target ->
             val version = if (target == "server") "26.1.2" else target
             val metrics = BuiltinFontMetricsLoader.bundled(version)
             val provider = BundledBuiltinFontMetrics(metrics)

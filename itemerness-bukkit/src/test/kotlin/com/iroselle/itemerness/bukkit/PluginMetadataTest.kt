@@ -182,6 +182,7 @@ class PluginMetadataTest {
             "26.1.1" to "META-INF/itemerness/nms/26.1.1/surfaces.yml",
             "26.1.2" to "META-INF/itemerness/nms/26.1.2/surfaces.yml",
             "26.2" to "META-INF/itemerness/nms/26.2/surfaces.yml",
+            "26.3" to "META-INF/itemerness/nms/26.3/surfaces.yml",
         )
     }
 }

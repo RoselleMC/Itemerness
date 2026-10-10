@@ -241,6 +241,12 @@ internal object BuiltinFontMetricsLoader {
             assetIndexSha1 = "773791767c043b4f9493b50c54257619cecb08a4",
             artifactSha256 = "23044b49490bafefe9ec35988b1fc0825c0df79f1f847938bdf4bb645d47b5c9",
         ),
+        "26.3" to artifactExpectation(
+            clientVersion = "26.3",
+            clientSha1 = "e877b6a07acd633fb3bb475002175cec036e7b87",
+            assetIndexSha1 = "1e4e4a68dece1c0f51b8f93b45da8fe8da51bcd3",
+            artifactSha256 = "02339c69bd26d6a033bf70f88e5d0fbe46ef5812b93c8ac085ac1154e6dd4c50",
+        ),
     )
 
     private fun artifactExpectation(
