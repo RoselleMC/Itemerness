@@ -70,6 +70,8 @@ interface EditorState {
     selectedLayoutId: string | null;
     selectedDataKeyUuid: string | null;
     selectedDataSchemaUuid: string | null;
+    /** Owned schemas unlocked for editing in this session; never persisted or undone. */
+    unlockedDataSchemaUuids: readonly string[];
     selectedFormatUuid: string | null;
     selectedViewerFactUuid: string | null;
     selectedAssetKind: AssetSection;
@@ -100,6 +102,7 @@ interface EditorState {
     selectLayout(layoutId: string): void;
     selectDataKey(dataKeyUuid: string): void;
     selectDataSchema(schemaUuid: string): void;
+    unlockDataSchema(schemaUuid: string): void;
     selectFormat(uuid: string | null): void;
     selectViewerFact(uuid: string | null): void;
     selectAsset(kind: AssetSection, uuid?: string | null): void;
@@ -227,6 +230,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectedLayoutId: null,
         selectedDataKeyUuid: null,
         selectedDataSchemaUuid: null,
+        unlockedDataSchemaUuids: [],
         selectedFormatUuid: null,
         selectedViewerFactUuid: null,
         selectedAssetKind: "fonts",
@@ -274,6 +278,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                         ? state.selectedThemeId
                         : (document.themes[0]?.id ?? null);
                 return {
+                    unlockedDataSchemaUuids: [],
                     document,
                     persistenceDocument: document,
                     canUndo: false,
@@ -444,6 +449,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
         },
         selectDataSchema(selectedDataSchemaUuid) {
             set({ selectedDataSchemaUuid, selectedDataKeyUuid: null });
+        },
+        unlockDataSchema(schemaUuid) {
+            set((state) => ({
+                unlockedDataSchemaUuids: [
+                    ...state.unlockedDataSchemaUuids,
+                    schemaUuid,
+                ],
+            }));
         },
         selectFormat(selectedFormatUuid) {
             set({ selectedFormatUuid, selectedBlockUuid: null });
@@ -687,6 +700,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 selectedLayoutId: null,
                 selectedDataKeyUuid: null,
                 selectedDataSchemaUuid: null,
+                unlockedDataSchemaUuids: [],
                 selectedFormatUuid: null,
                 selectedViewerFactUuid: null,
                 selectedAssetKind: "fonts",

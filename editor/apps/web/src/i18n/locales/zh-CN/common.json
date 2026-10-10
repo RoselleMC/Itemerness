@@ -176,6 +176,14 @@
         }
     },
     "dataLibrary": {
+        "owner": "归属",
+        "ownedBy": "归属于 {{owner}}。修改这份契约可能破坏该插件已有的数据。",
+        "unlock": "解锁编辑",
+        "unlockTitle": "编辑归属于插件的 schema？",
+        "unlockMessage": "{{id}} 已声明归属于 {{owner}}。重命名 key，或修改其类型、作用域、可空性，都会改变该插件读取的规范物品数据。只应与该插件同步进行这类修改；不兼容的契约应使用新的 schema 版本，而不是继续沿用 {{version}}。在本工作区重新连接之前，该 schema 保持解锁。",
+        "invalidOwner": "请使用 plugin:<名称>。",
+        "ownerHint": "声明拥有这份契约的插件。编辑器会因此防止误改该 schema；运行时不受影响。",
+        "declareOwner": "声明 {{owner}} 为归属方",
         "schema": "数据结构",
         "schemas": "数据结构",
         "schemaId": "结构 ID",
@@ -1175,6 +1183,7 @@
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "当前插件不支持此文档格式。",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "使用边框装饰需要升级当前插件。文档内容已保留。",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "使用复合字段约束需要升级当前插件。文档内容已保留。",
+            "DATA_SCHEMA_OWNERS_UNSUPPORTED": "声明 schema 归属需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

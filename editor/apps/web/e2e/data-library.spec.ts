@@ -56,3 +56,50 @@ test("renaming a bound schema and key updates references while blocking unsafe d
     expect(await page.locator(".inspector").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath("data-library-narrow.png") });
 });
+
+test("a plugin-owned schema stays read-only until explicitly unlocked for the session", async ({
+    page,
+}) => {
+    const document = structuredClone(baselineDocument);
+    const schema = document.dataSchemas[0]!;
+    schema.owner = "plugin:ExampleConsumer";
+    const plugin = await mockPlugin(page, document);
+    await page.goto("/?lang=en-US");
+    await enterWorkspace(page);
+    await page.getByTestId("mode-data").click();
+    await page.getByTestId(`schema-${schema.uuid}`).click();
+    await expect(page.getByTestId("data-schema-locked")).toContainText(
+        "plugin:ExampleConsumer",
+    );
+    await expect(page.getByTestId("data-schema-id")).toBeDisabled();
+    await expect(page.getByTestId("schema-add-key")).toBeDisabled();
+    await page.getByTestId("datakey-charges").click();
+    await expect(page.getByTestId("data-key-id")).toBeDisabled();
+    await expect(page.getByTestId("delete-key")).toBeDisabled();
+    await expect(page.getByTestId("data-type-kind")).toBeDisabled();
+
+    await page.getByTestId("data-key-unlock").click();
+    await page.getByTestId("confirm-cancel").click();
+    await expect(page.getByTestId("data-key-id")).toBeDisabled();
+    await page.getByTestId("data-key-unlock").click();
+    await expect(page.getByTestId("confirm-dialog")).toContainText(
+        "new schema version",
+    );
+    await page.getByTestId("confirm-accept").click();
+    const key = page.getByTestId("data-key-id");
+    await expect(key).toBeEnabled();
+    await key.fill("example:uses");
+    await key.press("Enter");
+    await expect
+        .poll(() =>
+            plugin.writes
+                .at(-1)
+                ?.document.dataSchemas[0]?.keys.some(
+                    (entry) => entry.id === "example:uses",
+                ),
+        )
+        .toBe(true);
+    expect(plugin.writes.at(-1)?.document.dataSchemas[0]?.owner).toBe(
+        "plugin:ExampleConsumer",
+    );
+});

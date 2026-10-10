@@ -23,6 +23,7 @@ export const HANDSHAKE = {
         "presentation.segmented-frame.decorations",
         "catalog.base-components.attributes-enchantments",
         "catalog.data-keys.field-constraints",
+        "catalog.data-schemas.owner",
     ],
 };
 

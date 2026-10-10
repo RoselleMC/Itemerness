@@ -1,4 +1,4 @@
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, LockOpen, Plus, Trash2 } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useEditorStore } from "../../state/store.js";
 import { confirmAction, type MenuAction } from "../../state/interface.js";
@@ -12,6 +12,39 @@ import {
 } from "../../state/dataLibrary.js";
 import { commitInlineEditor } from "./inlineEdit.js";
 import { copyAction, relatedItems } from "./contextActions.js";
+
+/** Owned schemas stay read-only until explicitly unlocked for the current session. */
+export function isSchemaLocked(schemaUuid: string | undefined): boolean {
+    const state = useEditorStore.getState();
+    const schema = state.document.dataSchemas.find(
+        (entry) => entry.uuid === schemaUuid,
+    );
+    return (
+        schema?.owner !== undefined &&
+        !state.unlockedDataSchemaUuids.includes(schema.uuid)
+    );
+}
+
+export async function unlockSchema(schemaUuid: string, t: TFunction) {
+    const schema = useEditorStore
+        .getState()
+        .document.dataSchemas.find((entry) => entry.uuid === schemaUuid);
+    if (
+        !schema?.owner ||
+        !commitInlineEditor() ||
+        !(await confirmAction({
+            title: t("dataLibrary.unlockTitle"),
+            message: t("dataLibrary.unlockMessage", {
+                id: schema.id,
+                owner: schema.owner,
+                version: schema.version,
+            }),
+            accept: t("dataLibrary.unlock"),
+        }))
+    )
+        return;
+    useEditorStore.getState().unlockDataSchema(schemaUuid);
+}
 
 export function addSchema(sourceUuid?: string) {
     if (!commitInlineEditor()) return;
@@ -96,12 +129,24 @@ export function dataSchemaActions(uuid: string, t: TFunction): MenuAction[] {
     const schema = document.dataSchemas.find((entry) => entry.uuid === uuid);
     if (!schema) return [];
     const items = schemaItems(document, schema);
+    const locked = isSchemaLocked(uuid);
     return [
         copyAction("copy-id", t("menus.copyId"), schema.id),
+        ...(locked
+            ? [
+                  {
+                      id: "unlock-schema",
+                      label: t("dataLibrary.unlock"),
+                      icon: LockOpen,
+                      run: () => unlockSchema(uuid, t),
+                  },
+              ]
+            : []),
         {
             id: "add-key",
             label: t("dataLibrary.addKey"),
             icon: Plus,
+            disabled: locked,
             run: () => addKey(uuid),
         },
         {
@@ -117,7 +162,7 @@ export function dataSchemaActions(uuid: string, t: TFunction): MenuAction[] {
             icon: Trash2,
             danger: true,
             separator: true,
-            disabled: items.length > 0,
+            disabled: locked || items.length > 0,
             run: () => deleteNode("schema", uuid, schema.id, t),
         },
     ];
@@ -131,12 +176,14 @@ export function dataKeyActions(uuid: string, t: TFunction): MenuAction[] {
     const key = schema?.keys.find((entry) => entry.uuid === uuid);
     if (!schema || !key) return [];
     const items = keyReferenceItems(document, schema, key);
+    const locked = isSchemaLocked(schema.uuid);
     return [
         copyAction("copy-id", t("menus.copyId"), key.id),
         {
             id: "duplicate-key",
             label: t("dataLibrary.duplicateKey"),
             icon: Copy,
+            disabled: locked,
             run: () => addKey(schema.uuid, uuid),
         },
         relatedItems(items, t),
@@ -146,7 +193,7 @@ export function dataKeyActions(uuid: string, t: TFunction): MenuAction[] {
             icon: Trash2,
             danger: true,
             separator: true,
-            disabled: items.length > 0,
+            disabled: locked || items.length > 0,
             run: () => deleteNode("key", uuid, key.id, t),
         },
     ];

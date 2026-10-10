@@ -87,3 +87,20 @@ export function usesDataFieldConstraints(
         schema.keys.some((key) => typeUsesFieldConstraints(key.type)),
     );
 }
+
+export const DATA_SCHEMA_OWNER_CAPABILITY = "catalog.data-schemas.owner";
+
+export function supportsDataSchemaOwners(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(DATA_SCHEMA_OWNER_CAPABILITY) === true;
+}
+
+/** Old strict decoders reject an `owner` property on data schemas. */
+export function usesDataSchemaOwners(
+    document: Pick<ProjectDocument, "dataSchemas">,
+): boolean {
+    return document.dataSchemas.some((schema) =>
+        Object.hasOwn(schema, "owner"),
+    );
+}

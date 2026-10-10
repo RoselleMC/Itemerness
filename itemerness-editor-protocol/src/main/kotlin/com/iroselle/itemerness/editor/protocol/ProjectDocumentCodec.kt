@@ -915,10 +915,11 @@ object ProjectDocumentCodec {
         schemaVersion: Int,
         integrations: MutableMap<ItemKey, DocumentDataKeyIntegration>,
     ): DataSchemaSource {
-        node.rejectUnknown("uuid", "extensions", "id", "version", "keys")
+        node.rejectUnknown("uuid", "extensions", "id", "version", "owner", "keys")
         return DataSchemaSource(
             id = node.requiredString("id"),
             version = node.requiredInt("version"),
+            owner = node.optionalString("owner"),
             keys = node.requiredObjects("keys").map { key ->
                 dataKey(key).also { source ->
                     if (schemaVersion == 1) {

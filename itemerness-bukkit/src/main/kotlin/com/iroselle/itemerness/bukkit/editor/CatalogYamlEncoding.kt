@@ -7,7 +7,7 @@ import com.iroselle.itemerness.bukkit.editor.YamlEncoding.mapping as map
 
 internal object CatalogYamlEncoding {
     fun schema(schema: DataSchemaSource, integrations: Map<com.iroselle.itemerness.api.ItemKey, DocumentDataKeyIntegration>): Map<String, Any?> = map(
-        "schema-version" to schema.version, "id" to schema.id,
+        "schema-version" to schema.version, "id" to schema.id, "owner" to schema.owner,
         "keys" to schema.keys.associate { key -> key.id to key(key, requireNotNull(integrations[com.iroselle.itemerness.api.ItemKey.parse(key.id)])) },
     )
 

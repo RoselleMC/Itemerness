@@ -90,7 +90,12 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
     private fun withIdentity(domain: String, id: String, value: JsonValue.Obj): JsonValue.Obj =
         JsonValue.Obj(value.entries + ("uuid" to JsonValue.Text(UUID.nameUUIDFromBytes("$documentId/$domain/$id".toByteArray(Charsets.UTF_8)).toString())))
 
-    private fun schema(schema: DataSchemaSource, integrations: Map<String, JsonValue>): JsonValue.Obj = node("schemas", "${schema.id}@${schema.version}",
+    private fun schema(schema: DataSchemaSource, integrations: Map<String, JsonValue>): JsonValue.Obj = schemaNode(schema, integrations).let { node ->
+        // An absent owner stays absent so unowned schemas keep their canonical hash.
+        schema.owner?.let { owner -> JsonValue.Obj(node.entries + ("owner" to JsonValue.Text(owner))) } ?: node
+    }
+
+    private fun schemaNode(schema: DataSchemaSource, integrations: Map<String, JsonValue>): JsonValue.Obj = node("schemas", "${schema.id}@${schema.version}",
         "id" to schema.id, "version" to schema.version,
         "keys" to schema.keys.map { key -> node("keys", "${schema.id}@${schema.version}/${key.id}",
             "id" to key.id, "type" to DocumentEncoding.type(key.type), "scope" to key.scope, "nullable" to key.nullable,

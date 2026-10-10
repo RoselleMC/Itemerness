@@ -74,6 +74,7 @@ internal class CatalogSourceLoader {
         val root = YamlObject.root(StrictYaml.load(path), path.toString()).rejectUnknown(
             "schema-version",
             "id",
+            "owner",
             "keys",
         )
         // In the v1 file contract schema-version is the business version persisted in canonical
@@ -86,6 +87,7 @@ internal class CatalogSourceLoader {
             version = businessVersion,
             sourceFormatVersion = SUPPORTED_SOURCE_FORMAT,
             keys = keys.keys.map { key -> parseDataKey(key, keys.child(key, keys.raw(key)), path) },
+            owner = root.optionalString("owner"),
         )
     }
 

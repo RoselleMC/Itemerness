@@ -50,6 +50,9 @@ class CatalogCompiler {
             if (source.version <= 0) {
                 diagnostics.add(CatalogDiagnosticCode.INVALID_SCHEMA, "$path.version", "Schema version must be positive")
             }
+            if (source.owner != null && !SCHEMA_OWNER_PATTERN.matches(source.owner)) {
+                diagnostics.add(CatalogDiagnosticCode.INVALID_SCHEMA, "$path.owner", "Schema owners must be plugin:<Name> principals")
+            }
             if (schemaId == null || source.version <= 0) {
                 return@forEachIndexed
             }
@@ -1168,6 +1171,7 @@ class CatalogCompiler {
 
     private companion object {
         const val MAX_TYPE_DEPTH = 16
+        val SCHEMA_OWNER_PATTERN = Regex("plugin:[A-Za-z0-9_.-]{1,64}")
         const val SUPPORTED_SOURCE_FORMAT = 1
         const val MAX_COMPOUND_KEY_LENGTH = 128
         const val MAX_DECIMAL_SCALE = 12

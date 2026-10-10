@@ -132,3 +132,11 @@
     color: var(--muted);
     font-size: 12px;
 }
+
+/* Groups the controls an owned schema protects; it carries no visual frame of its own. */
+.data-lock-scope {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}

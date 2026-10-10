@@ -10,7 +10,11 @@ import { useEditorStore } from "../../state/store.js";
 import { useConnectionStore } from "../../state/connection.js";
 import { resolveMessage } from "../common/messages.js";
 import { describeContext, runMenuAction } from "../../state/interface.js";
-import { dataKeyActions } from "../common/dataLibraryActions.js";
+import {
+    dataKeyActions,
+    isSchemaLocked,
+    unlockSchema,
+} from "../common/dataLibraryActions.js";
 import { renameDataKey } from "../../state/dataLibrary.js";
 import { DataSchemaInspector } from "./DataSchemaInspector.js";
 import { DataIntegrationEditor } from "./DataIntegrationEditor.js";
@@ -44,6 +48,8 @@ export function DataInspector({
     if (!dataKey || !schema)
         return <DataSchemaInspector previewSettings={previewSettings} />;
     const references = dataKeyReferences(doc, dataKey.uuid);
+    // Labels are local presentation; everything else is the owning plugin's contract.
+    const locked = isSchemaLocked(schema.uuid);
     const patch = (changes: Partial<DataKeyNode>) =>
         store.updateDataKey(dataKey.uuid, (key) => ({ ...key, ...changes }));
     return (
@@ -76,9 +82,13 @@ export function DataInspector({
                                     disabled={action.disabled}
                                     aria-label={action.label}
                                     data-tooltip={
-                                        action.disabled
-                                            ? t("dataLibrary.inUse")
-                                            : action.label
+                                        locked
+                                            ? t("dataLibrary.ownedBy", {
+                                                  owner: schema.owner,
+                                              })
+                                            : action.disabled
+                                              ? t("dataLibrary.inUse")
+                                              : action.label
                                     }
                                     data-testid={action.id}
                                     onClick={() => runMenuAction(action)}
@@ -88,30 +98,45 @@ export function DataInspector({
                             ))}
                     </div>
                 </header>
-                <BufferedInput
-                    value={dataKey.id}
-                    label={t("dataLibrary.keyId")}
-                    testId="data-key-id"
-                    owner={dataKey.uuid}
-                    validate={(id) =>
-                        !namespacedIdSchema.safeParse(id).success
-                            ? t("dataLibrary.invalidId")
-                            : doc.dataSchemas.some((entry) =>
-                                    entry.keys.some(
-                                        (key) =>
-                                            key.uuid !== dataKey.uuid &&
-                                            key.id === id,
-                                    ),
-                                )
-                              ? t("dataLibrary.duplicateIdentity")
-                              : null
-                    }
-                    onCommit={(id) =>
-                        store.updateDocument((document) =>
-                            renameDataKey(document, dataKey.uuid, id),
-                        )
-                    }
-                />
+                {locked && (
+                    <p className="small" data-testid="data-key-locked">
+                        {t("dataLibrary.ownedBy", { owner: schema.owner })}{" "}
+                        <button
+                            type="button"
+                            className="text-command"
+                            data-testid="data-key-unlock"
+                            onClick={() => void unlockSchema(schema.uuid, t)}
+                        >
+                            {t("dataLibrary.unlock")}
+                        </button>
+                    </p>
+                )}
+                <fieldset className="data-lock-scope" disabled={locked}>
+                    <BufferedInput
+                        value={dataKey.id}
+                        label={t("dataLibrary.keyId")}
+                        testId="data-key-id"
+                        owner={dataKey.uuid}
+                        validate={(id) =>
+                            !namespacedIdSchema.safeParse(id).success
+                                ? t("dataLibrary.invalidId")
+                                : doc.dataSchemas.some((entry) =>
+                                        entry.keys.some(
+                                            (key) =>
+                                                key.uuid !== dataKey.uuid &&
+                                                key.id === id,
+                                        ),
+                                    )
+                                  ? t("dataLibrary.duplicateIdentity")
+                                  : null
+                        }
+                        onCommit={(id) =>
+                            store.updateDocument((document) =>
+                                renameDataKey(document, dataKey.uuid, id),
+                            )
+                        }
+                    />
+                </fieldset>
                 <p className="muted small data-key-id">
                     {schema.id} @ {schema.version}
                 </p>
@@ -174,124 +199,128 @@ export function DataInspector({
                     })}
                 </section>
             )}
-            <section>
-                <DataTypeEditor
-                    type={dataKey.type}
-                    label={t("dataEditing.type")}
-                    testId="data-type"
-                    fieldConstraints={fieldConstraintsSupported}
-                    onChange={(type) => patch({ type })}
-                />
-                <label className="field-label">{t("dataEditing.scope")}</label>
-                <SelectField
-                    value={dataKey.scope}
-                    label={t("dataEditing.scope")}
-                    data-testid="data-scope"
-                    options={[
-                        {
-                            value: "DEFINITION",
-                            label: t("inspector.data.definition"),
-                        },
-                        {
-                            value: "INSTANCE",
-                            label: t("inspector.data.instance"),
-                        },
-                    ]}
-                    onValueChange={(scope) => {
-                        if (commitInlineEditor())
-                            patch({ scope: scope as DataKeyNode["scope"] });
-                    }}
-                />
-                {(
-                    [
-                        "nullable",
-                        "affectsStacking",
-                        "presentationReadable",
-                    ] as const
-                ).map((key) => (
-                    <label className="toggle-row" key={key}>
-                        <input
-                            type="checkbox"
-                            checked={dataKey[key]}
-                            data-testid={`data-${key}`}
-                            onChange={(event) =>
-                                patch({ [key]: event.target.checked })
-                            }
-                        />
-                        {t(
-                            key === "nullable"
-                                ? "dataEditing.nullable"
-                                : `inspector.data.${key}`,
-                        )}
-                    </label>
-                ))}
-            </section>
-            <section>
-                <div className="data-editor-row">
-                    <h3>{t("inspector.data.defaultValue")}</h3>
-                    <button
-                        type="button"
-                        className="icon-button"
-                        aria-label={t(
-                            dataKey.defaultValue === null
-                                ? "dataEditing.setDefault"
-                                : "dataEditing.clearDefault",
-                        )}
-                        data-tooltip={t(
-                            dataKey.defaultValue === null
-                                ? "dataEditing.setDefault"
-                                : "dataEditing.clearDefault",
-                        )}
-                        data-testid="data-default-toggle"
-                        onClick={() => {
-                            if (commitInlineEditor())
-                                patch({
-                                    defaultValue:
-                                        dataKey.defaultValue === null
-                                            ? initialDataValue(
-                                                  valueKindForType(
-                                                      dataKey.type,
-                                                  ),
-                                                  dataKey.type,
-                                              )
-                                            : null,
-                                });
-                        }}
-                    >
-                        {dataKey.defaultValue === null ? (
-                            <Plus size={16} />
-                        ) : (
-                            <Trash2 size={16} />
-                        )}
-                    </button>
-                </div>
-                {dataKey.defaultValue === null ? (
-                    <span className="muted small">
-                        {t("dataEditing.noDefault")}
-                    </span>
-                ) : (
-                    <DataValueEditor
-                        value={dataKey.defaultValue}
+            <fieldset className="data-lock-scope" disabled={locked}>
+                <section>
+                    <DataTypeEditor
                         type={dataKey.type}
-                        nullable={dataKey.nullable}
-                        constraints={dataKey.constraints}
-                        label={t("inspector.data.defaultValue")}
-                        testId="data-default"
-                        onChange={(defaultValue) => patch({ defaultValue })}
+                        label={t("dataEditing.type")}
+                        testId="data-type"
+                        fieldConstraints={fieldConstraintsSupported}
+                        onChange={(type) => patch({ type })}
                     />
-                )}
-            </section>
-            <section>
-                <h3>{t("dataEditing.constraintsHeading")}</h3>
-                <DataConstraintsEditor
-                    constraints={dataKey.constraints}
-                    type={dataKey.type}
-                    owner={dataKey.uuid}
-                    testId="data"
-                    onChange={(constraints) => patch({ constraints })}
-                />
-            </section>
-            <DataIntegrationEditor document={doc} dataKey={dataKey} />
+                    <label className="field-label">
+                        {t("dataEditing.scope")}
+                    </label>
+                    <SelectField
+                        value={dataKey.scope}
+                        label={t("dataEditing.scope")}
+                        data-testid="data-scope"
+                        options={[
+                            {
+                                value: "DEFINITION",
+                                label: t("inspector.data.definition"),
+                            },
+                            {
+                                value: "INSTANCE",
+                                label: t("inspector.data.instance"),
+                            },
+                        ]}
+                        onValueChange={(scope) => {
+                            if (commitInlineEditor())
+                                patch({ scope: scope as DataKeyNode["scope"] });
+                        }}
+                    />
+                    {(
+                        [
+                            "nullable",
+                            "affectsStacking",
+                            "presentationReadable",
+                        ] as const
+                    ).map((key) => (
+                        <label className="toggle-row" key={key}>
+                            <input
+                                type="checkbox"
+                                checked={dataKey[key]}
+                                data-testid={`data-${key}`}
+                                onChange={(event) =>
+                                    patch({ [key]: event.target.checked })
+                                }
+                            />
+                            {t(
+                                key === "nullable"
+                                    ? "dataEditing.nullable"
+                                    : `inspector.data.${key}`,
+                            )}
+                        </label>
+                    ))}
+                </section>
+                <section>
+                    <div className="data-editor-row">
+                        <h3>{t("inspector.data.defaultValue")}</h3>
+                        <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={t(
+                                dataKey.defaultValue === null
+                                    ? "dataEditing.setDefault"
+                                    : "dataEditing.clearDefault",
+                            )}
+                            data-tooltip={t(
+                                dataKey.defaultValue === null
+                                    ? "dataEditing.setDefault"
+                                    : "dataEditing.clearDefault",
+                            )}
+                            data-testid="data-default-toggle"
+                            onClick={() => {
+                                if (commitInlineEditor())
+                                    patch({
+                                        defaultValue:
+                                            dataKey.defaultValue === null
+                                                ? initialDataValue(
+                                                      valueKindForType(
+                                                          dataKey.type,
+                                                      ),
+                                                      dataKey.type,
+                                                  )
+                                                : null,
+                                    });
+                            }}
+                        >
+                            {dataKey.defaultValue === null ? (
+                                <Plus size={16} />
+                            ) : (
+                                <Trash2 size={16} />
+                            )}
+                        </button>
+                    </div>
+                    {dataKey.defaultValue === null ? (
+                        <span className="muted small">
+                            {t("dataEditing.noDefault")}
+                        </span>
+                    ) : (
+                        <DataValueEditor
+                            value={dataKey.defaultValue}
+                            type={dataKey.type}
+                            nullable={dataKey.nullable}
+                            constraints={dataKey.constraints}
+                            label={t("inspector.data.defaultValue")}
+                            testId="data-default"
+                            onChange={(defaultValue) => patch({ defaultValue })}
+                        />
+                    )}
+                </section>
+                <section>
+                    <h3>{t("dataEditing.constraintsHeading")}</h3>
+                    <DataConstraintsEditor
+                        constraints={dataKey.constraints}
+                        type={dataKey.type}
+                        owner={dataKey.uuid}
+                        testId="data"
+                        onChange={(constraints) => patch({ constraints })}
+                    />
+                </section>
+                <DataIntegrationEditor document={doc} dataKey={dataKey} />
+            </fieldset>
             {previewSettings}
         </aside>
     );

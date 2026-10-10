@@ -181,4 +181,26 @@ class CatalogValidationTest {
             misplaced.diagnostics.toString(),
         )
     }
+
+    @Test
+    fun `schema owners are plugin principals without runtime effect`() {
+        fun compile(owner: String?) = CatalogCompiler().compile(
+            CatalogSource(
+                schemas = listOf(
+                    DataSchemaSource(
+                        id = "example:owned",
+                        version = 1,
+                        owner = owner,
+                        keys = listOf(DataKeySource("example:value", DataType.StringType, DataScope.INSTANCE)),
+                    ),
+                ),
+                items = emptyList(),
+            ),
+        )
+
+        assertTrue(compile(null).successful)
+        assertTrue(compile("plugin:ExampleConsumer").successful)
+        val invalid = compile("ExampleConsumer")
+        assertTrue(invalid.diagnostics.any { it.code == CatalogDiagnosticCode.INVALID_SCHEMA && it.path.endsWith(".owner") })
+    }
 }

@@ -176,6 +176,14 @@
         }
     },
     "dataLibrary": {
+        "owner": "Owner",
+        "ownedBy": "Owned by {{owner}}. Changing this contract can break that plugin's existing data.",
+        "unlock": "Unlock for editing",
+        "unlockTitle": "Edit a plugin-owned schema?",
+        "unlockMessage": "{{id}} is declared as owned by {{owner}}. Renaming keys or changing their type, scope or nullability changes canonical item data that the plugin reads. Make such changes only together with that plugin, and give an incompatible contract a new schema version instead of reusing {{version}}. The schema stays unlocked until this workspace reconnects.",
+        "invalidOwner": "Use plugin:<Name>.",
+        "ownerHint": "Declare the plugin that owns this contract. The editor then protects the schema from accidental edits; there is no runtime effect.",
+        "declareOwner": "Declare {{owner}} as owner",
         "schema": "Data schema",
         "schemas": "Data schemas",
         "schemaId": "Schema ID",
@@ -1186,6 +1194,7 @@
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "The connected plugin does not support this document format.",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "Upgrade the connected plugin to use frame decorations. The document has been preserved.",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "Upgrade the connected plugin to use compound field constraints. The document has been preserved.",
+            "DATA_SCHEMA_OWNERS_UNSUPPORTED": "Upgrade the connected plugin to declare schema owners. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

@@ -19,6 +19,11 @@ class DataSchemaSource(
     keys: Collection<DataKeySource>,
     /** Syntax version of the source document, independent from [version]. */
     val sourceFormatVersion: Int = 1,
+    /**
+     * Authoring declaration that another plugin owns this contract, as `plugin:<Name>`. It has no
+     * runtime effect; editors use it to protect the schema from accidental incompatible edits.
+     */
+    val owner: String? = null,
 ) {
     val keys: List<DataKeySource> = java.util.List.copyOf(keys)
 }

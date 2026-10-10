@@ -136,6 +136,10 @@ class EditorApiServerTest {
                     JsonValue.Text("catalog.data-keys.field-constraints") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("catalog.data-schemas.owner") in handshake.requiredArray("capabilities"),
+                    version,
+                )
             }
         }
     }

@@ -530,11 +530,17 @@ export const dataKeyNodeSchema = z.strictObject({
 });
 export type DataKeyNode = z.infer<typeof dataKeyNodeSchema>;
 
+export const schemaOwnerSchema = z
+    .string()
+    .regex(/^plugin:[A-Za-z0-9_.-]{1,64}$/, "expected plugin:<Name>");
+
 export const dataSchemaNodeSchema = z.strictObject({
     ...nodeIdentity,
     id: namespacedIdSchema,
     /** Business schema version persisted in canonical item data. */
     version: z.number().int().min(1).max(2_147_483_647),
+    /** Authoring-only declaration that a plugin owns this contract; absent when unowned. */
+    owner: schemaOwnerSchema.optional(),
     keys: z.array(dataKeyNodeSchema),
 });
 export type DataSchemaNode = z.infer<typeof dataSchemaNodeSchema>;

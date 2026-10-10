@@ -19,8 +19,10 @@ export function newDataSchema(
             schema.keys.map((key) => key.id),
         ),
     );
+    // A copy is a new local contract; the owning plugin never declared it.
+    const { owner: _owner, ...copied } = structuredClone(source) ?? {};
     return {
-        ...structuredClone(source),
+        ...copied,
         uuid: crypto.randomUUID(),
         id: freshId(
             source ? `${source.id}-copy` : `${document.namespace}:new-schema`,
@@ -290,4 +292,20 @@ export function removeDataKey(
                         },
               ),
           };
+}
+
+/**
+ * A single plugin principal that alone writes every key, when one exists. It only suggests an
+ * explicit owner declaration: write access does not by itself prove contract ownership.
+ */
+export function suggestedSchemaOwner(schema: DataSchemaNode): string | null {
+    const writers = new Set(
+        schema.keys.flatMap((key) => key.integration?.access.write ?? ["?"]),
+    );
+    const [only] = writers;
+    return schema.keys.length > 0 &&
+        writers.size === 1 &&
+        only?.startsWith("plugin:")
+        ? only
+        : null;
 }

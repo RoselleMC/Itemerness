@@ -353,6 +353,22 @@ class CatalogSourceLoaderTest {
         assertThrows(IllegalArgumentException::class.java) { CatalogSourceLoader().load(directory) }
     }
 
+    @Test
+    fun `reads the declared schema owner`() {
+        installEmptyItems()
+        write(
+            "data-keys/owned.yml",
+            """
+            schema-version: 1
+            id: example:owned
+            owner: plugin:ExampleConsumer
+            keys: {}
+            """.trimIndent(),
+        )
+
+        assertEquals("plugin:ExampleConsumer", CatalogSourceLoader().load(directory).source.schemas.single().owner)
+    }
+
     private fun copyResource(path: String) {
         val destination = directory.resolve(path)
         Files.createDirectories(destination.parent)

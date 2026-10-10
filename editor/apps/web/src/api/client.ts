@@ -10,6 +10,8 @@ import {
     supportsSegmentedFrameDecorations,
     supportsDataFieldConstraints,
     usesDataFieldConstraints,
+    supportsDataSchemaOwners,
+    usesDataSchemaOwners,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -310,6 +312,11 @@ export class PluginClient {
             !supportsDataFieldConstraints(this.capabilities)
         )
             throw new Error("DATA_FIELD_CONSTRAINTS_UNSUPPORTED");
+        if (
+            usesDataSchemaOwners(document) &&
+            !supportsDataSchemaOwners(this.capabilities)
+        )
+            throw new Error("DATA_SCHEMA_OWNERS_UNSUPPORTED");
     }
 
     private async json(
