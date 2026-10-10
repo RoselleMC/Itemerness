@@ -40,6 +40,7 @@ import com.iroselle.itemerness.core.presentation.ViewerFactValidationCode
 import com.iroselle.itemerness.projection.CanonicalItemSnapshot
 import java.util.IdentityHashMap
 import java.util.LinkedHashMap
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
@@ -54,6 +55,7 @@ import org.bukkit.event.server.PluginEnableEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.PlayerInventory
 import org.bukkit.plugin.Plugin
+import org.bukkit.event.player.PlayerResourcePackStatusEvent
 
 internal fun interface RefreshRequestDispatcher {
     /** Returns true only after the request has been accepted by the real scheduling boundary. */
@@ -82,6 +84,19 @@ internal fun interface CatalogCommitter {
     ): Boolean
 }
 
+internal fun interface ResourcePackStatusSink {
+    /**
+     * Records an externally observed pack status for the viewer's current session and schedules
+     * its capture. Returns false when that viewer has no active session.
+     */
+    fun report(
+        viewerId: UUID,
+        packId: UUID,
+        sha1: String,
+        loaded: Boolean,
+    ): Boolean
+}
+
 internal fun interface SlotCompletionHandoff {
     /** Testable boundary after a slot outcome owns completion but before callbacks are released. */
     fun beforeComplete()
@@ -97,6 +112,8 @@ private inline fun bestEffortDispatch(action: () -> Boolean): Boolean = try {
 private fun Throwable.rethrowIfFatalBoundaryFailure() {
     if (isFatalBoundaryFailure()) throw this
 }
+
+private val SHA1_PATTERN = Regex("[0-9a-fA-F]{40}")
 
 @Suppress("DEPRECATION")
 private fun Throwable.isFatalBoundaryFailure(): Boolean =
@@ -119,6 +136,7 @@ internal class DefaultBukkitItemernessApi private constructor(
     private val catalogCommitter: CatalogCommitter? = null,
     private val slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
     private val pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
+    private val resourcePackStatusSink: ResourcePackStatusSink? = null,
 ) : BukkitItemernessApi,
     Listener,
     AutoCloseable {
@@ -146,6 +164,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         playerSlotDispatcher: PlayerSlotDispatcher? = null,
         slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
         pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
+        resourcePackStatusSink: ResourcePackStatusSink? = null,
     ) : this(
         ownerPlugin = ownerPlugin,
         snapshotProvider = {
@@ -176,6 +195,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         catalogCommitter = CatalogCommitter { expected, action -> catalog.commitIfCurrent(expected, action) },
         slotCompletionHandoff = slotCompletionHandoff,
         pluginRegistrationVerifier = pluginRegistrationVerifier,
+        resourcePackStatusSink = resourcePackStatusSink,
     )
 
     /** Test seam retained for platform-identity tests without a filesystem-backed runtime. */
@@ -197,6 +217,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         catalogCommitter: CatalogCommitter? = null,
         slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
         pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
+        resourcePackStatusSink: ResourcePackStatusSink? = null,
     ) : this(
         ownerPlugin = ownerPlugin,
         snapshotProvider = { ApiCatalogState(registry.snapshot(), accessPolicy, null, null) },
@@ -214,6 +235,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         catalogCommitter = catalogCommitter,
         slotCompletionHandoff = slotCompletionHandoff,
         pluginRegistrationVerifier = pluginRegistrationVerifier,
+        resourcePackStatusSink = resourcePackStatusSink,
     )
 
     init {
@@ -273,6 +295,7 @@ internal class DefaultBukkitItemernessApi private constructor(
                         playerSlotDispatcher = playerSlotDispatcher,
                         catalogCommitter = catalogCommitter,
                         slotCompletionHandoff = slotCompletionHandoff,
+                        resourcePackStatusSink = resourcePackStatusSink,
                     )
                     facades[plugin] = facade
                     ApiCallResult.Success(facade)
@@ -387,6 +410,7 @@ private class BoundFacade(
     private val playerSlotDispatcher: PlayerSlotDispatcher?,
     private val catalogCommitter: CatalogCommitter?,
     private val slotCompletionHandoff: SlotCompletionHandoff,
+    private val resourcePackStatusSink: ResourcePackStatusSink?,
 ) : BoundBukkitItemernessApi,
     AutoCloseable {
     private val domainHandles = DomainHandleStore()
@@ -774,6 +798,43 @@ private class BoundFacade(
             acceptSemanticRefresh = { bestEffortDispatch { dispatcher.dispatch(viewerId) } },
         )
             .toApiResult(viewerId, key)
+    }
+
+    @Synchronized
+    override fun reportResourcePackStatus(
+        viewerId: UUID,
+        packId: UUID,
+        sha1: String,
+        status: PlayerResourcePackStatusEvent.Status,
+    ): ApiCallResult<ResourcePackStatusReceipt> {
+        activeCallerDenial()?.let { return it }
+        if (!SHA1_PATTERN.matches(sha1)) {
+            return denied(ApiDenialReason.INVALID_VALUE, "The pack hash must be 40 hexadecimal characters")
+        }
+        val snapshot = snapshotProvider()
+            ?: return denied(ApiDenialReason.RESOURCE_PACK_BINDING_NOT_FOUND, "No catalog is active")
+        val presentation = snapshot.runtime?.presentation ?: presentationProvider()
+            ?: return denied(ApiDenialReason.RESOURCE_PACK_BINDING_NOT_FOUND, "No presentation catalog is active")
+        // Only an exact enabled binding is accepted, so a report can never invent an asset profile.
+        val binding = presentation.resourcePackBindings.entries.firstOrNull { (_, candidate) ->
+            candidate.enabled && candidate.packId == packId && candidate.sha1.equals(sha1, ignoreCase = true)
+        } ?: return denied(
+            ApiDenialReason.RESOURCE_PACK_BINDING_NOT_FOUND,
+            "No enabled resource-pack binding matches the reported pack id and hash",
+        )
+        if (
+            snapshot.accessPolicy.decide(callerPluginName, ApiAction.REPORT_RESOURCE_PACK, binding.key.namespace) !=
+            AccessDecision.ALLOW
+        ) {
+            return denied(ApiDenialReason.ACTION_DENIED, "report-resource-pack is not granted for ${binding.key.namespace}")
+        }
+        val sink = resourcePackStatusSink
+            ?: return denied(ApiDenialReason.PLATFORM_ACCESS_UNAVAILABLE, "No viewer state boundary is available")
+        val loaded = status == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED
+        if (!sink.report(viewerId, packId, sha1.lowercase(Locale.ROOT), loaded)) {
+            return denied(ApiDenialReason.INVALID_VALUE, "The viewer has no active session on this server")
+        }
+        return ApiCallResult.Success(ResourcePackStatusReceipt(viewerId, binding.key, binding.value.assetProfile, loaded))
     }
 
     private fun activeCallerDenial(): ApiCallResult.Denied? = when {

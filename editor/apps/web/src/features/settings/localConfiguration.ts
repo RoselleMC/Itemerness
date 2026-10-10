@@ -34,7 +34,15 @@ export const API_ACTIONS = [
     "edit-data",
     "write-viewer-fact",
     "request-refresh",
+    "report-resource-pack",
 ] as const;
+/** Actions added after access config version 1; an existing file may omit them (deny). */
+const OPTIONAL_API_DEFAULTS: readonly string[] = ["report-resource-pack"];
+/** Actions scoped by their own namespaces instead of item namespaces. */
+const NON_ITEM_ACTIONS: readonly unknown[] = [
+    "write-viewer-fact",
+    "report-resource-pack",
+];
 export const NAMED_COLORS = {
     black: "#000000",
     dark_blue: "#0000aa",
@@ -302,17 +310,20 @@ function validateValues(
             API_ACTIONS,
         );
         for (const action of API_ACTIONS)
-            string(
-                defaults.get(action),
-                ["api", "defaults", action],
-                (v) =>
-                    [
-                        "allow",
-                        "deny",
-                        ...(action === "read-data" ? ["schema-policy"] : []),
-                    ].includes(v),
-                "decision",
-            );
+            if (!OPTIONAL_API_DEFAULTS.includes(action) || defaults.has(action))
+                string(
+                    defaults.get(action),
+                    ["api", "defaults", action],
+                    (v) =>
+                        [
+                            "allow",
+                            "deny",
+                            ...(action === "read-data"
+                                ? ["schema-policy"]
+                                : []),
+                        ].includes(v),
+                    "decision",
+                );
         list(api.get("grants"), ["api", "grants"]).forEach((value, i) => {
             const path: ConfigurationPath = ["api", "grants", i];
             const grant = object(value, path, [
@@ -321,6 +332,7 @@ function validateValues(
                 "item-namespaces",
                 "data-namespaces",
                 "viewer-fact-namespaces",
+                "resource-pack-namespaces",
             ]);
             string(
                 grant.get("plugin"),
@@ -353,16 +365,19 @@ function validateValues(
                 "item-namespaces",
                 "data-namespaces",
                 "viewer-fact-namespaces",
+                "resource-pack-namespaces",
             ]) {
                 const values = uniqueStrings(key, true, namespace, "namespace");
                 const required =
                     key === "item-namespaces"
-                        ? actions.some((v) => v !== "write-viewer-fact")
+                        ? actions.some((v) => !NON_ITEM_ACTIONS.includes(v))
                         : key === "data-namespaces"
                           ? actions.some(
                                 (v) => v === "read-data" || v === "edit-data",
                             )
-                          : actions.includes("write-viewer-fact");
+                          : key === "viewer-fact-namespaces"
+                            ? actions.includes("write-viewer-fact")
+                            : actions.includes("report-resource-pack");
                 if (required && !values.length)
                     report([...path, key], "required");
             }

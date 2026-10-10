@@ -10,6 +10,9 @@ api:
     edit-data: deny
     write-viewer-fact: deny
     request-refresh: allow
+    # Lets a granted plugin report a pack status this server cannot observe itself, for example
+    # when a proxy sends the pack. Grants scope it with resource-pack-namespaces.
+    report-resource-pack: deny
 
   grants: []
 

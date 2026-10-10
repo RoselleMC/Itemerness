@@ -8,6 +8,9 @@ enum class ApiAction {
     EDIT_DATA,
     WRITE_VIEWER_FACT,
     REQUEST_REFRESH,
+
+    /** Reports a resource pack status that this server could not observe itself, e.g. behind a proxy. */
+    REPORT_RESOURCE_PACK,
 }
 
 /** Machine-readable reasons for rejecting an API operation. */
@@ -30,6 +33,7 @@ enum class ApiDenialReason {
     SLOT_QUEUE_FULL,
     PLATFORM_ACCESS_UNAVAILABLE,
     REFRESH_UNAVAILABLE,
+    RESOURCE_PACK_BINDING_NOT_FOUND,
 }
 
 /**

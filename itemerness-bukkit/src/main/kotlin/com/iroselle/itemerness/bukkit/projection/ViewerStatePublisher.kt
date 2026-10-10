@@ -48,6 +48,7 @@ import java.util.HashMap
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -99,6 +100,12 @@ internal class ViewerStatePublisher(
     private var heartbeat: ScheduledTask? = null
     private var heartbeatPump: ScheduledTask? = null
     private var resyncPump: ScheduledTask? = null
+    private var bindingDiagnostic: ScheduledTask? = null
+    private val boundProfileSeen = AtomicBoolean(false)
+
+    /** Owned by the global region scheduler that runs [checkUnmatchedBindings]. */
+    private var unmatchedBindingsReported = false
+
     @Volatile
     private var started = false
 
@@ -127,6 +134,11 @@ internal class ViewerStatePublisher(
             periodTicks = 1,
             action = ::pumpResyncRequests,
         )) { "The projection resync scheduler rejected registration" }
+        bindingDiagnostic = checkNotNull(scheduler.repeatGlobal(
+            initialDelayTicks = BINDING_DIAGNOSTIC_TICKS,
+            periodTicks = BINDING_DIAGNOSTIC_TICKS,
+            action = ::checkUnmatchedBindings,
+        )) { "The resource-pack binding diagnostic scheduler rejected registration" }
         checkNotNull(scheduler.runGlobal(::enqueueHeartbeatCaptures)) {
             "The initial viewer capture scheduler rejected registration"
         }
@@ -173,6 +185,7 @@ internal class ViewerStatePublisher(
             ?.verifiedSha1
             ?.let { sha1 -> projection.matchAssetProfile(captureState.catalogHandle, pack.id, sha1) }
             ?: VANILLA_PROFILE
+        if (bukkitProfile != VANILLA_PROFILE) boundProfileSeen.set(true)
         val resolvedFacts = ViewerFactResolver.resolve(
             runtime.presentation,
             mapOf(
@@ -391,6 +404,54 @@ internal class ViewerStatePublisher(
         scheduleCapture(event.player)
     }
 
+    /**
+     * Records a pack status reported through the API for a status this server could not observe,
+     * such as a pack sent by a proxy. It replaces the session's pack state exactly like a local
+     * status event; the caller has already matched an enabled binding and passed authorization.
+     */
+    fun reportExternalPack(
+        viewerId: UUID,
+        packId: UUID,
+        sha1: String,
+        loaded: Boolean,
+    ): Boolean {
+        val player = synchronized(sessionLock) {
+            if (closed) return false
+            val session = sessions[viewerId] ?: return false
+            val player = plugin.server.getPlayer(viewerId)
+                ?.takeIf { online -> online.entityId == session.entityId }
+                ?: return false
+            packs[viewerId] = PackState(id = packId, loaded = loaded, verifiedSha1 = sha1)
+            player
+        }
+        scheduleCapture(player)
+        return true
+    }
+
+    /**
+     * A binding that never matches is otherwise silent: every viewer just falls back to vanilla.
+     * Warn once while bindings are enabled, viewers are online, and none matched in a full period.
+     */
+    private fun checkUnmatchedBindings() {
+        if (closed) return
+        if (boundProfileSeen.getAndSet(false)) {
+            unmatchedBindingsReported = false
+            return
+        }
+        if (unmatchedBindingsReported || plugin.server.onlinePlayers.isEmpty()) return
+        val enabled = catalog.snapshot()?.presentation?.resourcePackBindings?.values
+            ?.filter { binding -> binding.enabled }
+            ?.map { binding -> binding.id }
+            .orEmpty()
+        if (enabled.isEmpty()) return
+        unmatchedBindingsReported = true
+        plugin.logger.warning(
+            "Resource-pack bindings ${enabled.joinToString()} are enabled, but no online viewer matched one in the " +
+                "last ${BINDING_DIAGNOSTIC_TICKS / 1200} minutes. If a proxy or another plugin sends the pack, this " +
+                "server never receives the client's status; report it through the report-resource-pack API action.",
+        )
+    }
+
     override fun close() {
         val retiredSessions = synchronized(sessionLock) {
             if (closed) return
@@ -423,6 +484,8 @@ internal class ViewerStatePublisher(
         heartbeatPump = null
         resyncPump?.let { task -> cleanup(task::cancel) }
         resyncPump = null
+        bindingDiagnostic?.let { task -> cleanup(task::cancel) }
+        bindingDiagnostic = null
         captureAdmissions.clear()
         synchronized(globalCaptureQueueLock) {
             globalCaptureQueue.clear()
@@ -741,6 +804,7 @@ internal class ViewerStatePublisher(
 
     private companion object {
         const val HEARTBEAT_TICKS = 200L
+        const val BINDING_DIAGNOSTIC_TICKS = 6_000L
         const val MAX_HEARTBEAT_VIEWERS_PER_TICK = 64
         const val MAX_GLOBAL_CAPTURE_QUEUE = 4_096
         const val MAX_RESYNC_VIEWERS_PER_TICK = 64
@@ -757,8 +821,9 @@ internal class ViewerStatePublisher(
 
 /**
  * Status packets identify a pack but no longer carry its hash. Only the pack configured by the
- * server exposes a hash that this plugin can independently bind to that identifier. Dynamic pack
- * pushes therefore remain on the vanilla profile unless a future trusted source supplies both.
+ * server exposes a hash that this plugin can independently bind to that identifier. Other pack
+ * pushes remain on the vanilla profile unless a granted plugin reports both through the
+ * report-resource-pack API action, see [ViewerStatePublisher.reportExternalPack].
  */
 internal fun trustedServerPackSha1(
     configured: ResourcePack?,

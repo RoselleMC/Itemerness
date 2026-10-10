@@ -9,6 +9,7 @@ import com.iroselle.itemerness.api.ItemKey
 import java.util.UUID
 import java.util.concurrent.CompletionStage
 import org.bukkit.entity.Player
+import org.bukkit.event.player.PlayerResourcePackStatusEvent
 import org.bukkit.inventory.ItemStack
 
 /**
@@ -78,7 +79,36 @@ interface BoundBukkitItemernessApi : BoundItemernessApi {
         viewerId: UUID,
         key: ItemKey,
     ): ApiCallResult<ViewerFactReceipt>
+
+    /**
+     * Reports a resource pack status that this server cannot observe, typically because a proxy
+     * sent the pack and handled the client's status replies. It feeds the same viewer state as a
+     * locally observed status event.
+     *
+     * The pair [packId] and [sha1] must exactly match an enabled `resource-pack-bindings` entry,
+     * and the matched binding's namespace must be granted to the caller through the
+     * `report-resource-pack` action. Itemerness cannot verify what the client received: trust
+     * comes from that grant, so the reporting plugin must only accept statuses from its own
+     * authenticated proxy channel, never from client-sendable plugin messages.
+     *
+     * The state belongs to the current backend session. After a proxy server switch the new
+     * backend starts without it, so the proxy side must report again on every backend connection.
+     */
+    fun reportResourcePackStatus(
+        viewerId: UUID,
+        packId: UUID,
+        sha1: String,
+        status: PlayerResourcePackStatusEvent.Status,
+    ): ApiCallResult<ResourcePackStatusReceipt>
 }
+
+/** The binding a reported resource pack status matched. */
+data class ResourcePackStatusReceipt(
+    val viewerId: UUID,
+    val bindingId: ItemKey,
+    val assetProfile: ItemKey,
+    val loaded: Boolean,
+)
 
 /** Player inventory locations whose Bukkit access has an unambiguous owning entity. */
 enum class BukkitPlayerSlot {

@@ -354,5 +354,33 @@
         "from": "grants: []",
         "to": "grants: [{plugin: Read, actions: [identify], item-namespaces: [items], decision: deny}]",
         "valid": false
+    },
+    {
+        "name": "access-report-pack-scoped",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Bridge, actions: [report-resource-pack], resource-pack-namespaces: [packs]}]",
+        "valid": true
+    },
+    {
+        "name": "access-report-pack-missing-namespaces",
+        "kind": "access",
+        "from": "grants: []",
+        "to": "grants: [{plugin: Bridge, actions: [report-resource-pack]}]",
+        "valid": false
+    },
+    {
+        "name": "access-legacy-defaults-without-report-pack",
+        "kind": "access",
+        "from": "    report-resource-pack: deny\n",
+        "to": "",
+        "valid": true
+    },
+    {
+        "name": "access-report-pack-schema-policy",
+        "kind": "access",
+        "from": "report-resource-pack: deny",
+        "to": "report-resource-pack: schema-policy",
+        "valid": false
     }
 ]

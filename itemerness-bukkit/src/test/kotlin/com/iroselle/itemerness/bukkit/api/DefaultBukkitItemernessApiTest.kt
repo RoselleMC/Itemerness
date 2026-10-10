@@ -12,6 +12,7 @@ import com.iroselle.itemerness.api.StringDataValue
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.api.RefreshRequest
 import com.iroselle.itemerness.bukkit.access.AccessDecision
+import com.iroselle.itemerness.bukkit.access.AccessGrant
 import com.iroselle.itemerness.bukkit.access.AccessPolicy
 import com.iroselle.itemerness.core.DefaultItemRegistry
 import com.iroselle.itemerness.core.catalog.CatalogSource
@@ -22,9 +23,11 @@ import com.iroselle.itemerness.core.presentation.LocaleSource
 import com.iroselle.itemerness.core.presentation.PresentationCatalogSnapshot
 import com.iroselle.itemerness.core.presentation.PresentationCompiler
 import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.ResourcePackBindingSource
 import com.iroselle.itemerness.core.presentation.ViewerFactSource
 import com.iroselle.itemerness.core.presentation.ViewerFactStore
 import com.iroselle.itemerness.core.presentation.ViewerFactType
+import org.bukkit.event.player.PlayerResourcePackStatusEvent
 import org.bukkit.plugin.Plugin
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotSame
@@ -588,6 +591,78 @@ class DefaultBukkitItemernessApiTest {
         assertEquals(null, facts.snapshot(viewerId)[level])
     }
 
+    @Test
+    fun `resource pack reports must match an enabled binding and a granted namespace`() {
+        val owner = FakePlugin("Itemerness")
+        val consumer = FakePlugin("ProxyPackBridge")
+        val viewerId = UUID.fromString("00000000-0000-4000-8000-000000000043")
+        val packId = UUID.fromString("00000000-0000-4000-8000-0000000000aa")
+        val sha1 = "0123456789abcdef0123456789abcdef01234567"
+        val reports = ArrayList<List<Any>>()
+        fun service(grants: List<AccessGrant>) = DefaultBukkitItemernessApi(
+            ownerPlugin = owner.instance,
+            registry = registryWithItem(),
+            accessPolicy = AccessPolicy(
+                ApiAction.entries.associateWith { action ->
+                    if (action == ApiAction.REPORT_RESOURCE_PACK) AccessDecision.DENY else AccessDecision.ALLOW
+                },
+                grants,
+            ),
+            activePlugins = listOf(owner.instance, consumer.instance),
+            presentation = presentationCatalog(
+                ResourcePackBindingSource("example:proxy-pack", true, packId, sha1, "example:pack"),
+                ResourcePackBindingSource("example:retired-pack", false, UUID.randomUUID(), sha1, "example:pack"),
+            ),
+            resourcePackStatusSink = ResourcePackStatusSink { viewer, id, hash, loaded ->
+                reports += listOf(viewer, id, hash, loaded)
+                viewer == viewerId
+            },
+        )
+        val loaded = PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED
+
+        val ungranted = (service(emptyList()).forPlugin(consumer.instance) as ApiCallResult.Success).value
+        assertSame(
+            ApiDenialReason.ACTION_DENIED,
+            (ungranted.reportResourcePackStatus(viewerId, packId, sha1, loaded) as ApiCallResult.Denied).reason,
+        )
+
+        val granted = (
+            service(
+                listOf(
+                    AccessGrant(
+                        pluginName = "ProxyPackBridge",
+                        actions = listOf(ApiAction.REPORT_RESOURCE_PACK),
+                        itemNamespaces = emptyList(),
+                        dataNamespaces = emptyList(),
+                        resourcePackNamespaces = listOf("example"),
+                    ),
+                ),
+            ).forPlugin(consumer.instance) as ApiCallResult.Success
+            ).value
+        assertSame(
+            ApiDenialReason.INVALID_VALUE,
+            (granted.reportResourcePackStatus(viewerId, packId, "not-a-hash", loaded) as ApiCallResult.Denied).reason,
+        )
+        assertSame(
+            ApiDenialReason.RESOURCE_PACK_BINDING_NOT_FOUND,
+            (granted.reportResourcePackStatus(viewerId, packId, sha1.reversed(), loaded) as ApiCallResult.Denied).reason,
+        )
+        assertTrue(reports.isEmpty(), "Rejected reports must not reach viewer state")
+
+        val receipt = (granted.reportResourcePackStatus(viewerId, packId, sha1.uppercase(), loaded) as ApiCallResult.Success).value
+        assertEquals(ItemKey.parse("example:proxy-pack"), receipt.bindingId)
+        assertEquals(ItemKey.parse("example:pack"), receipt.assetProfile)
+        assertTrue(receipt.loaded)
+        assertEquals(listOf<Any>(viewerId, packId, sha1, true), reports.single())
+
+        val declined = PlayerResourcePackStatusEvent.Status.DECLINED
+        assertFalse((granted.reportResourcePackStatus(viewerId, packId, sha1, declined) as ApiCallResult.Success).value.loaded)
+        assertSame(
+            ApiDenialReason.INVALID_VALUE,
+            (granted.reportResourcePackStatus(UUID.randomUUID(), packId, sha1, loaded) as ApiCallResult.Denied).reason,
+        )
+    }
+
     private fun registryWithItem(): DefaultItemRegistry {
         val registry = DefaultItemRegistry()
         val compilation = registry.compile(
@@ -616,7 +691,7 @@ class DefaultBukkitItemernessApiTest {
         grants = emptyList(),
     )
 
-    private fun presentationCatalog(): PresentationCatalogSnapshot {
+    private fun presentationCatalog(vararg bindings: ResourcePackBindingSource): PresentationCatalogSnapshot {
         val compilation = PresentationCompiler().compile(
             PresentationSource(
                 formats = emptyList(),
@@ -624,7 +699,9 @@ class DefaultBukkitItemernessApiTest {
                 fonts = emptyList(),
                 glyphs = emptyList(),
                 bitmaps = emptyList(),
-                assetProfiles = listOf(AssetProfileSource("itemerness:vanilla", emptyList())),
+                assetProfiles = listOf(AssetProfileSource("itemerness:vanilla", emptyList())) +
+                    (if (bindings.isEmpty()) emptyList() else listOf(AssetProfileSource("example:pack", emptyList()))),
+                resourcePackBindings = bindings.toList(),
                 viewerFacts = listOf(
                     ViewerFactSource(
                         id = "itemerness:resource-pack-ready",

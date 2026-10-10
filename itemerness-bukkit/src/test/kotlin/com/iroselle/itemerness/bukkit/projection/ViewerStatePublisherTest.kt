@@ -111,6 +111,41 @@ class ViewerStatePublisherTest {
     }
 
     @Test
+    fun `externally reported packs replace state only for the current session`() {
+        val viewerId = UUID.randomUUID()
+        var online: Player? = null
+        val server = proxy<Server> { _, method, arguments ->
+            when (method.name) {
+                "getPlayer" -> online?.takeIf { player -> player.uniqueId == arguments?.singleOrNull() }
+                else -> defaultValue(method.returnType)
+            }
+        }
+        val publisher = publisher(plugin = plugin(server))
+        val packId = UUID.randomUUID()
+        val sha1 = "0123456789abcdef0123456789abcdef01234567"
+        try {
+            assertFalse(publisher.reportExternalPack(viewerId, packId, sha1, loaded = true), "No session yet")
+
+            val player = player(viewerId, entityId = 7)
+            online = player
+            beginSession(publisher, player)
+            assertTrue(publisher.reportExternalPack(viewerId, packId, sha1, loaded = true))
+            assertTrue(isGloballyQueued(publisher, viewerId), "A report schedules a capture")
+            val packs = ViewerStatePublisher::class.java.getDeclaredField("packs").apply { isAccessible = true }
+                .get(publisher) as Map<*, *>
+            assertEquals("PackState(id=$packId, loaded=true, verifiedSha1=$sha1)", packs[viewerId].toString())
+
+            online = player(viewerId, entityId = 8)
+            assertFalse(
+                publisher.reportExternalPack(viewerId, packId, sha1, loaded = true),
+                "A report cannot attach to a different entity than the session's",
+            )
+        } finally {
+            publisher.close()
+        }
+    }
+
+    @Test
     fun `stale session cannot unbind a replacement session with the same viewer id`() {
         val viewerId = UUID.randomUUID()
         val oldPlayer = player(viewerId, entityId = 41)

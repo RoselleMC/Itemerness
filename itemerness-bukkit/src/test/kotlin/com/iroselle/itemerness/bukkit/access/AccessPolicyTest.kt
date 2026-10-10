@@ -22,6 +22,7 @@ class AccessPolicyTest {
         assertEquals(AccessDecision.DENY, policy.defaults.getValue(ApiAction.EDIT_DATA))
         assertEquals(AccessDecision.DENY, policy.defaults.getValue(ApiAction.WRITE_VIEWER_FACT))
         assertEquals(AccessDecision.ALLOW, policy.defaults.getValue(ApiAction.REQUEST_REFRESH))
+        assertEquals(AccessDecision.DENY, policy.defaults.getValue(ApiAction.REPORT_RESOURCE_PACK))
         assertEquals(emptyList<AccessGrant>(), policy.grants)
     }
 
@@ -129,6 +130,31 @@ class AccessPolicyTest {
         assertThrows(UnsupportedOperationException::class.java) {
             @Suppress("UNCHECKED_CAST")
             (grant.actions as MutableSet<ApiAction>) += ApiAction.EDIT_DATA
+        }
+    }
+
+    @Test
+    fun `resource pack reports default to deny in existing files and are scoped by binding namespace`() {
+        assertEquals(AccessDecision.DENY, policy("[]").defaults.getValue(ApiAction.REPORT_RESOURCE_PACK))
+
+        val policy = policy(
+            grants = """
+                - plugin: ProxyPackBridge
+                  actions: [report-resource-pack]
+                  resource-pack-namespaces: [example]
+            """.trimIndent(),
+        )
+        assertEquals(AccessDecision.ALLOW, policy.decide("ProxyPackBridge", ApiAction.REPORT_RESOURCE_PACK, "example"))
+        assertEquals(AccessDecision.DENY, policy.decide("ProxyPackBridge", ApiAction.REPORT_RESOURCE_PACK, "other"))
+        assertEquals(AccessDecision.DENY, policy.decide("OtherPlugin", ApiAction.REPORT_RESOURCE_PACK, "example"))
+
+        assertThrows(StrictYamlException::class.java) {
+            policy(
+                grants = """
+                    - plugin: ProxyPackBridge
+                      actions: [report-resource-pack]
+                """.trimIndent(),
+            )
         }
     }
 

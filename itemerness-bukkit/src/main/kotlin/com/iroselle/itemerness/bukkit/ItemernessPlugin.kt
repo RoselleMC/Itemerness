@@ -6,6 +6,7 @@ import com.iroselle.itemerness.bukkit.api.BukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.DefaultBukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
+import com.iroselle.itemerness.bukkit.api.ResourcePackStatusSink
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
 import com.iroselle.itemerness.bukkit.event.ItemernessCatalogPublishedEvent
 import com.iroselle.itemerness.bukkit.catalog.PreparedRuntimeCatalogPublication
@@ -155,6 +156,7 @@ class ItemernessPlugin : JavaPlugin() {
                 },
                 viewerFacts = viewerFacts,
                 viewerAvailable = { viewerId -> projectionState.viewer(viewerId) != null },
+                resourcePackStatusSink = ResourcePackStatusSink(publisher::reportExternalPack),
             )
             val editorApi = EditorApiCoordinator { endpoint ->
                 val asyncExecutor = FoliaAsyncExecutor(scheduler)

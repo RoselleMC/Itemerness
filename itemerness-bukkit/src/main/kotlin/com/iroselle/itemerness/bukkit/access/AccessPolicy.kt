@@ -23,18 +23,22 @@ internal class AccessGrant(
     itemNamespaces: Collection<String>,
     dataNamespaces: Collection<String>,
     viewerFactNamespaces: Collection<String> = emptyList(),
+    resourcePackNamespaces: Collection<String> = emptyList(),
 ) {
     val pluginName: String = pluginName
     val actions: Set<ApiAction> = immutableSet(actions)
     val itemNamespaces: Set<String> = immutableSet(itemNamespaces)
     val dataNamespaces: Set<String> = immutableSet(dataNamespaces)
     val viewerFactNamespaces: Set<String> = immutableSet(viewerFactNamespaces)
+
+    /** Namespaces of the resource-pack bindings this plugin may report status for. */
+    val resourcePackNamespaces: Set<String> = immutableSet(resourcePackNamespaces)
     private val normalizedPluginName: String = normalizePluginName(pluginName)
 
     init {
         require(pluginName.isNotBlank()) { "Plugin name must not be blank" }
         require(actions.isNotEmpty()) { "Grant actions must not be empty" }
-        require(actions.all { it == ApiAction.WRITE_VIEWER_FACT } || itemNamespaces.isNotEmpty()) {
+        require(actions.all { it in NON_ITEM_ACTIONS } || itemNamespaces.isNotEmpty()) {
             "Grant item namespaces must not be empty for item actions"
         }
         require(actions.none { it == ApiAction.READ_DATA || it == ApiAction.EDIT_DATA } || dataNamespaces.isNotEmpty()) {
@@ -42,6 +46,9 @@ internal class AccessGrant(
         }
         require(ApiAction.WRITE_VIEWER_FACT !in actions || viewerFactNamespaces.isNotEmpty()) {
             "Grant viewer fact namespaces must not be empty for viewer-fact writes"
+        }
+        require(ApiAction.REPORT_RESOURCE_PACK !in actions || resourcePackNamespaces.isNotEmpty()) {
+            "Grant resource-pack namespaces must not be empty for resource-pack reports"
         }
     }
 
@@ -57,6 +64,9 @@ internal class AccessGrant(
         return when (action) {
             ApiAction.WRITE_VIEWER_FACT ->
                 itemNamespace != null && itemNamespace in viewerFactNamespaces
+
+            ApiAction.REPORT_RESOURCE_PACK ->
+                itemNamespace != null && itemNamespace in resourcePackNamespaces
 
             ApiAction.READ_DATA,
             ApiAction.EDIT_DATA,
@@ -126,10 +136,13 @@ internal object AccessPolicyLoader {
             "edit-data",
             "write-viewer-fact",
             "request-refresh",
+            "report-resource-pack",
         )
         val defaults = ApiAction.entries.associateWith { action ->
             val key = action.configKey()
-            parseDefault(action, defaultsNode.requiredString(key), "api.defaults.$key", source)
+            // Actions added after config-version 1 default to deny when an existing file omits them.
+            val value = if (action in OPTIONAL_DEFAULTS) defaultsNode.optionalString(key) ?: "deny" else defaultsNode.requiredString(key)
+            parseDefault(action, value, "api.defaults.$key", source)
         }
 
         val grants = api.requiredList("grants").mapIndexed { index, value ->
@@ -144,6 +157,7 @@ internal object AccessPolicyLoader {
                 "item-namespaces",
                 "data-namespaces",
                 "viewer-fact-namespaces",
+                "resource-pack-namespaces",
             )
             val pluginName = grant.requiredString("plugin")
             validatePluginName(pluginName, "$path.plugin", source)
@@ -171,8 +185,17 @@ internal object AccessPolicyLoader {
                 "$path.viewer-fact-namespaces",
                 source,
             )
+            val resourcePackNamespaces = namespaceSet(
+                stringSet(
+                    grant.optionalList("resource-pack-namespaces").orEmpty(),
+                    "$path.resource-pack-namespaces",
+                    source,
+                ),
+                "$path.resource-pack-namespaces",
+                source,
+            )
             if (actions.isEmpty()) throw StrictYamlException("$path.actions in $source must not be empty")
-            if (actions.any { it != ApiAction.WRITE_VIEWER_FACT } && itemNamespaces.isEmpty()) {
+            if (actions.any { it !in NON_ITEM_ACTIONS } && itemNamespaces.isEmpty()) {
                 throw StrictYamlException("$path.item-namespaces in $source must not be empty for item actions")
             }
             if (actions.any { it == ApiAction.READ_DATA || it == ApiAction.EDIT_DATA } && dataNamespaces.isEmpty()) {
@@ -183,7 +206,12 @@ internal object AccessPolicyLoader {
                     "$path.viewer-fact-namespaces in $source must not be empty for viewer-fact writes",
                 )
             }
-            AccessGrant(pluginName, actions, itemNamespaces, dataNamespaces, viewerFactNamespaces)
+            if (ApiAction.REPORT_RESOURCE_PACK in actions && resourcePackNamespaces.isEmpty()) {
+                throw StrictYamlException(
+                    "$path.resource-pack-namespaces in $source must not be empty for resource-pack reports",
+                )
+            }
+            AccessGrant(pluginName, actions, itemNamespaces, dataNamespaces, viewerFactNamespaces, resourcePackNamespaces)
         }
         return AccessPolicy(defaults, grants)
     }
@@ -255,7 +283,13 @@ internal fun ApiAction.configKey(): String = when (this) {
     ApiAction.EDIT_DATA -> "edit-data"
     ApiAction.WRITE_VIEWER_FACT -> "write-viewer-fact"
     ApiAction.REQUEST_REFRESH -> "request-refresh"
+    ApiAction.REPORT_RESOURCE_PACK -> "report-resource-pack"
 }
+
+/** Actions scoped by their own namespaces rather than item namespaces. */
+private val NON_ITEM_ACTIONS = setOf(ApiAction.WRITE_VIEWER_FACT, ApiAction.REPORT_RESOURCE_PACK)
+
+private val OPTIONAL_DEFAULTS = setOf(ApiAction.REPORT_RESOURCE_PACK)
 
 internal fun normalizePluginName(value: String): String = value.lowercase(Locale.ROOT)
 
