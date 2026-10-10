@@ -44,10 +44,12 @@ impl WorkspaceSettings {
             || !self.preview.gui_scale.is_finite()
             || !(0.01..=32.0).contains(&self.preview.gui_scale)
             || !matches!(self.preview.zoom_mode.as_str(), "manual" | "fit")
-            || self
-                .vanilla_version
-                .as_ref()
-                .is_some_and(|v| !matches!(v.as_str(), "1.21.11" | "26.1.1" | "26.1.2" | "26.2"))
+            || self.vanilla_version.as_ref().is_some_and(|v| {
+                !matches!(
+                    v.as_str(),
+                    "1.21.11" | "26.1.1" | "26.1.2" | "26.2" | "26.3"
+                )
+            })
         {
             return Err("WORKSPACE_INVALID".into());
         }

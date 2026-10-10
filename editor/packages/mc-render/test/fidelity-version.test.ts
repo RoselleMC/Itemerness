@@ -124,7 +124,7 @@ function pack(
 }
 
 describe("version-scoped metric fidelity", () => {
-    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"] as const)(
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"] as const)(
         "uses the mounted vanilla provider's actual version for %s",
         (version) => {
             const selectedArtifact = readFontMetricsArtifact(
@@ -220,6 +220,8 @@ describe("version-scoped metric fidelity", () => {
         { serverClientVersion: "26.1.1", measurementClientVersion: "server" },
         { serverClientVersion: "26.2", measurementClientVersion: "26.1.2" },
         { serverClientVersion: "26.1.2", measurementClientVersion: "26.2" },
+        { serverClientVersion: "26.3", measurementClientVersion: "26.2" },
+        { serverClientVersion: "26.2", measurementClientVersion: "26.3" },
     ])("does not verify a different client baseline: %j", (context) => {
         const value = evidence(new PresentationFonts(options), context);
         expect(value.metricsComplete).toBe(true);

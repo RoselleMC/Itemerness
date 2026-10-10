@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { zipSync } from "fflate";
 import { enterWorkspace, mockPlugin, chooseValue } from "./fixtures/plugin.js";
-const manifests = ["1.21.11", "26.1.1", "26.1.2", "26.2"].map(
+const manifests = ["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"].map(
     (version) =>
         JSON.parse(
             readFileSync(
@@ -199,6 +199,18 @@ test("path handles reload automatically, retain valid bytes on failure, and keep
     );
     await expect(row.getByTestId("pack-metadata-status")).toContainText(
         "Minecraft 26.2 (88.0)",
+    );
+    await chooseValue(page, page.getByTestId("vanilla-version"), "26.3");
+    await expect(page.getByTestId("vanilla-pack")).toHaveAttribute(
+        "data-status",
+        "ready",
+    );
+    await expect(row.getByTestId("pack-metadata-status")).toHaveAttribute(
+        "data-pack-format-status",
+        "outside",
+    );
+    await expect(row.getByTestId("pack-metadata-status")).toContainText(
+        "Minecraft 26.3 (97.1)",
     );
     await expect(
         page.getByTestId("pack-list").locator("li").last(),

@@ -21,11 +21,15 @@ import {
 /**
  * Tooltip geometry and painting.
  *
- * Audited clients 1.21.11, 26.1.1, 26.1.2 and 26.2 share these metrics: every text component is ten logical
- * pixels tall, an extra two pixels sit between the first and second component, a single-component
- * tooltip is two pixels shorter, and the text has three pixels of background padding. The sprite
- * rectangle extends another nine pixels on each edge (TooltipRenderUtil.extractTooltipBackground).
- * New client versions require another audit before entering the profile map.
+ * Audited clients 1.21.11, 26.1.1, 26.1.2, 26.2 and 26.3 share these metrics: every text component is ten
+ * logical pixels tall, an extra two pixels sit between the first and second component, a
+ * single-component tooltip is two pixels shorter, and the text has three pixels of background
+ * padding. The sprite rectangle extends another nine pixels on each edge
+ * (TooltipRenderUtil.extractTooltipBackground). 26.3 gates the first-line gap behind an
+ * `extraSpaceAfterFirstLine` flag, but item tooltips (AbstractContainerScreen and
+ * GuiGraphicsExtractor.setTooltipForNextFrame for an ItemStack) pass `true`, which reproduces the
+ * earlier geometry exactly; only plain text tooltips lost the gap. New client versions require
+ * another audit before entering the profile map.
  */
 export interface TooltipProfile {
     readonly clientVersion: string;
@@ -54,7 +58,7 @@ export const PROFILE_26_1_2: TooltipProfile = {
 };
 
 const CLIENT_PROFILES: ReadonlyMap<string, TooltipProfile> = new Map(
-    ["1.21.11", "26.1.1", "26.1.2", "26.2"].map((clientVersion) => [
+    ["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"].map((clientVersion) => [
         clientVersion,
         { ...PROFILE_26_1_2, clientVersion },
     ]),

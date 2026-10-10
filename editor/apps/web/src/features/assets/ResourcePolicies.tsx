@@ -75,7 +75,7 @@ export function ResourcePolicies({
                     options={[
                         { value: "", label: t("assetAuthoring.serverDefault") },
                         { value: "server", label: t("assetAuthoring.server") },
-                        ...["1.21.11", "26.1.1", "26.1.2", "26.2"].map((version) => ({ value: version, label: version })),
+                        ...["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"].map((version) => ({ value: version, label: version })),
                     ]}
                     onChange={(value) =>
                         store.updateDocument((current) => {

@@ -116,7 +116,7 @@ describe("resource declaration factories and validation", () => {
             "unknownBuiltinMetrics",
         );
     });
-    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"])(
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"])(
         "accepts both explicit builtin tables for %s",
         (version) => {
             for (const name of ["default", "uniform"]) {

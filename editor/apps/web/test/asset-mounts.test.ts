@@ -21,7 +21,7 @@ import { fetchVanillaBundle } from "../src/api/vanillaAssets.js";
 vi.mock("../src/api/vanillaAssets.js", () => ({
     fetchVanillaBundle: vi.fn(),
     isVanillaVersion: (value: string) =>
-        ["1.21.11", "26.1.1", "26.1.2", "26.2"].includes(value),
+        ["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"].includes(value),
 }));
 
 const bytes = (value = "first") =>

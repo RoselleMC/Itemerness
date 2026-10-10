@@ -24,7 +24,7 @@ const artifactBytes = new Uint8Array(readFileSync(ARTIFACT_PATH));
 describe("readFontMetricsArtifact", () => {
     const artifact = readFontMetricsArtifact(artifactBytes);
 
-    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2"])(
+    it.each(["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"])(
         "verifies the exact shipped tables for %s",
         (version) => {
             const bytes = new Uint8Array(

@@ -10,12 +10,14 @@ import v12111 from "../../../../../../itemerness-bukkit/src/main/resources/META-
 import v2611 from "../../../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.1.ifm?url";
 import v2612 from "../../../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.1.2.ifm?url";
 import v262 from "../../../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.2.ifm?url";
+import v263 from "../../../../../../itemerness-bukkit/src/main/resources/META-INF/itemerness/font-metrics/minecraft-26.3.ifm?url";
 
 const urls = {
     "1.21.11": v12111,
     "26.1.1": v2611,
     "26.1.2": v2612,
     "26.2": v262,
+    "26.3": v263,
 };
 const cache = new Map<string, FontMetricsArtifact>();
 

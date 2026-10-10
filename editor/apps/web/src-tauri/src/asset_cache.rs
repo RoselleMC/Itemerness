@@ -9,6 +9,7 @@ pub fn expected_hash(url: &str) -> Option<String> {
         include_str!("../../../../../tools/font-metrics/26.1.1.sources.json"),
         include_str!("../../../../../tools/font-metrics/26.1.2.sources.json"),
         include_str!("../../../../../tools/font-metrics/26.2.sources.json"),
+        include_str!("../../../../../tools/font-metrics/26.3.sources.json"),
     ] {
         let manifest: serde_json::Value =
             serde_json::from_str(source).expect("bundled asset manifest");

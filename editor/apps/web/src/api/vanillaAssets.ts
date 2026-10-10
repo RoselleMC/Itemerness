@@ -4,6 +4,7 @@ import v12111 from "../../../../../tools/font-metrics/1.21.11.sources.json";
 import v2611 from "../../../../../tools/font-metrics/26.1.1.sources.json";
 import v2612 from "../../../../../tools/font-metrics/26.1.2.sources.json";
 import v262 from "../../../../../tools/font-metrics/26.2.sources.json";
+import v263 from "../../../../../tools/font-metrics/26.3.sources.json";
 import { assetDigest, cachedAsset, cacheAsset } from "./assetCache.js";
 
 const manifests = {
@@ -11,6 +12,7 @@ const manifests = {
     "26.1.1": v2611,
     "26.1.2": v2612,
     "26.2": v262,
+    "26.3": v263,
 };
 export type VanillaVersion = keyof typeof manifests;
 export const VANILLA_VERSIONS = Object.keys(manifests) as VanillaVersion[];

@@ -337,7 +337,7 @@ success toast. Import, explicit reload, copy, export and resource self-check als
 dismissible notifications; draft autosave remains a quiet titlebar status.
 
 Exactly one vanilla pack stays below all custom packs. Opening the resource page automatically loads
-the selected pinned Minecraft version (1.21.11, 26.1.1, 26.1.2 or 26.2). SHA-1-verified downloads are
+the selected pinned Minecraft version (1.21.11, 26.1.1, 26.1.2, 26.2 or 26.3). SHA-1-verified downloads are
 cached in native per-user cache storage; assembled bundles are cached in IndexedDB. Version switches
 discard stale work without replacing a newer selection. Mojang bytes are not shipped with the app,
 and the native downloader accepts only exact bundled manifest URLs. Browser downloads depend on CDN
@@ -348,7 +348,7 @@ remain importable but explicitly disable reload. Local mounts are session-only a
 pnpm assets:vanilla       # optional local fixture for metrics and Playwright tests
 ```
 
-Import, export, draft editing and production previews support Minecraft 1.21.11, 26.1.1, 26.1.2 and 26.2.
+Import, export, draft editing and production previews support Minecraft 1.21.11, 26.1.1, 26.1.2, 26.2 and 26.3.
 Each uses its exact bundled metrics. Flat item sprites are
 supported; block models and unmeasured TTF providers remain explicitly unsupported.
 

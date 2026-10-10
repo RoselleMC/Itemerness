@@ -40,7 +40,7 @@ function fixture(namespace = "imported") {
     return document;
 }
 
-for (const version of ["1.21.11", "26.1.1", "26.1.2", "26.2"]) {
+for (const version of ["1.21.11", "26.1.1", "26.1.2", "26.2", "26.3"]) {
     test(`first import is reachable from the empty workspace on ${version}`, async ({
         page,
     }) => {

@@ -4,6 +4,7 @@ export const MINECRAFT_RESOURCE_FORMATS = {
     "26.1.1": { major: 84, minor: 0 },
     "26.1.2": { major: 84, minor: 0 },
     "26.2": { major: 88, minor: 0 },
+    "26.3": { major: 97, minor: 1 },
 } as const;
 
 export type MinecraftClientVersion = keyof typeof MINECRAFT_RESOURCE_FORMATS;
