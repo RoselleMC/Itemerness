@@ -152,3 +152,18 @@ export function usesResourcePackDelivery(
         Object.hasOwn(binding, "delivery"),
     );
 }
+
+export const SHOWN_FLAGS_CAPABILITY = "presentation.shown-flags";
+
+export function supportsShownFlags(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(SHOWN_FLAGS_CAPABILITY) === true;
+}
+
+/** Old strict decoders reject an item `shownFlags` property, even an empty one. */
+export function usesShownFlags(document: Pick<ProjectDocument, "items">): boolean {
+    return document.items.some((item) =>
+        Object.hasOwn(item.presentation, "shownFlags"),
+    );
+}

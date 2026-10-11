@@ -26,6 +26,7 @@ import com.iroselle.itemerness.projection.KeyProjectionValue
 import com.iroselle.itemerness.projection.ListProjectionValue
 import com.iroselle.itemerness.projection.LongProjectionValue
 import com.iroselle.itemerness.projection.ProjectionCompound
+import com.iroselle.itemerness.projection.TooltipLineEvidence
 import com.iroselle.itemerness.projection.ProjectionPdcFallbackPlan
 import com.iroselle.itemerness.projection.ProjectionPdcScalarType
 import com.iroselle.itemerness.projection.ProjectionValue
@@ -58,11 +59,13 @@ import net.minecraft.resources.Identifier
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.component.CustomData
 
-internal class NmsCanonicalItemCodec {
+internal class NmsCanonicalItemCodec(
+    private val tooltipLineProbe: NmsTooltipLineProbe = NmsTooltipLineProbe.SERVER,
+) {
     /**
      * Stable canonical identity used by connection-private view capabilities. Physical count and
-     * tooltip ownership are intentionally excluded: vanilla merchant predicates are positive
-     * component subsets, so unrelated inventory components may change tooltip ownership without
+     * tooltip line evidence are intentionally excluded: vanilla merchant predicates are positive
+     * component subsets, so unrelated inventory components may change tooltip lines without
      * changing the managed item identity required by the offer.
      */
     fun identityFingerprint(snapshot: CanonicalItemSnapshot): ByteArray = fingerprint(
@@ -76,7 +79,7 @@ internal class NmsCanonicalItemCodec {
         instanceId = snapshot.instanceId,
         data = snapshot.data,
         pdcFallbackData = ProjectionCompound(),
-        canManageVanillaTooltipLines = false,
+        tooltipLines = TooltipLineEvidence.BLOCKED,
     )
 
     fun create(
@@ -237,7 +240,7 @@ internal class NmsCanonicalItemCodec {
         )
         val materialId = BuiltInRegistries.ITEM.getKey(source.item).toString()
         val materialKey = ItemKey.parse(materialId)
-        val canManageVanillaTooltipLines = NmsVanillaTooltipLines.canManage(source)
+        val tooltipLines = tooltipLineProbe.evidence(source)
 
         return CanonicalItemSnapshot(
             itemKey = itemKey,
@@ -261,10 +264,10 @@ internal class NmsCanonicalItemCodec {
                     instanceId,
                     data,
                     pdcFallbackData,
-                    canManageVanillaTooltipLines,
+                    tooltipLines,
                 ),
             ),
-            canManageVanillaTooltipLines = canManageVanillaTooltipLines,
+            tooltipLines = tooltipLines,
             pdcFallbackData = pdcFallbackData,
         )
     }
@@ -649,7 +652,7 @@ internal class NmsCanonicalItemCodec {
         instanceId: UUID?,
         data: ProjectionCompound,
         pdcFallbackData: ProjectionCompound,
-        canManageVanillaTooltipLines: Boolean,
+        tooltipLines: TooltipLineEvidence,
     ): ByteArray {
         val serialized = ByteArrayOutputStream().use { bytes ->
             DataOutputStream(bytes).use { output ->
@@ -672,7 +675,9 @@ internal class NmsCanonicalItemCodec {
                 }
                 output.writeValue(data)
                 output.writeValue(pdcFallbackData)
-                output.writeBoolean(canManageVanillaTooltipLines)
+                output.writeBoolean(tooltipLines.blocked)
+                output.writeInt(tooltipLines.emittingComponents.size)
+                tooltipLines.emittingComponents.forEach { component -> output.writeString(component.toString()) }
             }
             bytes.toByteArray()
         }
@@ -789,7 +794,7 @@ internal class NmsCanonicalItemCodec {
         private const val MAX_ITEM_ID_LENGTH = 256
         private const val MAX_PENDING_NAME_LENGTH = 1_024
         private const val MAX_STRING_LENGTH = 8_192
-        private const val FINGERPRINT_FORMAT = 3
+        private const val FINGERPRINT_FORMAT = 4
         private const val VALUE_BOOLEAN = 1
         private const val VALUE_INTEGER = 2
         private const val VALUE_LONG = 3

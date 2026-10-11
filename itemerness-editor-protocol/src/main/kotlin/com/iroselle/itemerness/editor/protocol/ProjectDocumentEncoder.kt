@@ -145,6 +145,8 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
                 "layout" to (if (bindings == null) presentation.layout else bindings.layout),
                 "theme" to (if (bindings == null) presentation.theme else bindings.theme), "nameMessage" to presentation.nameMessage,
                 "blocks" to presentation.blocks.mapIndexed { index, block -> block(block, "${item.id}/$index") },
+                // Omitted when empty so documents without shown components keep their hashes.
+                *listOfNotNull(presentation.shownFlags.takeIf { it.isNotEmpty() }?.let { "shownFlags" to it }).toTypedArray(),
             ),
             "previewData" to emptyList<JsonValue>(),
         )

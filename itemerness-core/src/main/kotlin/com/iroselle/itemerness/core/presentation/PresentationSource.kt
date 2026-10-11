@@ -405,8 +405,15 @@ class ItemPresentationSource(
     val nameMessage: String,
     blocks: Collection<PresentationBlockSource>,
     val enabled: Boolean = true,
+    /**
+     * Data component ids whose vanilla tooltip lines stay visible. Every other vanilla tooltip
+     * line is hidden. Kept as authored, in order and with duplicates, so the compiler can report
+     * them.
+     */
+    shownFlags: Collection<String> = emptyList(),
 ) {
     val blocks: List<PresentationBlockSource> = java.util.List.copyOf(blocks)
+    val shownFlags: List<String> = java.util.List.copyOf(shownFlags)
 }
 
 sealed interface PresentationBlockSource {

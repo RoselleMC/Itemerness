@@ -447,7 +447,7 @@
         "personaProfileAuto": "Auto from mounted pack",
         "personaProfileHint": "Choose a profile explicitly to inspect capability-dependent geometry without claiming its assets are mounted.",
         "personaManagedLines": "Itemerness manages vanilla tooltip lines",
-        "personaManagedLinesHint": "Simulates this runtime item capability independently from resource-pack status.",
+        "personaManagedLinesHint": "On by default because rendered items hide every vanilla line. Items that show vanilla components always preview without it. Independent from resource-pack status.",
         "personaUnset": "not set",
         "packSim": {
             "auto": "Auto",
@@ -461,6 +461,17 @@
     "inspector": {
         "heading": "Item",
         "enabled": "Available on the server",
+        "shownFlags": {
+            "heading": "Shown vanilla tooltip",
+            "hint": "Empty hides every vanilla tooltip line. A shown component that prints lines makes themes that require managed lines fall back.",
+            "add": "Show a data component",
+            "remove": "Stop showing {{component}}",
+            "invalid": "Use a namespaced data component id, such as minecraft:enchantments.",
+            "duplicate": "This component is already shown.",
+            "owned": "Itemerness owns this component; it cannot be shown.",
+            "limit": "An item can show at most {{count}} components.",
+            "empty": "Nothing shown"
+        },
         "name": {
             "heading": "Name",
             "editingIn": "Editing the {{locale}} text.",
@@ -1222,6 +1233,7 @@
             "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "Upgrade the connected plugin to keep catalog file layout. The document has been preserved.",
             "THEME_SELECTORS_UNSUPPORTED": "Upgrade the connected plugin to use theme selectors. The document has been preserved.",
             "RESOURCE_PACK_DELIVERY_UNSUPPORTED": "Upgrade the connected plugin to choose how a resource pack is delivered. The document has been preserved.",
+            "SHOWN_FLAGS_UNSUPPORTED": "Upgrade the connected plugin to show vanilla tooltip components. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

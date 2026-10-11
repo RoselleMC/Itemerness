@@ -3,6 +3,7 @@ package com.iroselle.itemerness.bukkit.command
 import com.iroselle.itemerness.api.BooleanDataValue
 import com.iroselle.itemerness.api.CompoundDataValue
 import com.iroselle.itemerness.api.DataKey
+import com.iroselle.itemerness.projection.TooltipLineEvidence
 import com.iroselle.itemerness.api.DecimalDataValue
 import com.iroselle.itemerness.api.IntegerDataValue
 import com.iroselle.itemerness.api.ItemDataValue
@@ -28,6 +29,7 @@ import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogUpdate
 import com.iroselle.itemerness.bukkit.catalog.DataReadAccess
 import com.iroselle.itemerness.bukkit.catalog.samePhysicalItemStack
 import com.iroselle.itemerness.bukkit.projection.ResourcePackDeliveryNotice
+import com.iroselle.itemerness.bukkit.projection.ShownComponentNotice
 import com.iroselle.itemerness.bukkit.spi.BukkitCanonicalItemBridge
 import com.iroselle.itemerness.bukkit.spi.CanonicalItemInspection
 import com.iroselle.itemerness.bukkit.spi.PendingItemName
@@ -190,7 +192,7 @@ internal class DefaultItemernessCommandActions(
                                     runtime = runtime,
                                     amount = stack.amount,
                                     locale = locale,
-                                    managesVanillaTooltipLines = inspected.snapshot.canManageVanillaTooltipLines,
+                                    tooltipLines = inspected.snapshot.tooltipLines,
                                     effectiveData = resolvedData,
                                 ),
                             )
@@ -349,6 +351,8 @@ internal class DefaultItemernessCommandActions(
                     plugin.logger.log(Level.WARNING, "Catalog post-commit listener failed", failure)
                 }
                 ResourcePackDeliveryNotice.describe(update.active.presentation)?.let(plugin.logger::warning)
+                ShownComponentNotice.describe(update.active.presentation, ShownComponentNotice.serverComponents())
+                    ?.let(plugin.logger::warning)
                 refreshOnlinePlayers()
                 reply(
                     replyTarget,
@@ -475,9 +479,11 @@ internal class DefaultItemernessCommandActions(
         runtime: RuntimeCatalogSnapshot,
         amount: Int,
         locale: String?,
-        managesVanillaTooltipLines: Boolean = false,
+        tooltipLines: TooltipLineEvidence = TooltipLineEvidence.BLOCKED,
         effectiveData: Map<DataKey, ItemDataValue>? = null,
     ): String {
+        val shownFlags = runtime.presentation.items[restored.definition.key]?.shownFlags.orEmpty()
+        val managesVanillaTooltipLines = tooltipLines.managedWith(shownFlags)
         val resolvedData = effectiveData ?: run {
             val definition = restored.definition as? CatalogItemDefinition
             LinkedHashMap(definition?.definitionData.orEmpty()).apply {
@@ -502,6 +508,18 @@ internal class DefaultItemernessCommandActions(
             append(" instance-revision=").append(restored.instance.instanceRevision)
             restored.instance.instanceId?.let { append(" instance-id=").append(it) }
             locale?.let { append(" locale=").append(it) }
+            append(" vanilla-tooltip=")
+            append(
+                when {
+                    tooltipLines.blocked -> "blocked"
+                    managesVanillaTooltipLines -> "managed"
+                    else -> "shown"
+                },
+            )
+            if (shownFlags.isNotEmpty()) append(" shown-flags=").append(shownFlags.joinToString(","))
+            if (tooltipLines.emittingComponents.isNotEmpty()) {
+                append(" emitting=").append(tooltipLines.emittingComponents.joinToString(","))
+            }
             view?.let { display ->
                 append("\nview.name=").append(display.displayName.plainText)
                 display.lore.forEachIndexed { index, line ->

@@ -378,6 +378,44 @@ class PresentationSourceLoaderTest {
     }
 
     @Test
+    fun `shown flags load from YAML as an optional list of strings`() {
+        assertEquals(emptyList<String>(), load().source.items.single { it.id == "itemerness:travel-token" }.shownFlags)
+
+        replace(
+            "items/examples.yml",
+            "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n",
+            "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n" +
+                "      shown-flags:\n        - minecraft:enchantments\n        - minecraft:attribute_modifiers\n",
+        )
+        val loaded = load()
+
+        assertTrue(loaded.compilation.successful, loaded.compilation.diagnostics.joinToString())
+        assertEquals(
+            listOf("minecraft:enchantments", "minecraft:attribute_modifiers"),
+            loaded.source.items.single { it.id == "itemerness:travel-token" }.shownFlags,
+        )
+        assertEquals(
+            setOf(ItemKey.parse("minecraft:attribute_modifiers"), ItemKey.parse("minecraft:enchantments")),
+            requireNotNull(loaded.compilation.catalog).validationItems.getValue(ItemKey.parse("itemerness:travel-token")).shownFlags,
+        )
+    }
+
+    @Test
+    fun `shown flags YAML is strict and owned components are diagnosed`() {
+        val original = Files.readString(directory.resolve("items/examples.yml"))
+        val anchor = "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n"
+        fun withShownFlags(yaml: String) = Files.writeString(directory.resolve("items/examples.yml"), original.replace(anchor, anchor + yaml))
+
+        withShownFlags("      shown-flags: minecraft:enchantments\n")
+        assertThrows(StrictYamlException::class.java, ::load)
+        withShownFlags("      shown-flags:\n        - 1\n")
+        assertThrows(StrictYamlException::class.java, ::load)
+        withShownFlags("      shown-flags:\n        - minecraft:lore\n")
+        val diagnostics = load().compilation.diagnostics
+        assertTrue(diagnostics.any { it.code == PresentationDiagnosticCode.INVALID_VALUE && it.path.endsWith("shown-flags[0]") }, "$diagnostics")
+    }
+
+    @Test
     fun `theme selectors load from YAML and choose a theme from instance data`() {
         Files.writeString(directory.resolve("themes/selectors.yml"), SELECTOR_YAML)
         replace("items/examples.yml", "theme: itemerness:vanilla-frame", "theme: example:charge-frame")

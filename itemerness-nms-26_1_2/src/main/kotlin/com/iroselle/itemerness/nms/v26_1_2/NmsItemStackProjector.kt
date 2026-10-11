@@ -8,6 +8,7 @@ import com.iroselle.itemerness.projection.ProjectionPdcFallbackPlan
 import com.iroselle.itemerness.projection.RenderedDisplay
 import java.util.UUID
 import net.minecraft.core.component.DataComponents
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.resources.Identifier
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.component.CustomData
@@ -94,11 +95,7 @@ internal class NmsItemStackProjector(
         }
         return when (result) {
             is ProjectionResult.Rendered -> try {
-                applyDisplay(
-                    sanitize(source),
-                    result.display,
-                    decoded.snapshot.canManageVanillaTooltipLines,
-                )
+                applyDisplay(sanitize(source), result.display)
             } catch (_: Exception) {
                 sanitize(source)
             }
@@ -129,7 +126,6 @@ internal class NmsItemStackProjector(
     private fun applyDisplay(
         projected: ItemStack,
         display: RenderedDisplay,
-        canManageVanillaTooltipLines: Boolean,
     ): ItemStack {
         projected.set(DataComponents.ITEM_NAME, NmsRenderedText.convert(display.displayName))
         if (display.lore.isEmpty()) {
@@ -142,16 +138,26 @@ internal class NmsItemStackProjector(
         }
         replaceIdentifier(projected, DataComponents.TOOLTIP_STYLE, display.tooltipStyle?.toString())
         replaceIdentifier(projected, DataComponents.ITEM_MODEL, display.itemModel?.toString())
-        if (display.managesVanillaTooltipLines && canManageVanillaTooltipLines) {
-            var tooltip = TooltipDisplay.DEFAULT
-            projected.components.keySet().forEach { component ->
-                if (component !in MANAGED_TOOLTIP_COMPONENTS) {
-                    tooltip = tooltip.withHidden(component, true)
-                }
-            }
-            projected.set(DataComponents.TOOLTIP_DISPLAY, tooltip)
-        }
+        projected.set(DataComponents.TOOLTIP_DISPLAY, hiddenVanillaTooltip(projected, display))
         return projected
+    }
+
+    /**
+     * Hides every component present on the projected copy, including prototype defaults and
+     * components unknown to the catalog, except the projection-owned ones and the components the
+     * item explicitly shows. Shown ids unknown to this exact version are ignored.
+     */
+    private fun hiddenVanillaTooltip(projected: ItemStack, display: RenderedDisplay): TooltipDisplay {
+        val shown = display.shownVanillaComponents.mapNotNullTo(HashSet()) { key ->
+            BuiltInRegistries.DATA_COMPONENT_TYPE.getValue(Identifier.parse(key.toString()))
+        }
+        var tooltip = TooltipDisplay.DEFAULT
+        projected.components.keySet().forEach { component ->
+            if (component !in MANAGED_TOOLTIP_COMPONENTS && component !in shown) {
+                tooltip = tooltip.withHidden(component, true)
+            }
+        }
+        return tooltip
     }
 
     private fun replaceIdentifier(

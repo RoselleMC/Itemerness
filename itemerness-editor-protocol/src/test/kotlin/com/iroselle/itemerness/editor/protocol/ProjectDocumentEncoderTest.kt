@@ -8,6 +8,7 @@ import com.iroselle.itemerness.api.IntegerDataValue
 import com.iroselle.itemerness.core.presentation.ConditionOperator
 import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
+import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.PresentationSource
 import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
 import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
@@ -93,6 +94,51 @@ class ProjectDocumentEncoderTest {
         val defaulted = JsonObject.of(JsonValue.Obj(encoded.entries + ("defaultTheme" to JsonValue.Text("example:charge-frame")) +
             ("defaultLayout" to JsonValue.Text("itemerness:plain"))), "document")
         assertEquals("example:charge-frame", ProjectDocumentCodec.decode(defaulted, metrics).defaultTheme)
+    }
+
+    @Test
+    fun `shown flags are written only when present and malformed values are rejected`() {
+        val original = ProjectDocumentCodec.decode(fixture, metrics)
+        val plain = encoder.encode(original.namespace, original.defaultLocale, original.catalog, original.presentation, assets, policies)
+        val plainItems = JsonObject.of(plain, "plain").requiredObjects("items")
+        assertTrue(plainItems.isNotEmpty())
+        assertTrue(plainItems.all { "shownFlags" !in it.requiredObject("presentation").keys })
+
+        val presentation = original.presentation
+        val target = presentation.items.first()
+        val shown = PresentationSource(
+            formats = presentation.formats, locales = presentation.locales, fonts = presentation.fonts, glyphs = presentation.glyphs,
+            bitmaps = presentation.bitmaps, assetProfiles = presentation.assetProfiles, viewerFacts = presentation.viewerFacts,
+            resourcePackBindings = presentation.resourcePackBindings, layouts = presentation.layouts, themes = presentation.themes,
+            items = presentation.items.map { item ->
+                if (item !== target) item else ItemPresentationSource(
+                    item.id, item.layout, item.theme, item.nameMessage, item.blocks, item.enabled,
+                    shownFlags = listOf("minecraft:enchantments", "example:future_component"),
+                )
+            },
+            spacing = presentation.spacing, tooltipStyles = presentation.tooltipStyles, themeSelectors = presentation.themeSelectors,
+        )
+        val encoded = encoder.encode(original.namespace, original.defaultLocale, original.catalog, shown, assets, policies)
+        val node = JsonObject.of(encoded, "encoded").requiredObjects("items").single { it.requiredString("id") == target.id }
+        assertEquals(listOf("minecraft:enchantments", "example:future_component"), node.requiredObject("presentation").requiredStrings("shownFlags"))
+        val decoded = ProjectDocumentCodec.decode(JsonObject.of(encoded, "encoded"), metrics)
+        assertEquals(listOf("minecraft:enchantments", "example:future_component"), decoded.presentation.items.single { it.id == target.id }.shownFlags)
+        val repeated = encoder.encode(decoded.namespace, decoded.defaultLocale, decoded.catalog, decoded.presentation, assets, policies)
+        assertEquals(Json.canonicalize(encoded), Json.canonicalize(repeated))
+
+        val canonical = Json.canonicalize(encoded)
+        listOf("\"minecraft:enchantments\"" to "1", "[\"minecraft:enchantments\",\"example:future_component\"]" to "\"minecraft:enchantments\"")
+            .forEach { (from, to) ->
+                assertThrows(JsonException::class.java) {
+                    ProjectDocumentCodec.decode(JsonObject.parse(canonical.replace(from, to), "document"), metrics)
+                }
+            }
+        // An explicit empty list decodes to the same source as an absent field.
+        val emptied = ProjectDocumentCodec.decode(
+            JsonObject.parse(canonical.replace("[\"minecraft:enchantments\",\"example:future_component\"]", "[]"), "document"),
+            metrics,
+        )
+        assertEquals(emptyList<String>(), emptied.presentation.items.single { it.id == target.id }.shownFlags)
     }
 
     @Test

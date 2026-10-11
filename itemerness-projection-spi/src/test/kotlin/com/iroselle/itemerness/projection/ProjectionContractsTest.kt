@@ -48,7 +48,38 @@ class ProjectionContractsTest {
         )
 
         assertEquals(ProjectionResult.Rendered(expected), result)
-        assertEquals(false, canonical.canManageVanillaTooltipLines)
+        assertEquals(TooltipLineEvidence.BLOCKED, canonical.tooltipLines)
+        assertEquals(false, canonical.tooltipLines.managedWith(emptySet()))
+    }
+
+    @Test
+    fun `tooltip line evidence manages only unblocked stacks whose emitting components stay hidden`() {
+        val enchantments = ItemKey.parse("minecraft:enchantments")
+        val unbreakable = ItemKey.parse("minecraft:unbreakable")
+        val evidence = TooltipLineEvidence(blocked = false, emittingComponents = listOf(unbreakable, enchantments))
+
+        assertEquals(listOf(enchantments, unbreakable), evidence.emittingComponents.toList())
+        assertEquals(true, evidence.managedWith(emptySet()))
+        assertEquals(true, evidence.managedWith(setOf(ItemKey.parse("minecraft:dyed_color"))))
+        assertEquals(false, evidence.managedWith(setOf(enchantments)))
+        assertEquals(true, TooltipLineEvidence.SILENT.managedWith(setOf(enchantments)))
+        assertEquals(false, TooltipLineEvidence(blocked = true).managedWith(emptySet()))
+        assertEquals(TooltipLineEvidence(false, listOf(enchantments)), TooltipLineEvidence(false, setOf(enchantments)))
+    }
+
+    @Test
+    fun `rendered display carries an immutable sorted set of shown vanilla components`() {
+        val shown = mutableListOf(ItemKey.parse("minecraft:unbreakable"), ItemKey.parse("minecraft:enchantments"))
+        val display = RenderedDisplay(RenderedText.plain("Name"), shownVanillaComponents = shown)
+
+        shown.clear()
+
+        assertEquals(
+            listOf(ItemKey.parse("minecraft:enchantments"), ItemKey.parse("minecraft:unbreakable")),
+            display.shownVanillaComponents.toList(),
+        )
+        assertEquals(emptySet<ItemKey>(), RenderedDisplay(RenderedText.plain("Name")).shownVanillaComponents)
+        assertEquals(false, display == RenderedDisplay(RenderedText.plain("Name")))
     }
 
     @Test

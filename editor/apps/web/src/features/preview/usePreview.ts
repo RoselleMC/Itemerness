@@ -16,6 +16,7 @@ import {
 } from "@itemerness/protocol";
 import {
     fontLibraryOf,
+    itemViewer,
     packStackOf,
     presentationFontsOf,
     useEditorStore,
@@ -75,7 +76,7 @@ export function usePreview(
             state.artifact,
         ],
     );
-    const viewer = useMemo(
+    const personaViewer = useMemo(
         () => viewerOf(state),
         [
             state.document,
@@ -138,6 +139,16 @@ export function usePreview(
         state.document,
     ]);
 
+    const targetShownFlags = state.document.items.find(
+        (item) => itemKey(state.document, item) === targetItemId,
+    )?.presentation.shownFlags;
+    // The local composer, comparison and fidelity claims use the item-effective viewer; the server
+    // preview derives the same value per item, including background warming.
+    const viewer = useMemo(
+        () => itemViewer(personaViewer, targetShownFlags),
+        [personaViewer, targetShownFlags],
+    );
+
     const local = useMemo(() => {
         if (!targetItemId) return null;
         return composeLocalPreview({
@@ -173,7 +184,7 @@ export function usePreview(
     const { current: server, items: itemStates } = useServerPreview(
         state.document,
         targetItemId,
-        viewer,
+        personaViewer,
         enabled && state.historyTransactionId === null,
     );
     const validationStates = useMemo(

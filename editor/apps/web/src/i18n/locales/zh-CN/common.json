@@ -442,7 +442,7 @@
         "personaProfileAuto": "根据已挂载资源包自动判断",
         "personaProfileHint": "显式选择配置可检查依赖能力的几何效果，但不会声称对应资产已挂载。",
         "personaManagedLines": "Itemerness 管理原版 tooltip 附加行",
-        "personaManagedLinesHint": "该项独立模拟物品的运行时能力，不由资源包状态推断。",
+        "personaManagedLinesHint": "渲染的物品默认隐藏全部原版行，因此默认开启；显示了原版组件的物品始终按未托管预览。该项不由资源包状态推断。",
         "personaUnset": "未设置",
         "packSim": {
             "auto": "自动",
@@ -456,6 +456,17 @@
     "inspector": {
         "heading": "物品",
         "enabled": "在服务器上可用",
+        "shownFlags": {
+            "heading": "显示的原版 tooltip",
+            "hint": "留空时隐藏全部原版 tooltip 行。显示的组件若会输出行，要求托管附加行的主题将回退。",
+            "add": "显示一个数据组件",
+            "remove": "不再显示 {{component}}",
+            "invalid": "请使用带命名空间的数据组件 ID，例如 minecraft:enchantments。",
+            "duplicate": "该组件已在显示列表中。",
+            "owned": "该组件由 Itemerness 管理，不能显示。",
+            "limit": "一个物品最多显示 {{count}} 个组件。",
+            "empty": "未显示任何组件"
+        },
         "name": {
             "heading": "名称",
             "editingIn": "正在编辑 {{locale}} 文本。",
@@ -1211,6 +1222,7 @@
             "CATALOG_SOURCE_LAYOUT_UNSUPPORTED": "保留目录文件布局需要升级当前插件。文档内容已保留。",
             "THEME_SELECTORS_UNSUPPORTED": "使用主题选择器需要升级当前插件。文档内容已保留。",
             "RESOURCE_PACK_DELIVERY_UNSUPPORTED": "选择资源包的交付方式需要升级当前插件。文档内容已保留。",
+            "SHOWN_FLAGS_UNSUPPORTED": "显示原版 tooltip 组件需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

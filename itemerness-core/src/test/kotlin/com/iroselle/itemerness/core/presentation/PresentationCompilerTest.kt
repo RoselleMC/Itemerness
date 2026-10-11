@@ -72,6 +72,66 @@ class PresentationCompilerTest {
     }
 
     @Test
+    fun `compiles shown vanilla tooltip components as a sorted set of any namespaced ids`() {
+        val compilation = PresentationCompiler().compile(
+            PresentationFixtures.source(
+                itemSources = listOf(shownFlagsItem(listOf("minecraft:enchantments", "minecraft:attribute_modifiers", "example:future_component"))),
+            ),
+        )
+
+        assertTrue(compilation.successful, compilation.diagnostics.joinToString())
+        val item = requireNotNull(compilation.catalog).items.getValue(ItemKey.parse("itemerness:shown"))
+        assertEquals(
+            listOf("example:future_component", "minecraft:attribute_modifiers", "minecraft:enchantments"),
+            item.shownFlags.map(ItemKey::toString),
+        )
+        assertThrows(UnsupportedOperationException::class.java) {
+            (item.shownFlags as MutableSet<ItemKey>).clear()
+        }
+        val empty = PresentationCompiler().compile(PresentationFixtures.source(itemSources = listOf(shownFlagsItem(emptyList()))))
+        assertEquals(emptySet<ItemKey>(), requireNotNull(empty.catalog).items.getValue(ItemKey.parse("itemerness:shown")).shownFlags)
+    }
+
+    @Test
+    fun `rejects malformed duplicate projection-owned and excessive shown components`() {
+        fun diagnostics(values: List<String>) =
+            PresentationCompiler().compile(PresentationFixtures.source(itemSources = listOf(shownFlagsItem(values)))).diagnostics
+
+        val malformed = diagnostics(listOf("enchantments", "minecraft:Bad"))
+        assertEquals(
+            listOf("items[0].shown-flags[0]", "items[0].shown-flags[1]"),
+            malformed.map(PresentationDiagnostic::path),
+        )
+        assertTrue(malformed.all { it.code == PresentationDiagnosticCode.INVALID_ID })
+
+        val duplicate = diagnostics(listOf("minecraft:enchantments", "minecraft:enchantments")).single()
+        assertEquals(PresentationDiagnosticCode.DUPLICATE_ID, duplicate.code)
+        assertEquals("items[0].shown-flags[1]", duplicate.path)
+
+        val owned = listOf(
+            "minecraft:custom_data", "minecraft:custom_name", "minecraft:item_name", "minecraft:lore",
+            "minecraft:tooltip_display", "minecraft:tooltip_style", "minecraft:item_model",
+        )
+        val ownedDiagnostics = diagnostics(owned)
+        assertEquals(owned.size, ownedDiagnostics.size)
+        assertTrue(ownedDiagnostics.all { it.code == PresentationDiagnosticCode.INVALID_VALUE })
+
+        val excessive = diagnostics(List(65) { index -> "example:component_$index" }).single()
+        assertEquals(PresentationDiagnosticCode.BUDGET_EXCEEDED, excessive.code)
+        assertEquals("items[0].shown-flags", excessive.path)
+        assertTrue(diagnostics(List(64) { index -> "example:component_$index" }).isEmpty())
+    }
+
+    private fun shownFlagsItem(shownFlags: List<String>) = ItemPresentationSource(
+        id = "itemerness:shown",
+        layout = "itemerness:plain",
+        theme = "itemerness:default",
+        nameMessage = "item.nested-satchel.name",
+        blocks = emptyList(),
+        shownFlags = shownFlags,
+    )
+
+    @Test
     fun `rejects fallback cycles instead of publishing a partially usable graph`() {
         val themes = PresentationFixtures.themes().filterNot { it.id == "itemerness:default" } + ThemeSource(
             id = "itemerness:default",

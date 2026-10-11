@@ -73,12 +73,23 @@ class RenderedDisplay(
     lore: Collection<RenderedText> = emptyList(),
     val tooltipStyle: ItemKey? = null,
     val itemModel: ItemKey? = null,
-    /** True when the adapter must suppress component-provided lines outside managed Lore. */
-    val managesVanillaTooltipLines: Boolean = false,
+    shownVanillaComponents: Collection<ItemKey> = emptyList(),
 ) {
     val lore: List<RenderedText> = java.util.List.copyOf(lore)
 
+    /**
+     * Data component ids whose vanilla tooltip lines stay visible. The adapter hides every other
+     * component present on the projected stack, including prototype defaults and components that
+     * did not exist when the catalog was written.
+     */
+    val shownVanillaComponents: Set<ItemKey> = java.util.Collections.unmodifiableSet(
+        java.util.TreeSet(shownVanillaComponents),
+    )
+
     init {
+        require(this.shownVanillaComponents.size <= MAX_SHOWN_COMPONENTS) {
+            "Rendered display must not show more than $MAX_SHOWN_COMPONENTS vanilla components"
+        }
         require(this.lore.size <= MAX_LORE_LINES) {
             "Rendered display must not exceed $MAX_LORE_LINES lore lines"
         }
@@ -103,22 +114,23 @@ class RenderedDisplay(
             lore == other.lore &&
             tooltipStyle == other.tooltipStyle &&
             itemModel == other.itemModel &&
-            managesVanillaTooltipLines == other.managesVanillaTooltipLines
+            shownVanillaComponents == other.shownVanillaComponents
 
     override fun hashCode(): Int {
         var result = displayName.hashCode()
         result = 31 * result + lore.hashCode()
         result = 31 * result + (tooltipStyle?.hashCode() ?: 0)
         result = 31 * result + (itemModel?.hashCode() ?: 0)
-        result = 31 * result + managesVanillaTooltipLines.hashCode()
+        result = 31 * result + shownVanillaComponents.hashCode()
         return result
     }
 
     override fun toString(): String =
         "RenderedDisplay(displayName=$displayName, lore=$lore, tooltipStyle=$tooltipStyle, " +
-        "itemModel=$itemModel, managesVanillaTooltipLines=$managesVanillaTooltipLines)"
+        "itemModel=$itemModel, shownVanillaComponents=$shownVanillaComponents)"
 
     private companion object {
+        const val MAX_SHOWN_COMPONENTS = 64
         const val MAX_LORE_LINES = 256
         const val MAX_TOTAL_RUNS = 4_096
         const val MAX_TOTAL_TEXT_LENGTH = 131_072

@@ -13,6 +13,7 @@ import com.iroselle.itemerness.api.NamespacedKeyDataValue
 import com.iroselle.itemerness.api.StringDataValue
 import com.iroselle.itemerness.api.UuidDataValue
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogManager
+import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogSnapshot
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogUpdate
 import com.iroselle.itemerness.core.catalog.CanonicalItemInstance
 import com.iroselle.itemerness.core.catalog.InstanceDataMutation
@@ -32,7 +33,9 @@ import com.iroselle.itemerness.projection.ProjectionFallbackReason
 import com.iroselle.itemerness.projection.ProjectionRequest
 import com.iroselle.itemerness.projection.ProjectionResult
 import com.iroselle.itemerness.projection.ProjectionValue
+import com.iroselle.itemerness.projection.RenderedDisplay
 import com.iroselle.itemerness.projection.StringProjectionValue
+import com.iroselle.itemerness.projection.TooltipLineEvidence
 import com.iroselle.itemerness.projection.UuidProjectionValue
 import com.iroselle.itemerness.projection.ViewerFact
 import com.iroselle.itemerness.projection.ViewerProjectionSnapshot
@@ -513,58 +516,79 @@ class ProjectionStateStoreTest {
     }
 
     @Test
-    fun `physical stack capability gates managed-only themes`() {
+    fun `tooltip line evidence and shown flags gate managed-only themes`() {
         installBundledResources()
         val itemFile = directory.resolve("items/examples.yml")
+        val enabled = Files.readString(itemFile).replace(
+            "  framed-relic:\n    enabled: false",
+            "  framed-relic:\n    enabled: true",
+        )
+        Files.writeString(itemFile, enabled)
+        val hiddenRuntime = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
         Files.writeString(
             itemFile,
-            Files.readString(itemFile).replace(
-                "  framed-relic:\n    enabled: false",
-                "  framed-relic:\n    enabled: true",
+            enabled.replace(
+                "      theme: itemerness:segmented\n      name:\n        message: item.framed-relic.name\n",
+                "      theme: itemerness:segmented\n      shown-flags: [minecraft:unbreakable]\n" +
+                    "      name:\n        message: item.framed-relic.name\n",
             ),
         )
-        val update = RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published
-        val runtime = update.active
+        val shownRuntime = (RuntimeCatalogManager(directory, "26.1.2").reload() as RuntimeCatalogUpdate.Published).active
         val itemKey = ItemKey.parse("itemerness:framed-relic")
-        val definition = requireNotNull(runtime.domain.findItem(itemKey))
-        val instance = runtime.domain.createInstance(itemKey)
-        val safe = canonical(
-            runtime.settings.pendingName(itemKey),
-            instance,
-            definition.material,
-            canManageVanillaTooltipLines = true,
-        )
-        val unsafe = canonical(
-            runtime.settings.pendingName(itemKey),
-            instance,
-            definition.material,
-            canManageVanillaTooltipLines = false,
-        )
-        val store = ProjectionStateStore()
-        val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba15a")
-        val assetProfile = ItemKey.parse("itemerness:example-pack-v1")
-        store.publishCatalog(runtime, runtime.presentation)
-        store.publishViewer(
-            viewer(
-                viewerId,
-                "en_us",
-                assetProfile = assetProfile,
-                capabilities = store.capabilities(runtime.domain.revision, assetProfile),
-                facts = listOf(
-                    ViewerFact(
-                        ItemKey.parse("itemerness:resource-pack-ready"),
-                        BooleanProjectionValue(true),
+        val unbreakable = ItemKey.parse("minecraft:unbreakable")
+        assertEquals(setOf(unbreakable), shownRuntime.presentation.items.getValue(itemKey).shownFlags)
+        assertEquals(emptySet<ItemKey>(), hiddenRuntime.presentation.items.getValue(itemKey).shownFlags)
+
+        fun render(runtime: RuntimeCatalogSnapshot, evidence: TooltipLineEvidence): RenderedDisplay {
+            val definition = requireNotNull(runtime.domain.findItem(itemKey))
+            val stack = canonical(
+                runtime.settings.pendingName(itemKey),
+                runtime.domain.createInstance(itemKey),
+                definition.material,
+                tooltipLines = evidence,
+            )
+            val store = ProjectionStateStore()
+            val viewerId = UUID.fromString("cfbc9bc6-dcf1-42b5-8358-857aa39ba15a")
+            val assetProfile = ItemKey.parse("itemerness:example-pack-v1")
+            store.publishCatalog(runtime, runtime.presentation)
+            store.publishViewer(
+                viewer(
+                    viewerId,
+                    "en_us",
+                    assetProfile = assetProfile,
+                    capabilities = store.capabilities(runtime.domain.revision, assetProfile),
+                    facts = listOf(
+                        ViewerFact(
+                            ItemKey.parse("itemerness:resource-pack-ready"),
+                            BooleanProjectionValue(true),
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
+            return (store.render(viewerId, stack) as ProjectionResult.Rendered).display
+        }
 
-        val managed = store.render(viewerId, safe) as ProjectionResult.Rendered
-        val preserved = store.render(viewerId, unsafe) as ProjectionResult.Rendered
+        val emitting = TooltipLineEvidence(blocked = false, emittingComponents = listOf(unbreakable))
+        val managed = render(hiddenRuntime, TooltipLineEvidence.SILENT)
+        val blocked = render(hiddenRuntime, TooltipLineEvidence.BLOCKED)
+        val hiddenEmitting = render(hiddenRuntime, emitting)
+        val shownEmitting = render(shownRuntime, emitting)
+        val shownSilent = render(shownRuntime, TooltipLineEvidence.SILENT)
 
-        assertTrue(managed.display.managesVanillaTooltipLines)
-        assertFalse(preserved.display.managesVanillaTooltipLines)
-        assertNotEquals(managed.display.lore, preserved.display.lore)
+        // A hidden emitting component cannot reach the viewer, so the managed theme still applies.
+        assertEquals(managed.lore, hiddenEmitting.lore)
+        assertEquals(managed.lore, shownSilent.lore)
+        assertNotEquals(managed.lore, blocked.lore)
+        // Showing a component that prints a line gives the tooltip back to vanilla layout.
+        assertEquals(blocked.lore, shownEmitting.lore)
+        assertEquals(emptySet<ItemKey>(), managed.shownVanillaComponents)
+        assertEquals(setOf(unbreakable), shownEmitting.shownVanillaComponents)
+
+        // Ids unknown to the running server only warn, because catalogs may be shared across versions.
+        assertNull(ShownComponentNotice.describe(shownRuntime.presentation, setOf(unbreakable)))
+        assertNull(ShownComponentNotice.describe(shownRuntime.presentation, null))
+        val notice = checkNotNull(ShownComponentNotice.describe(shownRuntime.presentation, emptySet()))
+        assertTrue("itemerness:framed-relic minecraft:unbreakable" in notice, notice)
     }
 
     @Test
@@ -682,7 +706,7 @@ class ProjectionStateStoreTest {
         pendingName: String,
         instance: CanonicalItemInstance,
         material: ItemKey = ItemKey.parse("minecraft:paper"),
-        canManageVanillaTooltipLines: Boolean = false,
+        tooltipLines: TooltipLineEvidence = TooltipLineEvidence.BLOCKED,
         pdcFallbackData: ProjectionCompound = ProjectionCompound(),
     ): CanonicalItemSnapshot =
         CanonicalItemSnapshot(
@@ -706,11 +730,11 @@ class ProjectionStateStoreTest {
                         instance.instanceRevision,
                         instance.data,
                         pdcFallbackData,
-                        canManageVanillaTooltipLines,
+                        tooltipLines,
                     ).joinToString("|").toByteArray(Charsets.UTF_8),
                 ),
             ),
-            canManageVanillaTooltipLines = canManageVanillaTooltipLines,
+            tooltipLines = tooltipLines,
             pdcFallbackData = pdcFallbackData,
         )
 

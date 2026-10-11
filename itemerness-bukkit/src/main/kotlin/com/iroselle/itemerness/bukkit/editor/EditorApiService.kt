@@ -8,6 +8,7 @@ import com.iroselle.itemerness.bukkit.catalog.DataKeyIntegration
 import com.iroselle.itemerness.bukkit.catalog.DataReadAccess
 import com.iroselle.itemerness.bukkit.catalog.PdcFallbackSource
 import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
+import com.iroselle.itemerness.bukkit.projection.ShownComponentNotice
 import com.iroselle.itemerness.editor.agent.AgentScheduler
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorApiServer
@@ -57,6 +58,7 @@ internal class EditorApiService(
             serverMetadata.serverId,
             agentVersion, minecraftVersion, platform, bridge.compilerDigest(), serverName,
             persistentIdentity = true,
+            dataComponentTypes = ShownComponentNotice.serverComponents().orEmpty().map(ItemKey::toString),
         ),
         drafts = EditorDraftStore(draftPath) { ProjectDocumentCodec.decode(it, metrics) },
         compile = ::compile,

@@ -801,6 +801,11 @@ export const itemNodeSchema = z.strictObject({
         theme: namespacedIdSchema.nullable().optional(),
         nameMessage: messageKeySchema,
         blocks: z.array(presentationBlockSchema).max(128),
+        /**
+         * Data component ids whose vanilla tooltip lines stay visible; every other vanilla line is
+         * hidden. Absent means none. Editors omit an empty list so older plugins keep loading.
+         */
+        shownFlags: z.array(namespacedIdSchema).max(64).optional(),
     }),
     /** Editor-only: instance data used when previewing this item. Never published. */
     previewData: z.array(dataAssignmentSchema).max(256).default([]),

@@ -23,6 +23,7 @@ import { commitInlineEditor } from "../common/inlineEdit.js";
 import { DataValueEditor } from "../common/DataValueEditor.js";
 import { BufferedInput } from "../common/BufferedInput.js";
 import { ItemDefinitionEditor } from "./ItemDefinitionEditor.js";
+import { ShownFlagsEditor } from "./ShownFlagsEditor.js";
 import { itemIdIssue, renameItem } from "../../state/itemIdentity.js";
 import {
     representativeTheme,
@@ -657,6 +658,9 @@ export function ItemInspector({
                     ]}
                 />
             </section>
+
+            {/* --- Vanilla tooltip --------------------------------------------------------- */}
+            <ShownFlagsEditor key={`${item.uuid}-shown-flags`} item={item} />
 
             {previewSettings}
             <ItemDefinitionEditor key={item.uuid} document={doc} item={item} />

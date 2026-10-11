@@ -52,7 +52,8 @@ internal object CatalogYamlEncoding {
                 is DataGeneratorSource.RandomDecimal -> map("generator" to "random-decimal", "minimum" to YamlEncoding.exactNumber(generator.minimum), "maximum" to YamlEncoding.exactNumber(generator.maximum), "scale" to generator.scale)
             } }),
         "contents" to item.contents.map { map("item" to it.item, "amount" to it.amount) },
-        "presentation" to map("layout" to layout, "theme" to theme, "name" to map("message" to presentation.nameMessage), "blocks" to presentation.blocks.map(::block)),
+        "presentation" to map("layout" to layout, "theme" to theme, "name" to map("message" to presentation.nameMessage), "blocks" to presentation.blocks.map(::block),
+            "shown-flags" to presentation.shownFlags.takeIf { it.isNotEmpty() }),
     )
 
     private fun assignments(assignments: List<DataAssignmentSource>): Map<String, Any?> = assignments.associate { it.key to YamlEncoding.source(it.value) }

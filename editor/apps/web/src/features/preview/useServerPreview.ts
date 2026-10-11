@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
     contentHash,
+    type ItemNode,
     type PreviewArtifact,
     type PreviewViewer,
     type ProjectDocument,
@@ -44,9 +45,27 @@ export function useServerPreview(
     const info = useConnectionStore((state) => state.info);
     const snapshotHash = useMemo(() => contentHash(document), [document]);
     const viewerKey = useMemo(() => contentHash(viewer), [viewer]);
+    // Items that show vanilla components are previewed without managed-line ownership.
+    const unmanagedViewer = useMemo(
+        (): PreviewViewer =>
+            viewer.managesVanillaTooltipLines
+                ? { ...viewer, managesVanillaTooltipLines: false }
+                : viewer,
+        [viewer],
+    );
+    const unmanagedKey = useMemo(
+        () => contentHash(unmanagedViewer),
+        [unmanagedViewer],
+    );
+    const viewerFor = (node: ItemNode | undefined) =>
+        node?.presentation.shownFlags?.length ? unmanagedViewer : viewer;
+    const keyFor = (node: ItemNode | undefined) =>
+        node?.presentation.shownFlags?.length ? unmanagedKey : viewerKey;
     const item = document.items.find(
         (entry) => itemKey(document, entry) === itemId,
     );
+    const targetViewer = viewerFor(item);
+    const targetViewerKey = keyFor(item);
     const selectionKey = JSON.stringify([
         item && itemTheme(document, item),
         item && itemLayout(document, item),
@@ -72,7 +91,7 @@ export function useServerPreview(
                 : null,
         [client, peerKey],
     );
-    const key = JSON.stringify([snapshotHash, itemId, viewerKey]);
+    const key = JSON.stringify([snapshotHash, itemId, targetViewerKey]);
     const revision = useSyncExternalStore(
         cache?.subscribe ?? noSubscription,
         cache?.version ?? zeroVersion,
@@ -87,7 +106,11 @@ export function useServerPreview(
                         !enabled || !cache || !supported
                             ? "unavailable"
                             : cache.status(
-                                  JSON.stringify([snapshotHash, id, viewerKey]),
+                                  JSON.stringify([
+                                      snapshotHash,
+                                      id,
+                                      keyFor(item),
+                                  ]),
                               ),
                     ];
                 }),
@@ -98,6 +121,7 @@ export function useServerPreview(
             document,
             snapshotHash,
             viewerKey,
+            unmanagedKey,
             supported,
             enabled,
         ],
@@ -124,14 +148,14 @@ export function useServerPreview(
         const editing =
             last?.cache === cache &&
             last.itemId === itemId &&
-            last.viewerKey === viewerKey &&
+            last.viewerKey === targetViewerKey &&
             last.selectionKey === selectionKey &&
             last.snapshotHash !== snapshotHash;
         previous.current = {
             cache,
             itemId,
             snapshotHash,
-            viewerKey,
+            viewerKey: targetViewerKey,
             selectionKey,
         };
         let current = true;
@@ -145,7 +169,7 @@ export function useServerPreview(
                     {
                         document,
                         itemId,
-                        viewer,
+                        viewer: targetViewer,
                         snapshotHash,
                         targetServerId: serverId,
                     },
@@ -188,7 +212,7 @@ export function useServerPreview(
         key,
         itemId,
         snapshotHash,
-        viewerKey,
+        targetViewerKey,
         selectionKey,
         supported,
         enabled,
@@ -203,7 +227,7 @@ export function useServerPreview(
                 const request = {
                     document,
                     itemId: itemKey(document, item),
-                    viewer,
+                    viewer: viewerFor(item),
                     snapshotHash,
                     targetServerId: serverId,
                 };

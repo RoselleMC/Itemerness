@@ -8,6 +8,7 @@ import com.iroselle.itemerness.api.IntegerDataValue
 import com.iroselle.itemerness.api.ItemDataValue
 import com.iroselle.itemerness.api.ItemDefinition
 import com.iroselle.itemerness.api.ItemKey
+import com.iroselle.itemerness.projection.TooltipLineEvidence
 import com.iroselle.itemerness.api.ListDataValue
 import com.iroselle.itemerness.api.LongDataValue
 import com.iroselle.itemerness.api.NamespacedKeyDataValue
@@ -576,10 +577,11 @@ class DefaultItemernessCommandActionsTest {
             runtime = runtime,
             amount = 1,
             locale = "zh_cn",
-            managesVanillaTooltipLines = true,
+            tooltipLines = TooltipLineEvidence(blocked = false, emittingComponents = listOf(ItemKey.parse("minecraft:unbreakable"))),
         )
 
         assertTrue(inspection.contains("view.name=勘探手册"), inspection)
+        assertTrue(inspection.contains(" vanilla-tooltip=managed emitting=minecraft:unbreakable"), inspection)
         assertTrue(inspection.contains("记录本次远征发现的地标"), inspection)
         assertTrue(inspection.contains("example:metadata=<restricted>"), inspection)
         assertTrue(!inspection.contains("completion"), inspection)

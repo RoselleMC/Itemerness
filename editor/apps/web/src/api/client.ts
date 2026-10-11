@@ -18,6 +18,8 @@ import {
     usesThemeSelectors,
     supportsResourcePackDelivery,
     usesResourcePackDelivery,
+    supportsShownFlags,
+    usesShownFlags,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -346,6 +348,8 @@ export class PluginClient {
             !supportsResourcePackDelivery(this.capabilities)
         )
             throw new Error("RESOURCE_PACK_DELIVERY_UNSUPPORTED");
+        if (usesShownFlags(document) && !supportsShownFlags(this.capabilities))
+            throw new Error("SHOWN_FLAGS_UNSUPPORTED");
     }
 
     private async json(

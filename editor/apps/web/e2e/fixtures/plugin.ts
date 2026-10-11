@@ -27,6 +27,7 @@ export const HANDSHAKE = {
         "catalog.source-layout",
         "presentation.theme-selectors",
         "assets.resource-pack-bindings.delivery",
+        "presentation.shown-flags",
     ],
 };
 

@@ -15,6 +15,7 @@ import com.iroselle.itemerness.projection.RenderedText
 import com.iroselle.itemerness.projection.RenderedTextRun
 import com.iroselle.itemerness.projection.RgbColor
 import com.iroselle.itemerness.projection.TextDecorations
+import com.iroselle.itemerness.projection.TooltipLineEvidence
 import com.iroselle.itemerness.projection.ViewerProjectionSnapshot
 import com.mojang.datafixers.util.Pair
 import java.util.ServiceLoader
@@ -58,10 +59,6 @@ import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassVisitor
-import org.objectweb.asm.MethodVisitor
-import org.objectweb.asm.Opcodes
 
 class NmsProjectionTest {
     @Test
@@ -174,46 +171,49 @@ class NmsProjectionTest {
     }
 
     @Test
-    fun `clean base items can grant managed tooltip ownership`() {
+    fun `clean base items are silent under the exact tooltip builder`() {
         listOf(Items.ECHO_SHARD, Items.BOOK).forEach { item ->
-            val source = canonicalStack(item = item, includeCustomName = false)
-            val decoded = decode(source)
+            val decoded = decode(canonicalStack(item = item, includeCustomName = false))
 
             assertEquals(Item::class.java, item.javaClass)
-            assertTrue(decoded.canManageVanillaTooltipLines)
+            assertEquals(TooltipLineEvidence.SILENT, decoded.tooltipLines)
+            assertTrue(decoded.tooltipLines.managedWith(emptySet()))
         }
     }
 
     @Test
-    fun `tooltip-producing components and forged names deny managed ownership`() {
-        val unsafeStacks = listOf(
+    fun `tooltip-producing components are attributed and forged names block ownership`() {
+        val unbreakable = decode(
             canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
                 stack.set(DataComponents.UNBREAKABLE, Unit.INSTANCE)
             },
+        ).tooltipLines
+        val emptyValues = listOf(
             canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
                 stack.set(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY)
             },
             canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
                 stack.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY)
             },
-            canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
-                stack.set(DataComponents.DAMAGE, 1)
-            },
-            canonicalStack(item = Items.ECHO_SHARD, includeCustomName = true),
         )
+        val forged = decode(canonicalStack(item = Items.ECHO_SHARD, includeCustomName = true)).tooltipLines
 
-        unsafeStacks.forEach { stack ->
-            assertFalse(decode(stack).canManageVanillaTooltipLines)
-        }
+        assertEquals(setOf(UNBREAKABLE_KEY), unbreakable.emittingComponents)
+        // Hidden by default, the line cannot reach the viewer; showing it gives up ownership.
+        assertTrue(unbreakable.managedWith(emptySet()))
+        assertFalse(unbreakable.managedWith(setOf(UNBREAKABLE_KEY)))
+        // Empty values print nothing, so they no longer deny ownership as the old list did.
+        emptyValues.forEach { stack -> assertEquals(TooltipLineEvidence.SILENT, decode(stack).tooltipLines) }
+        assertTrue(forged.blocked)
+        assertFalse(forged.managedWith(emptySet()))
     }
 
     @Test
-    fun `managed canvas view is installed only for a proven safe physical stack`() {
+    fun `every rendered copy hides all vanilla tooltip components it does not own`() {
         val source = canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false)
+        val sourceTooltip = source.get(DataComponents.TOOLTIP_DISPLAY)
         val runtime = ProjectionRuntime(
-            projector = ItemProjector {
-                ProjectionResult.Rendered(renderedDisplay(managesVanillaTooltipLines = true))
-            },
+            projector = ItemProjector { ProjectionResult.Rendered(renderedDisplay()) },
             contexts = ProjectionContextSource { projectionContext() },
         )
 
@@ -222,45 +222,68 @@ class NmsProjectionTest {
 
         assertTrue(tooltip.shows(DataComponents.LORE))
         assertEquals(listOf("Region: Harbor", "Charges: 3"), projected.get(DataComponents.LORE)?.lines()?.map { it.string })
-        assertNull(source.get(DataComponents.TOOLTIP_DISPLAY))
+        assertTrue(projected.components.keySet().any { type -> type !in OWNED_TOOLTIP_COMPONENTS })
+        projected.components.keySet().forEach { type ->
+            assertEquals(type in OWNED_TOOLTIP_COMPONENTS, tooltip.shows(type), "$type")
+        }
+        // Hiding is a client view of the copy; the canonical stack keeps its own tooltip state.
+        assertEquals(sourceTooltip, source.get(DataComponents.TOOLTIP_DISPLAY))
     }
 
     @Test
-    fun `unsafe physical stack cannot be hidden even if a projector overclaims ownership`() {
+    fun `prototype default components are hidden unless the item shows them`() {
+        val source = canonicalStack(item = Items.DIAMOND_SWORD, includeCustomName = false)
+        assertNotNull(source.get(DataComponents.ATTRIBUTE_MODIFIERS))
+        // The modifiers come from the item prototype, not from the stack's own patch.
+        assertFalse(source.componentsPatch.split().added().has(DataComponents.ATTRIBUTE_MODIFIERS))
+
+        val hidden = projectWith(source, renderedDisplay())
+        val shown = projectWith(source, renderedDisplay(shown = setOf(ATTRIBUTE_MODIFIERS_KEY)))
+
+        assertFalse(requireNotNull(hidden.get(DataComponents.TOOLTIP_DISPLAY)).shows(DataComponents.ATTRIBUTE_MODIFIERS))
+        assertTrue(requireNotNull(shown.get(DataComponents.TOOLTIP_DISPLAY)).shows(DataComponents.ATTRIBUTE_MODIFIERS))
+        assertFalse(requireNotNull(shown.get(DataComponents.TOOLTIP_DISPLAY)).shows(DataComponents.MAX_STACK_SIZE))
+    }
+
+    @Test
+    fun `tooltip-producing components stay on the copy and are shown only when listed`() {
         val source = canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
             stack.set(DataComponents.UNBREAKABLE, Unit.INSTANCE)
         }
-        val runtime = ProjectionRuntime(
-            projector = ItemProjector {
-                ProjectionResult.Rendered(renderedDisplay(managesVanillaTooltipLines = true))
-            },
-            contexts = ProjectionContextSource { projectionContext() },
+
+        val hidden = projectWith(source, renderedDisplay())
+        val shown = projectWith(
+            source,
+            renderedDisplay(shown = setOf(UNBREAKABLE_KEY, ItemKey.parse("example:unknown_component"))),
         )
 
-        val projected = NmsItemStackProjector(runtime).project(source, VIEWER_ID)
-
-        assertNotNull(projected.get(DataComponents.UNBREAKABLE))
-        assertNull(projected.get(DataComponents.TOOLTIP_DISPLAY))
-        assertEquals(listOf("Region: Harbor", "Charges: 3"), projected.get(DataComponents.LORE)?.lines()?.map { it.string })
+        // Gameplay state is never removed: only its tooltip line is hidden.
+        assertNotNull(hidden.get(DataComponents.UNBREAKABLE))
+        assertFalse(requireNotNull(hidden.get(DataComponents.TOOLTIP_DISPLAY)).shows(DataComponents.UNBREAKABLE))
+        assertEquals(listOf("Region: Harbor", "Charges: 3"), hidden.get(DataComponents.LORE)?.lines()?.map { it.string })
+        val shownTooltip = requireNotNull(shown.get(DataComponents.TOOLTIP_DISPLAY))
+        assertTrue(shownTooltip.shows(DataComponents.UNBREAKABLE))
+        assertFalse(shownTooltip.shows(DataComponents.MAX_STACK_SIZE))
     }
 
     @Test
-    fun `forged custom name is sanitized and cannot enable managed tooltip ownership`() {
+    fun `forged custom name is sanitized and blocks managed tooltip ownership`() {
         val source = canonicalStack(item = Items.ECHO_SHARD, includeCustomName = true)
         val captured = AtomicReference<com.iroselle.itemerness.projection.CanonicalItemSnapshot>()
         val runtime = ProjectionRuntime(
             projector = ItemProjector { request ->
                 captured.set(request.canonical)
-                ProjectionResult.Rendered(renderedDisplay(managesVanillaTooltipLines = true))
+                ProjectionResult.Rendered(renderedDisplay())
             },
             contexts = ProjectionContextSource { projectionContext() },
         )
 
-        val projected = NmsItemStackProjector(runtime).project(source, VIEWER_ID)
+        val projected = NmsItemStackProjector(runtime, NmsTestRegistries.codec).project(source, VIEWER_ID)
 
-        assertFalse(captured.get().canManageVanillaTooltipLines)
+        assertTrue(captured.get().tooltipLines.blocked)
+        assertFalse(captured.get().tooltipLines.managedWith(emptySet()))
         assertNull(projected.get(DataComponents.CUSTOM_NAME))
-        assertNull(projected.get(DataComponents.TOOLTIP_DISPLAY))
+        assertFalse(requireNotNull(projected.get(DataComponents.TOOLTIP_DISPLAY)).shows(DataComponents.MAX_STACK_SIZE))
     }
 
     @Test
@@ -299,17 +322,21 @@ class NmsProjectionTest {
     }
 
     @Test
-    fun `fingerprint separates safe and unsafe tooltip ownership`() {
-        val safe = decode(canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false))
-        val unsafe = decode(
+    fun `fingerprint separates tooltip line evidence but identity does not`() {
+        val silent = decode(canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false))
+        val emitting = decode(
             canonicalStack(item = Items.ECHO_SHARD, includeCustomName = false).also { stack ->
                 stack.set(DataComponents.UNBREAKABLE, Unit.INSTANCE)
             },
         )
 
-        assertTrue(safe.canManageVanillaTooltipLines)
-        assertFalse(unsafe.canManageVanillaTooltipLines)
-        assertFalse(safe.fingerprint.copyBytes().contentEquals(unsafe.fingerprint.copyBytes()))
+        assertEquals(TooltipLineEvidence.SILENT, silent.tooltipLines)
+        assertEquals(setOf(UNBREAKABLE_KEY), emitting.tooltipLines.emittingComponents)
+        assertFalse(silent.fingerprint.copyBytes().contentEquals(emitting.fingerprint.copyBytes()))
+        assertTrue(
+            NmsTestRegistries.codec.identityFingerprint(silent)
+                .contentEquals(NmsTestRegistries.codec.identityFingerprint(emitting)),
+        )
     }
 
     @Test
@@ -634,7 +661,15 @@ class NmsProjectionTest {
         generation = ProjectionGeneration(catalogRevision = 5, epoch = 8),
     )
 
-    private fun renderedDisplay(managesVanillaTooltipLines: Boolean = false): RenderedDisplay = RenderedDisplay(
+    private fun projectWith(source: ItemStack, display: RenderedDisplay): ItemStack {
+        val runtime = ProjectionRuntime(
+            projector = ItemProjector { ProjectionResult.Rendered(display) },
+            contexts = ProjectionContextSource { projectionContext() },
+        )
+        return NmsItemStackProjector(runtime, NmsTestRegistries.codec).project(source, VIEWER_ID)
+    }
+
+    private fun renderedDisplay(shown: Set<ItemKey> = emptySet()): RenderedDisplay = RenderedDisplay(
         displayName = RenderedText(
             listOf(
                 RenderedTextRun(
@@ -651,47 +686,11 @@ class NmsProjectionTest {
         ),
         tooltipStyle = ItemKey.parse("itemerness:default"),
         itemModel = ItemKey.parse("itemerness:travel_token"),
-        managesVanillaTooltipLines = managesVanillaTooltipLines,
+        shownVanillaComponents = shown,
     )
 
     private fun decode(stack: ItemStack): com.iroselle.itemerness.projection.CanonicalItemSnapshot =
-        (NmsCanonicalItemCodec().decode(stack) as CanonicalDecodeResult.Decoded).snapshot
-
-    @Test
-    fun `unmanaged tooltip components match every component read by the exact tooltip builder`() {
-        val read = dataComponentFieldsRead(ItemStack::class.java, setOf("addDetailsToTooltip", "addAttributeTooltips"))
-            .mapTo(HashSet()) { name -> DataComponents::class.java.getField(name).get(null) }
-        // LORE is replaced atomically by projection; CUSTOM_NAME is read by the name line instead.
-        val expected = NmsVanillaTooltipLines.UNMANAGED_COMPONENTS - DataComponents.CUSTOM_NAME + DataComponents.LORE
-
-        assertEquals(expected, read)
-    }
-
-    private fun dataComponentFieldsRead(type: Class<*>, methods: Set<String>): Set<String> {
-        val resource = "/${type.name.replace('.', '/')}.class"
-        val bytes = requireNotNull(type.getResourceAsStream(resource)) { "Missing class bytes: $resource" }
-            .use { stream -> stream.readAllBytes() }
-        val fields = LinkedHashSet<String>()
-        ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM9) {
-            override fun visitMethod(
-                access: Int,
-                name: String,
-                descriptor: String,
-                signature: String?,
-                exceptions: Array<out String>?,
-            ): MethodVisitor? {
-                if (name !in methods) return null
-                return object : MethodVisitor(Opcodes.ASM9) {
-                    override fun visitFieldInsn(opcode: Int, owner: String, name: String, descriptor: String) {
-                        if (opcode == Opcodes.GETSTATIC && owner == "net/minecraft/core/component/DataComponents") {
-                            fields += name
-                        }
-                    }
-                }
-            }
-        }, ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
-        return fields
-    }
+        (NmsTestRegistries.codec.decode(stack) as CanonicalDecodeResult.Decoded).snapshot
 
     private fun canonicalStack(
         count: Int = 1,
@@ -745,6 +744,18 @@ class NmsProjectionTest {
 
     private companion object {
         val VIEWER_ID: UUID = UUID.fromString("b3efd69a-ef71-4c1e-9e09-927f3d440311")
+        val UNBREAKABLE_KEY: ItemKey = ItemKey.parse("minecraft:unbreakable")
+        val ATTRIBUTE_MODIFIERS_KEY: ItemKey = ItemKey.parse("minecraft:attribute_modifiers")
+        val OWNED_TOOLTIP_COMPONENTS by lazy {
+            setOf(
+                DataComponents.ITEM_NAME,
+                DataComponents.LORE,
+                DataComponents.TOOLTIP_DISPLAY,
+                DataComponents.TOOLTIP_STYLE,
+                DataComponents.ITEM_MODEL,
+                DataComponents.CUSTOM_DATA,
+            )
+        }
 
         @JvmStatic
         @BeforeAll
@@ -757,6 +768,7 @@ class NmsProjectionTest {
             Items.STONE.builtInRegistryHolder().bindComponents(DataComponentMap.EMPTY)
             Items.ECHO_SHARD.builtInRegistryHolder().bindComponents(DataComponentMap.EMPTY)
             Items.BOOK.builtInRegistryHolder().bindComponents(DataComponentMap.EMPTY)
+            NmsTestRegistries.bindItemPrototypes()
         }
     }
 }

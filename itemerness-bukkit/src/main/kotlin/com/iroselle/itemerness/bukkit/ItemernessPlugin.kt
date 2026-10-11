@@ -25,6 +25,7 @@ import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsLoader
 import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
 import com.iroselle.itemerness.bukkit.projection.ProjectionStateStore
 import com.iroselle.itemerness.bukkit.projection.ResourcePackDeliveryNotice
+import com.iroselle.itemerness.bukkit.projection.ShownComponentNotice
 import com.iroselle.itemerness.bukkit.projection.VisibleSurfaceRefreshCoordinator
 import com.iroselle.itemerness.bukkit.projection.ViewerStatePublisher
 import com.iroselle.itemerness.bukkit.spi.BukkitCanonicalItemBridge
@@ -80,6 +81,7 @@ class ItemernessPlugin : JavaPlugin() {
                 "Initial Itemerness catalog is invalid: $diagnostics"
             }
             ResourcePackDeliveryNotice.describe(initial.active.presentation)?.let(logger::warning)
+            ShownComponentNotice.describe(initial.active.presentation, ShownComponentNotice.serverComponents())?.let(logger::warning)
             val bridge = BukkitCanonicalBridgeLoader.load(server.minecraftVersion)
             val snapshots = PlaceholderSnapshotStore()
             val projectionState = ProjectionStateStore().also { state ->

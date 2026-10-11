@@ -28,6 +28,8 @@ export const handshakeSchema = z.object({
     documentSchemas: z.array(z.number().int().positive()).max(16),
     previewSchemas: z.array(z.number().int().positive()).max(16),
     capabilities: z.array(z.string().max(128)).max(128),
+    /** Optional server data component ids, used only as editor suggestions. */
+    dataComponentTypes: z.array(z.string().max(256)).max(1024).optional(),
 });
 export type Handshake = z.infer<typeof handshakeSchema>;
 

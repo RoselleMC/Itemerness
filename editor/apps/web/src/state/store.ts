@@ -21,6 +21,7 @@ import {
     contentHash,
     emptyProjectDocument,
     type Diagnostic,
+    type ItemNode,
     type PreviewViewer,
     type ProjectDocument,
 } from "@itemerness/protocol";
@@ -81,7 +82,11 @@ interface EditorState {
     packSimulation: PackSimulation;
     /** Explicit persona override; null derives the profile from mounted, bound bytes. */
     assetProfileOverride: string | null;
-    /** Simulates the runtime capability that suppresses vanilla-generated tooltip lines. */
+    /**
+     * Simulates the runtime evidence that no hidden vanilla component prints a line. Rendered items
+     * hide every vanilla line by default, so a real server manages most items; an item that shows
+     * vanilla components is treated as unmanaged by {@link itemViewer}.
+     */
     managesVanillaTooltipLines: boolean;
     viewerLocale: string;
     themeOverride: string | null;
@@ -238,7 +243,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectedBlockUuid: null,
         packSimulation: "auto",
         assetProfileOverride: null,
-        managesVanillaTooltipLines: false,
+        managesVanillaTooltipLines: true,
         viewerLocale: initialDocument.defaultLocale,
         themeOverride: null,
         guiScale: 3,
@@ -713,7 +718,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 packs: [],
                 packSimulation: "auto",
                 assetProfileOverride: null,
-                managesVanillaTooltipLines: false,
+                managesVanillaTooltipLines: true,
                 viewerLocale: document.defaultLocale,
                 guiScale: 3,
                 zoomMode: "fit",
@@ -800,6 +805,20 @@ export function viewerOf(state: {
         managesVanillaTooltipLines: state.managesVanillaTooltipLines,
         direction: "LEFT_TO_RIGHT",
     };
+}
+
+/**
+ * The viewer an individual item is previewed with. Shown vanilla components may print lines that
+ * the server's tooltip probe attributes to them, so such an item conservatively loses managed-line
+ * ownership. Returns the same object when nothing changes, keeping memoized previews stable.
+ */
+export function itemViewer(
+    viewer: PreviewViewer,
+    shownFlags: ItemNode["presentation"]["shownFlags"],
+): PreviewViewer {
+    return viewer.managesVanillaTooltipLines && (shownFlags?.length ?? 0) > 0
+        ? { ...viewer, managesVanillaTooltipLines: false }
+        : viewer;
 }
 
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";

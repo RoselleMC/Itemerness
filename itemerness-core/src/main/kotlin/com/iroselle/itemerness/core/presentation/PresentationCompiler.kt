@@ -644,9 +644,42 @@ class PresentationCompiler(
                     "Item has ${counter.count} blocks; maximum is ${budgets.maximumBlocksPerItem}",
                 )
             }
-            val item = CompiledItemPresentation(key, source.enabled, layout, theme, source.nameMessage, blocks)
+            val shownFlags = compileShownFlags(source.shownFlags, "$path.shown-flags", diagnostics)
+            val item = CompiledItemPresentation(key, source.enabled, layout, theme, source.nameMessage, blocks, shownFlags)
             if (result.putIfAbsent(key, item) != null) {
                 diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Duplicate item presentation $key")
+            }
+        }
+        return result
+    }
+
+    /**
+     * Shown flags are data component ids. Core deliberately knows no component vocabulary beyond
+     * the projection-owned ids, so unknown components stay valid for catalogs shared across
+     * Minecraft versions; the server warns about ids its own registry does not know.
+     */
+    private fun compileShownFlags(values: List<String>, path: String, diagnostics: Diagnostics): Set<ItemKey> {
+        if (values.size > MAXIMUM_SHOWN_FLAGS) {
+            diagnostics.add(
+                PresentationDiagnosticCode.BUDGET_EXCEEDED,
+                path,
+                "Item shows ${values.size} vanilla tooltip components; maximum is $MAXIMUM_SHOWN_FLAGS",
+            )
+        }
+        val result = sortedSetOf<ItemKey>()
+        values.forEachIndexed { index, raw ->
+            val valuePath = "$path[$index]"
+            val key = parseKey(raw, valuePath, diagnostics) ?: return@forEachIndexed
+            if (key in PROJECTION_OWNED_COMPONENTS) {
+                diagnostics.add(
+                    PresentationDiagnosticCode.INVALID_VALUE,
+                    valuePath,
+                    "Component $key is owned by projection and cannot be shown",
+                )
+                return@forEachIndexed
+            }
+            if (!result.add(key)) {
+                diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, valuePath, "Duplicate shown component $key")
             }
         }
         return result
@@ -1338,6 +1371,16 @@ class PresentationCompiler(
     }
 
     private companion object {
+        const val MAXIMUM_SHOWN_FLAGS = 64
+        val PROJECTION_OWNED_COMPONENTS = setOf(
+            "minecraft:custom_data",
+            "minecraft:custom_name",
+            "minecraft:item_name",
+            "minecraft:lore",
+            "minecraft:tooltip_display",
+            "minecraft:tooltip_style",
+            "minecraft:item_model",
+        ).mapTo(HashSet(), ItemKey::parse)
         val LOCALE_PATTERN = Regex("[a-z]{2}_[a-z]{2}(?:_[a-z0-9]+)?")
         val MESSAGE_PATTERN = Regex("[a-z0-9][a-z0-9._-]*")
         val SEMANTIC_PATTERN = Regex("[a-z0-9][a-z0-9._-]*")

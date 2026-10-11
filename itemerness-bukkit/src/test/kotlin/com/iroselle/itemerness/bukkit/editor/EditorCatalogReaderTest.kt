@@ -162,6 +162,32 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `shown flags import export and verify losslessly through the YAML loaders`() {
+        fixture()
+        val items = directory.resolve("items/examples.yml")
+        Files.writeString(items, Files.readString(items).replace(
+            "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n",
+            "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n" +
+                "      shown-flags: [minecraft:enchantments, example:future_component]\n",
+        ))
+
+        val document = requireNotNull(read().raw("document"))
+        val items0 = JsonObject.of(document, "document").requiredObjects("items")
+        val token = items0.single { it.requiredString("id") == "itemerness:travel-token" }
+        assertEquals(
+            listOf("minecraft:enchantments", "example:future_component"),
+            token.requiredObject("presentation").requiredStrings("shownFlags"),
+        )
+        assertTrue(items0.filter { it !== token }.none { it.requiredObject("presentation").keys.contains("shownFlags") })
+
+        val files = export(document).requiredObjects("files").map { it.requiredString("content") }
+        val exported = files.single { it.contains("travel-token:") && it.contains("shown-flags:") }
+        assertTrue(exported.contains("- minecraft:enchantments"), exported)
+        assertTrue(exported.contains("- example:future_component"), exported)
+        assertEquals(1, files.sumOf { content -> Regex("shown-flags:").findAll(content).count() })
+    }
+
+    @Test
     fun `assumed resource-pack delivery imports exports and verifies losslessly`() {
         fixture()
         val assets = directory.resolve("assets/bitmaps.yml")

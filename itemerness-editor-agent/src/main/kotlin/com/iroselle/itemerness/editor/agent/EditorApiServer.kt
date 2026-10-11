@@ -39,6 +39,8 @@ class EditorApiServer(
         val compilerDigest: String,
         val serverName: String = serverId,
         val persistentIdentity: Boolean = false,
+        /** Data component ids registered on this server, offered to the editor as suggestions only. */
+        val dataComponentTypes: List<String> = emptyList(),
     )
 
     private val authorization = token.takeIf(String::isNotEmpty)?.let { "Bearer $it".toByteArray(Charsets.UTF_8) }
@@ -241,6 +243,7 @@ class EditorApiServer(
             "draft.read", "draft.write", "presentation.segmented-frame.decorations",
             "catalog.base-components.attributes-enchantments", "catalog.data-keys.field-constraints",
             "catalog.data-schemas.owner", "presentation.theme-selectors", "assets.resource-pack-bindings.delivery",
+            "presentation.shown-flags",
         ) +
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
@@ -248,6 +251,11 @@ class EditorApiServer(
             (if (readCatalog != null) listOf("catalog.read") else emptyList()) +
             (if (exportCatalog != null) listOf("catalog.export") else emptyList()) +
             (if (readCatalog != null && exportCatalog != null) listOf("catalog.source-layout") else emptyList())).map(::text)),
+        *listOfNotNull(
+            metadata.dataComponentTypes.takeIf { it.isNotEmpty() }?.let { types ->
+                "dataComponentTypes" to JsonValue.Arr(types.sorted().map(::text))
+            },
+        ).toTypedArray(),
     )
 
     private fun error(exchange: HttpExchange, status: Int, code: String) = respond(exchange, status, obj("code" to text(code), "serverId" to text(metadata.serverId)))

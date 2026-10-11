@@ -24,13 +24,13 @@ data class CanonicalItemSnapshot(
     val data: ProjectionCompound,
     val fingerprint: CanonicalItemFingerprint,
     /**
-     * Whether the exact-version adapter proved that replacing all vanilla tooltip detail lines is
-     * safe for this physical stack.
+     * Vanilla tooltip lines that the exact-version tooltip builder would emit for this physical
+     * stack, attributed to the data components that produce them.
      *
-     * This is deliberately false by default. Only an adapter that has inspected both the concrete
-     * item implementation and its effective data components may grant this capability.
+     * The default is blocked so that only an adapter that actually ran the exact tooltip builder
+     * can let a fixed-geometry theme take ownership of the whole tooltip.
      */
-    val canManageVanillaTooltipLines: Boolean = false,
+    val tooltipLines: TooltipLineEvidence = TooltipLineEvidence.BLOCKED,
     /**
      * Values resolved from catalog-declared, read-only PDC fallbacks by the exact-version adapter.
      * Keys are canonical data-key strings. Canonical and definition values still have precedence.
@@ -46,6 +46,57 @@ data class CanonicalItemSnapshot(
         require(instanceRevision >= 0) {
             "Canonical instance revision must not be negative"
         }
+    }
+}
+
+/**
+ * Empirical evidence about the vanilla tooltip lines of one physical stack.
+ *
+ * [blocked] is true when lines may appear that no data component controls, or when the adapter
+ * could not evaluate the exact tooltip builder; such stacks can never be managed. Otherwise
+ * [emittingComponents] lists the data component ids that would add at least one line if shown.
+ */
+class TooltipLineEvidence(
+    val blocked: Boolean,
+    emittingComponents: Collection<ItemKey> = emptyList(),
+) {
+    val emittingComponents: Set<ItemKey> = java.util.Collections.unmodifiableSet(
+        java.util.TreeSet(emittingComponents),
+    )
+
+    init {
+        require(this.emittingComponents.size <= MAX_COMPONENTS) {
+            "Tooltip line evidence must not exceed $MAX_COMPONENTS components"
+        }
+    }
+
+    /**
+     * Whether a viewer sees no vanilla tooltip line once every component outside [shown] is
+     * hidden, so the projected Name and Lore are the complete tooltip.
+     */
+    fun managedWith(shown: Set<ItemKey>): Boolean =
+        !blocked && emittingComponents.none(shown::contains)
+
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            other is TooltipLineEvidence &&
+            blocked == other.blocked &&
+            emittingComponents == other.emittingComponents
+
+    override fun hashCode(): Int = 31 * blocked.hashCode() + emittingComponents.hashCode()
+
+    override fun toString(): String =
+        "TooltipLineEvidence(blocked=$blocked, emittingComponents=$emittingComponents)"
+
+    companion object {
+        private const val MAX_COMPONENTS = 1_024
+
+        @JvmField
+        val BLOCKED: TooltipLineEvidence = TooltipLineEvidence(blocked = true)
+
+        /** Evidence for a stack whose exact tooltip builder emits no vanilla line at all. */
+        @JvmField
+        val SILENT: TooltipLineEvidence = TooltipLineEvidence(blocked = false)
     }
 }
 

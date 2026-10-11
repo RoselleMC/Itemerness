@@ -313,17 +313,18 @@ test("labels an unverified preview honestly and never claims exact structure", a
     await expect(page.getByTestId("fidelity-overall")).toHaveText(
         "Client only",
     );
+    // Rendered items hide every vanilla line by default, so the persona starts managed.
     await expect(
         page.getByTestId("fidelity-vanilla-extra-lines"),
-    ).toContainText("The client adds its own enchantment and attribute lines");
+    ).toContainText("The theme claims every tooltip line");
 
     await page.getByTestId("open-persona").click();
-    await page.getByTestId("managed-vanilla-lines-simulation").check();
+    await page.getByTestId("managed-vanilla-lines-simulation").uncheck();
     await page.getByTestId("open-persona").click();
     await page.getByTestId("fidelity-toggle").click();
     await expect(
         page.getByTestId("fidelity-vanilla-extra-lines"),
-    ).toContainText("The theme claims every tooltip line");
+    ).toContainText("The client adds its own enchantment and attribute lines");
 });
 
 test("switching the preview language redraws the tooltip", async ({ page }) => {

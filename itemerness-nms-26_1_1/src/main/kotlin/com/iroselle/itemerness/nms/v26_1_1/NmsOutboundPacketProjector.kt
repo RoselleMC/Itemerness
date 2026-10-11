@@ -11,6 +11,7 @@ import net.minecraft.core.RegistrySynchronization
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.advancements.AdvancementHolder
 import net.minecraft.core.component.DataComponentExactPredicate
+import net.minecraft.core.component.DataComponents
 import net.minecraft.core.particles.ItemParticleOption
 import net.minecraft.core.particles.ParticleOptions
 import net.minecraft.network.chat.ChatType
@@ -506,7 +507,11 @@ internal class NmsOutboundPacketProjector(
             return source
         }
 
+        // The hidden-tooltip set follows each physical stack's components, so it is presentation
+        // state rather than merchant identity; requiring it would reject matching inventory stacks
+        // that merely carry an unrelated extra component.
         val positiveComponents = projected.componentsPatch.split().added()
+            .filter { type -> type !== DataComponents.TOOLTIP_DISPLAY }
         return ItemCost(
             source.item(),
             source.count(),

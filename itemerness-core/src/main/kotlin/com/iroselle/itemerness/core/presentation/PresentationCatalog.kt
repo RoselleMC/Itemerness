@@ -214,8 +214,12 @@ class CompiledItemPresentation internal constructor(
     val theme: ItemKey,
     val nameMessage: String,
     blocks: Collection<CompiledPresentationBlock>,
+    shownFlags: Collection<ItemKey> = emptyList(),
 ) {
     val blocks: List<CompiledPresentationBlock> = java.util.List.copyOf(blocks)
+
+    /** Data component ids whose vanilla tooltip lines this item keeps visible. */
+    val shownFlags: Set<ItemKey> = java.util.Collections.unmodifiableSet(java.util.TreeSet(shownFlags))
 }
 
 sealed interface CompiledPresentationBlock {

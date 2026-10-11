@@ -23,7 +23,6 @@ import com.iroselle.itemerness.core.presentation.PresentationTextRun
 import com.iroselle.itemerness.core.presentation.PresentationViewer
 import com.iroselle.itemerness.core.presentation.ResourcePackBinding
 import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
-import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
 import com.iroselle.itemerness.projection.BooleanProjectionValue
 import com.iroselle.itemerness.projection.DecimalProjectionValue
 import com.iroselle.itemerness.projection.IntegerProjectionValue
@@ -467,6 +466,9 @@ internal class ProjectionStateStore : ProjectionContextSource,
         } catch (_: RuntimeException) {
             return ProjectionResult.Fallback(ProjectionFallbackReason.RENDERING_FAILED)
         }
+        // Shown flags come from the catalog revision and the evidence from the stack fingerprint;
+        // both are therefore already part of the render cache key.
+        val shownFlags = published.presentation.items[request.canonical.itemKey]?.shownFlags.orEmpty()
         val rendered = try {
             published.engine.render(
                 PresentationRenderRequest(
@@ -482,7 +484,7 @@ internal class ProjectionStateStore : ProjectionContextSource,
                         factRevision = viewer.revision,
                         resourcePackLoaded =
                             (viewer.fact(RESOURCE_PACK_FACT) as? BooleanProjectionValue)?.value == true,
-                    managesVanillaTooltipLines = request.canonical.canManageVanillaTooltipLines,
+                        managesVanillaTooltipLines = request.canonical.tooltipLines.managedWith(shownFlags),
                     ),
                     nestedItems = nestedItems,
                 ),
@@ -510,10 +512,7 @@ internal class ProjectionStateStore : ProjectionContextSource,
                         .singleOrNull()
                         ?.value
                         ?: definition.material,
-                    managesVanillaTooltipLines = published.presentation.themes
-                        .getValue(rendered.display.selectedTheme)
-                        .source
-                        .vanillaTooltipLines == VanillaTooltipLinePolicy.REQUIRE_MANAGED,
+                    shownVanillaComponents = shownFlags,
                 ),
             )
         }

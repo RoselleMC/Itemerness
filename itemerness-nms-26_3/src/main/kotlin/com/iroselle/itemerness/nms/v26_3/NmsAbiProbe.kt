@@ -146,6 +146,7 @@ internal object NmsAbiProbe {
             CompoundTag::class.java,
         )
         ItemLore::class.java.getConstructor(List::class.java)
+        NmsTooltipLineProbe.verifyAbi()
         Connection::class.java.getConstructor(PacketFlow::class.java)
         Connection::class.java.getField("channel")
         Connection::class.java.getMethod("getPacketListener")

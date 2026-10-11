@@ -999,6 +999,7 @@ internal class PresentationSourceLoader(
                 "nested-items",
                 "name",
                 "blocks",
+                "shown-flags",
             )
             presentation.optionalString("nested-items")?.let {
                 if (it != "recursive") {
@@ -1021,6 +1022,11 @@ internal class PresentationSourceLoader(
                     "presentation.blocks",
                 ),
                 enabled = item.requiredBoolean("enabled"),
+                shownFlags = presentation.optionalList("shown-flags").orEmpty().mapIndexed { index, value ->
+                    value as? String ?: throw StrictYamlException(
+                        "presentation.shown-flags[$index] in catalog item $itemKey must be a string",
+                    )
+                },
             )
         }
 

@@ -150,7 +150,41 @@ class EditorApiServerTest {
                     JsonValue.Text("assets.resource-pack-bindings.delivery") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("presentation.shown-flags") in handshake.requiredArray("capabilities"),
+                    version,
+                )
+                // Suggestions are optional and omitted when the server provides none.
+                assertFalse(handshake.contains("dataComponentTypes"), version)
             }
+        }
+    }
+
+    @Test
+    fun `handshake advertises server data component ids as sorted suggestions`() {
+        val workers = Executors.newFixedThreadPool(2)
+        val scheduler = object : AgentScheduler {
+            override fun execute(action: () -> Unit): Boolean { workers.execute(action); return true }
+            override fun schedule(delayMillis: Long, action: () -> Unit): AgentTask = AgentTask {}
+            override fun repeat(initialDelayMillis: Long, periodMillis: Long, action: () -> Unit): AgentTask = AgentTask {}
+        }
+        val api = EditorApiServer(
+            InetSocketAddress("127.0.0.1", 0), token, listOf("http://127.0.0.1:5173"),
+            EditorApiServer.Metadata(
+                "test", "0.1.0", "26.1.2", "Folia", "sha256:" + "0".repeat(64),
+                dataComponentTypes = listOf("minecraft:unbreakable", "minecraft:enchantments"),
+            ),
+            EditorDraftStore(directory.resolve("draft.json")) { Json.parse(it) },
+            { JsonValue.Text("compiled") }, workers, scheduler, { throw AssertionError(it) },
+        )
+        try {
+            api.start()
+            val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
+            assertEquals(listOf("minecraft:enchantments", "minecraft:unbreakable"), handshake.requiredStrings("dataComponentTypes"))
+        } finally {
+            api.close()
+            workers.shutdownNow()
+            workers.awaitTermination(5, TimeUnit.SECONDS)
         }
     }
 

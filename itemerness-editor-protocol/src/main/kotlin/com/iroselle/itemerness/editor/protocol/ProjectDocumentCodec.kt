@@ -937,7 +937,7 @@ object ProjectDocumentCodec {
         node: JsonObject, namespace: String, schemaVersion: Int, defaultLayout: String?, defaultTheme: String?,
     ): ItemPresentationSource {
         val presentation = node.requiredObject("presentation")
-        presentation.rejectUnknown("layout", "theme", "nameMessage", "blocks")
+        presentation.rejectUnknown("layout", "theme", "nameMessage", "blocks", "shownFlags")
         return ItemPresentationSource(
             id = itemKey(node, namespace, schemaVersion),
             layout = if (schemaVersion == 1) presentation.requiredString("layout") else
@@ -949,6 +949,11 @@ object ProjectDocumentCodec {
             nameMessage = presentation.requiredString("nameMessage"),
             blocks = presentation.requiredObjects("blocks").map(::block),
             enabled = node.requiredBoolean("enabled"),
+            // Values stay as authored; the presentation compiler reports invalid or duplicate ids.
+            shownFlags = presentation.optionalArray("shownFlags").orEmpty().mapIndexed { index, value ->
+                (value as? JsonValue.Text)?.value
+                    ?: throw JsonException("Expected a string at presentation.shownFlags[$index]")
+            },
         )
     }
 
