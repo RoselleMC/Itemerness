@@ -51,10 +51,11 @@ internal class NmsTooltipLineProbe(
     }
 
     private fun eligible(source: ItemStack): Boolean =
-        // Item subclasses can append arbitrary lines before ItemStack processes data components.
-        // Sanitization removes CUSTOM_NAME, but a forged name must never qualify a stack for
-        // fixed-geometry tooltip ownership.
-        source.item.javaClass == Item::class.java && !source.has(DataComponents.CUSTOM_NAME)
+        // An item class that replaces appendHoverText can append arbitrary lines before ItemStack
+        // processes data components. Subclasses that only change behaviour, such as forks that
+        // swap vanilla swords for their own class, stay eligible. Sanitization removes
+        // CUSTOM_NAME, but a forged name must never qualify a stack for fixed-geometry ownership.
+        !appendsHoverText(source.item.javaClass) && !source.has(DataComponents.CUSTOM_NAME)
 
     // Instrument and jukebox lines silently disappear without registries; never mistake that for
     // a silent stack.
@@ -214,6 +215,20 @@ internal class NmsTooltipLineProbe(
         /** Uses the running server's frozen registries; null before the server is available. */
         val SERVER: NmsTooltipLineProbe = NmsTooltipLineProbe { MinecraftServer.getServer()?.registryAccess() }
 
+        private val HOVER_TEXT_PARAMETERS = arrayOf(
+            ItemStack::class.java,
+            Item.TooltipContext::class.java,
+            TooltipDisplay::class.java,
+            Consumer::class.java,
+            TooltipFlag::class.java,
+        )
+        private val hoverTextOverrides = ConcurrentHashMap<Class<*>, Boolean>()
+
+        /** Whether an item class replaces Item.appendHoverText; bounded by the loaded item classes. */
+        internal fun appendsHoverText(type: Class<out Item>): Boolean = hoverTextOverrides.computeIfAbsent(type) { owner ->
+            owner.getMethod("appendHoverText", *HOVER_TEXT_PARAMETERS).declaringClass != Item::class.java
+        }
+
         internal fun componentKey(type: DataComponentType<*>): ItemKey? {
             val id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type) ?: return null
             return try {
@@ -232,6 +247,7 @@ internal class NmsTooltipLineProbe(
                 TooltipFlag::class.java,
                 Consumer::class.java,
             )
+            Item::class.java.getMethod("appendHoverText", *HOVER_TEXT_PARAMETERS)
             TooltipDisplay::class.java.getMethod("withHidden", DataComponentType::class.java, Boolean::class.javaPrimitiveType)
             TooltipFlag.Default::class.java.getMethod("asCreative")
             listOf("registries", "tickRate", "mapData", "isPeaceful").forEach { name ->

@@ -90,9 +90,10 @@ class NmsTooltipLineProbeTest {
     }
 
     @Test
-    fun `item subclasses forged names and missing registries block ownership`() {
-        assertTrue(Items.WRITTEN_BOOK.javaClass != Item::class.java)
-        assertEquals(TooltipLineEvidence.BLOCKED, probe.evidence(ItemStack(Items.WRITTEN_BOOK)))
+    fun `hover text overrides forged names and missing registries block ownership`() {
+        val template = Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE
+        assertTrue(NmsTooltipLineProbe.appendsHoverText(template.javaClass))
+        assertEquals(TooltipLineEvidence.BLOCKED, probe.evidence(ItemStack(template)))
         assertEquals(
             TooltipLineEvidence.BLOCKED,
             probe.evidence(ItemStack(Items.ECHO_SHARD).also { it.set(DataComponents.CUSTOM_NAME, Component.literal("forged")) }),
@@ -102,6 +103,16 @@ class NmsTooltipLineProbeTest {
         val failingRegistries = NmsTooltipLineProbe { error("server unavailable") }
         assertEquals(TooltipLineEvidence.BLOCKED, failingRegistries.evidence(ItemStack(Items.ECHO_SHARD)))
         assertNull(NmsTooltipLineProbe.SERVER.measure(ItemStack(Items.ECHO_SHARD)))
+    }
+
+    @Test
+    fun `subclasses that keep vanilla hover text are probed like plain items`() {
+        // Server forks replace vanilla item classes, such as Canvas swords, without adding hover text.
+        val bow = Items.BOW
+        assertTrue(bow.javaClass != Item::class.java)
+        assertFalse(NmsTooltipLineProbe.appendsHoverText(bow.javaClass))
+        assertFalse(NmsTooltipLineProbe.appendsHoverText(Item::class.java))
+        assertFalse(probe.evidence(ItemStack(bow)).blocked)
     }
 
     @Test
