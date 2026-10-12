@@ -27,6 +27,7 @@ describe("all content kinds", () => {
         "conditional",
         "repeat",
         "nestedItemList",
+        "group",
     ])("inserts %s as one valid undoable document change", (kind) => {
         const state = useEditorStore.getState();
         const item = state.document.items.find((entry) =>

@@ -8,6 +8,7 @@ import {
     collectDocumentMessageKeys,
     collectReferencedMessageKeys,
 } from "../common/messages.js";
+import { mapChildBlocks } from "../../state/blocks.js";
 
 export function canSetFallback(
     document: ProjectDocument,
@@ -203,11 +204,8 @@ export function renameMessage(
                         },
                     };
                 case "conditional":
-                    return {
-                        ...block,
-                        thenBlocks: blocks(block.thenBlocks),
-                        otherwiseBlocks: blocks(block.otherwiseBlocks),
-                    };
+                case "group":
+                    return mapChildBlocks(block, blocks);
                 default:
                     return block;
             }

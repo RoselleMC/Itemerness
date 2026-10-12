@@ -497,7 +497,7 @@
             "canvas": "fixed canvas"
         },
         "content": {
-            "ancestors": "Parent conditions",
+            "ancestors": "Parent containers",
             "style": "Style",
             "wrapping": "Wrapping",
             "heading": "Content",
@@ -531,7 +531,47 @@
             "formatLabel": "Format",
             "factGroup": "Player facts",
             "dataGroup": "Item data",
-            "literal": "Literal value"
+            "literal": "Literal value",
+            "group": "Group",
+            "addGroup": "Group",
+            "groupChildren": "Group contents",
+            "groupHeader": "Header",
+            "groupOptions": "More group options",
+            "moreOptions": "More options",
+            "marker": "Marker",
+            "markers": {
+                "NONE": "None",
+                "BULLET": "Bullets",
+                "TREE": "Tree"
+            },
+            "dividers": "Dividers",
+            "dividerOptions": {
+                "NONE": "None",
+                "BETWEEN_CHILDREN": "Between rows"
+            },
+            "whenHeaderMissing": "Header without data",
+            "headerMissingOptions": {
+                "HIDE": "Hide the group",
+                "SHOW_CHILDREN": "Show the contents"
+            },
+            "whenEmpty": "No contents shown",
+            "emptyOptions": {
+                "SHOW_HEADER": "Show the header",
+                "HIDE": "Hide the group"
+            },
+            "gapBeforeLines": "Empty lines before",
+            "gapBeforeLinesRange": "Use a whole number from 0 to {{maximum}}.",
+            "putInGroup": "Put in new group",
+            "ungroup": "Ungroup",
+            "selectGroup": "Select group",
+            "separator": "Separator",
+            "separatorText": "Separator text",
+            "separatorOptions": {
+                "inherit": "Layout default",
+                "colon": "Colon",
+                "none": "None",
+                "message": "Custom text…"
+            }
         },
         "advanced": {
             "sourceFile": "Source file",
@@ -543,7 +583,9 @@
             "nameKey": "Name message key",
             "mode": "Instance mode",
             "deleteItem": "Delete this item",
-            "deleteConfirm": "Delete “{{name}}”?"
+            "deleteConfirm": "Delete “{{name}}”?",
+            "rootMarker": "Top-level marker",
+            "rootDividers": "Top-level dividers"
         },
         "none": "None",
         "theme": {
@@ -563,7 +605,20 @@
             "canvas": "Canvas",
             "canvasSize": "Size",
             "reserveLines": "Reserved lines",
-            "layers": "Layers"
+            "layers": "Layers",
+            "markers": "Group markers",
+            "markerStyle": "Marker style",
+            "markerStyleDefault": "Default (labels)",
+            "markerDefault": "Default “{{text}}”",
+            "markerText": "Text",
+            "markerGlyph": "Glyph",
+            "markerTextRange": "Use 1 to 32 characters.",
+            "markerPieces": {
+                "bullet": "Bullet",
+                "branch": "Tree branch",
+                "last": "Last tree branch",
+                "vertical": "Tree continuation"
+            }
         },
         "roles": {
             "item-name": "Item name",
@@ -596,7 +651,8 @@
             "maxLines": "Max lines",
             "overflow": "When too long",
             "anchors": "Anchors",
-            "canvasHint": "Canvas geometry is defined by the theme's layer assets; edit sizes in the document."
+            "canvasHint": "Canvas geometry is defined by the theme's layer assets; edit sizes in the document.",
+            "fieldOptions": "More stat row options"
         },
         "overflow": {
             "ELLIPSIS": "Ellipsis …",
@@ -1234,6 +1290,7 @@
             "THEME_SELECTORS_UNSUPPORTED": "Upgrade the connected plugin to use theme selectors. The document has been preserved.",
             "RESOURCE_PACK_DELIVERY_UNSUPPORTED": "Upgrade the connected plugin to choose how a resource pack is delivered. The document has been preserved.",
             "SHOWN_FLAGS_UNSUPPORTED": "Upgrade the connected plugin to show vanilla tooltip components. The document has been preserved.",
+            "GROUPS_UNSUPPORTED": "Upgrade the connected plugin to use groups, markers, or field separators. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

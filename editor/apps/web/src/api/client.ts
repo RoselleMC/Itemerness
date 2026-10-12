@@ -20,6 +20,8 @@ import {
     usesResourcePackDelivery,
     supportsShownFlags,
     usesShownFlags,
+    supportsGroups,
+    usesGroups,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -350,6 +352,8 @@ export class PluginClient {
             throw new Error("RESOURCE_PACK_DELIVERY_UNSUPPORTED");
         if (usesShownFlags(document) && !supportsShownFlags(this.capabilities))
             throw new Error("SHOWN_FLAGS_UNSUPPORTED");
+        if (usesGroups(document) && !supportsGroups(this.capabilities))
+            throw new Error("GROUPS_UNSUPPORTED");
     }
 
     private async json(

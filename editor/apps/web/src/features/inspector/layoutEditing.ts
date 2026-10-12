@@ -6,6 +6,7 @@ import type {
     ProjectDocument,
     Wrapping,
 } from "@itemerness/protocol";
+import { mapChildBlocks } from "../../state/blocks.js";
 
 export type CanvasLayout = Extract<LayoutNode, { kind: "canvas" }>;
 export type LayoutEntryKind = "wrapping" | "anchors";
@@ -88,13 +89,9 @@ function walkBlocks(
 ): PresentationBlock[] {
     return blocks.map((block) =>
         visit(
-            block.type === "conditional"
-                ? {
-                      ...block,
-                      thenBlocks: walkBlocks(block.thenBlocks, visit),
-                      otherwiseBlocks: walkBlocks(block.otherwiseBlocks, visit),
-                  }
-                : block,
+            mapChildBlocks(block, (children) =>
+                walkBlocks([...children], visit),
+            ),
         ),
     );
 }
@@ -102,6 +99,7 @@ function walkBlocks(
 function usesDefault(block: PresentationBlock) {
     return (
         block.type !== "conditional" &&
+        block.type !== "group" &&
         (!("wrapping" in block) || block.wrapping === null)
     );
 }

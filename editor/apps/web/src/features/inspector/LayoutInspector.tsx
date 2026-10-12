@@ -9,6 +9,7 @@ import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
 import { LayoutNumber } from "./LayoutFields.js";
 import { LayoutWrapping } from "./LayoutWrapping.js";
 import { LayoutCanvas } from "./LayoutCanvas.js";
+import { SeparatorField } from "./GroupFields.js";
 import "./layoutInspector.css";
 
 export function LayoutInspector({
@@ -197,6 +198,41 @@ export function LayoutInspector({
                                         patch({ fieldIconGapPixels })
                                     }
                                 />
+                                <details className="advanced">
+                                    <summary>
+                                        {t("inspector.layout.fieldOptions")}
+                                    </summary>
+                                    <SeparatorField
+                                        value={layout.fieldSeparator}
+                                        inheritable={false}
+                                        testId="layout-field-separator"
+                                        apply={(document, separator) => ({
+                                            ...document,
+                                            layouts: document.layouts.map(
+                                                (entry) => {
+                                                    if (
+                                                        entry.uuid !==
+                                                            layout.uuid ||
+                                                        entry.kind !== "flow"
+                                                    )
+                                                        return entry;
+                                                    const {
+                                                        fieldSeparator:
+                                                            _previous,
+                                                        ...rest
+                                                    } = entry;
+                                                    return separator
+                                                        ? {
+                                                              ...rest,
+                                                              fieldSeparator:
+                                                                  separator,
+                                                          }
+                                                        : rest;
+                                                },
+                                            ),
+                                        })}
+                                    />
+                                </details>
                             </section>
                             <section>
                                 <h3>{t("inspector.layout.description")}</h3>

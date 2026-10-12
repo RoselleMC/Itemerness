@@ -13,6 +13,8 @@ import {
     insertBlockTree,
     locateBlock,
     moveBlockTree,
+    ungroupBlock,
+    wrapBlockInGroup,
     type ContentInsertionTarget,
 } from "./blocks.js";
 
@@ -90,7 +92,7 @@ export function insertContent(
             ? anchor === "__name" ||
               locateBlock(item.presentation.blocks, anchor)
             : locateBlock(item.presentation.blocks, anchor.parentUuid)?.block
-                  .type === "conditional";
+                  .type === (anchor.branch === "children" ? "group" : "conditional");
     if (!target) return;
     const uuid = crypto.randomUUID(),
         message = `item.text.${uuid}`;
@@ -159,6 +161,17 @@ export function insertContent(
                 }
               : kind === "nestedItemList"
                 ? { uuid, type: "nestedItemList", style: null, anchor: null }
+                : kind === "group"
+                  ? // A new group starts empty and header-less; the tree marker is
+                    // what makes it a group at a glance once content is added.
+                    {
+                        uuid,
+                        type: "group",
+                        children: [],
+                        marker: "TREE",
+                        style: null,
+                        anchor: null,
+                    }
                 : kind === "field"
                   ? {
                         uuid,
@@ -210,7 +223,7 @@ export function insertContent(
                       }
                     : text;
     const messages: Record<string, string> =
-        kind === "text" || kind === "nestedItemList"
+        kind === "text" || kind === "nestedItemList" || kind === "group"
             ? {}
             : kind === "repeat"
               ? {
@@ -320,6 +333,10 @@ export function duplicateSelectedContent() {
             block.thenBlocks = block.thenBlocks.map(clone);
             block.otherwiseBlocks = block.otherwiseBlocks.map(clone);
         }
+        if (block.type === "group") {
+            if (block.header) block.header = clone(block.header);
+            block.children = block.children.map(clone);
+        }
         return block;
     };
     const block = clone(location.block);
@@ -356,5 +373,143 @@ export function duplicateSelectedContent() {
         ),
     }));
     state.selectBlock(block.uuid);
+    state.commitTransaction(transaction);
+}
+
+/** Wraps one content block in a new tree group at the same position, as one undo step. */
+export function wrapContentInGroup(uuid: string) {
+    const state = useEditorStore.getState();
+    const item = state.document.items.find(
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
+    );
+    if (!item || !canWrapInGroup(item, uuid)) return;
+    const group = crypto.randomUUID();
+    state.setEditGroup(null);
+    state.updateItem(item.uuid, (current) => ({
+        ...current,
+        presentation: {
+            ...current.presentation,
+            blocks: wrapBlockInGroup(current.presentation.blocks, uuid, {
+                uuid: group,
+                type: "group",
+                marker: "TREE",
+                style: null,
+                anchor: null,
+            }),
+        },
+    }));
+    state.selectBlock(group);
+}
+
+/** A header is a single-row slot of its group and is never wrapped on its own. */
+export function canWrapInGroup(item: ItemNode, uuid: string): boolean {
+    const location = locateBlock(item.presentation.blocks, uuid);
+    const parent = location?.ancestors.at(-1);
+    return (
+        !!location &&
+        !(parent?.type === "group" && parent.header?.uuid === uuid)
+    );
+}
+
+/** Replaces a group with its header and children in place, as one undo step. */
+export function ungroupContent(uuid: string) {
+    const state = useEditorStore.getState();
+    const item = state.document.items.find(
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
+    );
+    const group = item
+        ? locateBlock(item.presentation.blocks, uuid)?.block
+        : undefined;
+    if (!item || group?.type !== "group") return;
+    state.setEditGroup(null);
+    state.updateItem(item.uuid, (current) => ({
+        ...current,
+        presentation: {
+            ...current.presentation,
+            blocks: ungroupBlock(current.presentation.blocks, uuid),
+        },
+    }));
+    state.selectBlock(group.header?.uuid ?? group.children[0]?.uuid ?? null);
+}
+
+/** Adds a single-row header (stat row or data value) to a group, or removes it. */
+export function setGroupHeader(
+    groupUuid: string,
+    kind: "field" | "text" | null,
+) {
+    const state = useEditorStore.getState();
+    const item = state.document.items.find(
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
+    );
+    if (!item) return;
+    const dataKey = contentSources(state.document, item).keys[0]?.id;
+    if (kind && !dataKey) return;
+    const uuid = crypto.randomUUID(),
+        message = `item.text.${uuid}`;
+    const header: PresentationBlock | undefined =
+        kind === "field"
+            ? {
+                  uuid,
+                  type: "field",
+                  labelMessage: message,
+                  data: dataKey!,
+                  format: null,
+                  icon: null,
+                  style: null,
+                  anchor: null,
+                  wrapping: null,
+                  missingPolicy: "OMIT",
+              }
+            : kind === "text"
+              ? {
+                    uuid,
+                    type: "text",
+                    data: dataKey!,
+                    style: null,
+                    anchor: null,
+                    wrapping: null,
+                    unbreakable: false,
+                    missingPolicy: "OMIT",
+                }
+              : undefined;
+    const transaction = state.beginTransaction();
+    state.updateDocument((document) => ({
+        ...document,
+        locales:
+            kind === "field"
+                ? document.locales.map((locale) =>
+                      locale.locale === document.defaultLocale
+                          ? {
+                                ...locale,
+                                messages: {
+                                    ...locale.messages,
+                                    [message]: humanizePath(
+                                        dataKey!.split(":").pop()!,
+                                    ),
+                                },
+                            }
+                          : locale,
+                  )
+                : document.locales,
+        items: document.items.map((entry) =>
+            entry.uuid === item.uuid
+                ? {
+                      ...entry,
+                      presentation: {
+                          ...entry.presentation,
+                          blocks: editBlockTree(
+                              entry.presentation.blocks,
+                              groupUuid,
+                              (block) => {
+                                  if (block.type !== "group") return block;
+                                  const { header: _previous, ...rest } = block;
+                                  return header ? { ...rest, header } : rest;
+                              },
+                          ),
+                      },
+                  }
+                : entry,
+        ),
+    }));
     state.commitTransaction(transaction);
 }

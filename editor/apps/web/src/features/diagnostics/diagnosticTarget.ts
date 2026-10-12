@@ -58,6 +58,25 @@ function locations(document: ProjectDocument): Location[] {
                         currentPaths.map((path) => `${path}.otherwise`),
                     );
                 }
+                if (block.type === "group") {
+                    if (block.header)
+                        entries.push({
+                            uuid: block.header.uuid,
+                            businessId: id,
+                            pointer: `${currentPointer}/header`,
+                            paths: currentPaths.map((path) => `${path}.header`),
+                            target: {
+                                kind: "item",
+                                id,
+                                blockUuid: block.header.uuid,
+                            },
+                        });
+                    visit(
+                        block.children,
+                        `${currentPointer}/children`,
+                        currentPaths.map((path) => `${path}.children`),
+                    );
+                }
             });
         };
         visit(

@@ -19,6 +19,7 @@ import {
 } from "@itemerness/protocol";
 import { isMinecraftClientVersion } from "@itemerness/mc-assets";
 import { freshNamespacedId } from "./freshId.js";
+import { mapChildBlocks } from "./blocks.js";
 
 export type AssetKind =
     | "fonts"
@@ -397,16 +398,9 @@ function visitBlocks(
 ): PresentationBlock[] {
     return blocks.map((block) =>
         visit(
-            block.type === "conditional"
-                ? {
-                      ...block,
-                      thenBlocks: visitBlocks(block.thenBlocks, visit),
-                      otherwiseBlocks: visitBlocks(
-                          block.otherwiseBlocks,
-                          visit,
-                      ),
-                  }
-                : block,
+            mapChildBlocks(block, (children) =>
+                visitBlocks([...children], visit),
+            ),
         ),
     );
 }

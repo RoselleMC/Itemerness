@@ -9,7 +9,7 @@ import {
 import { createPortal } from "react-dom";
 import type { PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
-import { locateBlock, moveBlockTree } from "../../state/blocks.js";
+import { childBlocks, locateBlock, moveBlockTree } from "../../state/blocks.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
 
 interface Ghost {
@@ -48,10 +48,7 @@ export function useCanvasReorder(
             for (const block of blocks) {
                 const path = [block.uuid, ...parents];
                 ancestry.set(block.uuid, path);
-                if (block.type === "conditional") {
-                    visit(block.thenBlocks, path);
-                    visit(block.otherwiseBlocks, path);
-                }
+                visit(childBlocks(block), path);
             }
         };
         visit(item.presentation.blocks);

@@ -8,6 +8,7 @@ import {
     type ProjectDocument,
 } from "@itemerness/protocol";
 import { freshNamespacedId as freshId } from "./freshId.js";
+import { childBlocks, mapChildBlocks } from "./blocks.js";
 
 export function newDataSchema(
     document: ProjectDocument,
@@ -89,9 +90,11 @@ function blockReferencesKey(block: PresentationBlock, id: string): boolean {
             [block.condition.left, block.condition.right].some(
                 (value) => value?.kind === "data" && value.key === id,
             ) ||
-            [...block.thenBlocks, ...block.otherwiseBlocks].some((child) =>
-                blockReferencesKey(child, id),
-            )
+            childBlocks(block).some((child) => blockReferencesKey(child, id))
+        );
+    if (block.type === "group")
+        return childBlocks(block).some((child) =>
+            blockReferencesKey(child, id),
         );
     return "data" in block && block.data === id;
 }
@@ -183,6 +186,10 @@ function renameBlockKey(
             ),
         };
     }
+    if (block.type === "group")
+        return mapChildBlocks(block, (children) =>
+            children.map((child) => renameBlockKey(child, before, after)),
+        );
     return "data" in block && block.data === before
         ? { ...block, data: after }
         : block;

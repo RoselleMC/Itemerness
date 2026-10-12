@@ -115,7 +115,7 @@ export function ContentMenu({
 
     const branchName = (branch: ContentBranch) =>
         t(
-            `inspector.content.${branch === "thenBlocks" ? "then" : "otherwise"}`,
+            `inspector.content.${branch === "thenBlocks" ? "then" : branch === "otherwiseBlocks" ? "otherwise" : "groupChildren"}`,
         );
     const insertionTarget = branchTarget ?? anchorUuid;
     const additions = insertionTarget
@@ -135,7 +135,7 @@ export function ContentMenu({
             const label = key
                 ? resolveMessage(state.document, state.viewerLocale, key).text
                 : t(
-                      `inspector.content.${block.type === "conditional" ? "conditional" : block.type === "repeat" ? "repeat" : block.type === "text" ? "value" : "nested"}`,
+                      `inspector.content.${block.type === "conditional" ? "conditional" : block.type === "repeat" ? "repeat" : block.type === "text" ? "value" : block.type === "group" ? "group" : "nested"}`,
                   );
             return (
                 <div key={block.uuid}>
@@ -164,6 +164,39 @@ export function ContentMenu({
                     >
                         {label}
                     </button>
+                    {block.type === "group" && (
+                        <div>
+                            {block.header &&
+                                outline([block.header], depth + 1)}
+                            <button
+                                type="button"
+                                role="menuitem"
+                                className="content-outline-row"
+                                style={{
+                                    paddingLeft:
+                                        10 + Math.min(depth + 1, 4) * 12,
+                                }}
+                                aria-label={t(
+                                    "inspector.content.addToBranch",
+                                    { branch: branchName("children") },
+                                )}
+                                data-testid={`add-branch-${block.uuid}-children`}
+                                onClick={() =>
+                                    setBranchTarget({
+                                        parentUuid: block.uuid,
+                                        branch: "children",
+                                    })
+                                }
+                            >
+                                <Plus size={14} />
+                                {branchName("children")}
+                                <span className="dim small">
+                                    {block.children.length}
+                                </span>
+                            </button>
+                            {outline(block.children, depth + 2)}
+                        </div>
+                    )}
                     {block.type === "conditional" &&
                         (["thenBlocks", "otherwiseBlocks"] as const).map(
                             (branch) => (

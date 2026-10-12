@@ -8,6 +8,7 @@ import {
     type ViewerFactNode,
 } from "@itemerness/protocol";
 import { freshNamespacedId } from "./freshId.js";
+import { childBlocks, mapChildBlocks } from "./blocks.js";
 
 export type PresentationLibraryKind = "formats" | "facts";
 
@@ -89,13 +90,9 @@ function mapBlocks(
 ): PresentationBlock[] {
     return blocks.map((block) =>
         visit(
-            block.type === "conditional"
-                ? {
-                      ...block,
-                      thenBlocks: mapBlocks(block.thenBlocks, visit),
-                      otherwiseBlocks: mapBlocks(block.otherwiseBlocks, visit),
-                  }
-                : block,
+            mapChildBlocks(block, (children) =>
+                mapBlocks([...children], visit),
+            ),
         ),
     );
 }
@@ -140,10 +137,14 @@ function blockUses(
             )
         )
             return true;
-        return [...block.thenBlocks, ...block.otherwiseBlocks].some((child) =>
+        return childBlocks(block).some((child) =>
             blockUses(document, child, kind, id),
         );
     }
+    if (block.type === "group")
+        return childBlocks(block).some((child) =>
+            blockUses(document, child, kind, id),
+        );
     const format =
         block.type === "field"
             ? block.format

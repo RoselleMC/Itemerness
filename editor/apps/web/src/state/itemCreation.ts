@@ -62,6 +62,10 @@ export function copyItemDocument(
             next.thenBlocks = next.thenBlocks.map(clone);
             next.otherwiseBlocks = next.otherwiseBlocks.map(clone);
         }
+        if (next.type === "group") {
+            if (next.header) next.header = clone(next.header);
+            next.children = next.children.map(clone);
+        }
         return next;
     };
     const nameKey = options.separateName

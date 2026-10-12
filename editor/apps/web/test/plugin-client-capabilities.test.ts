@@ -7,6 +7,7 @@ import {
     THEME_SELECTORS_CAPABILITY,
     RESOURCE_PACK_DELIVERY_CAPABILITY,
     SHOWN_FLAGS_CAPABILITY,
+    GROUPS_CAPABILITY,
     type ProjectDocument,
     type PreviewRequest,
 } from "@itemerness/protocol";
@@ -305,6 +306,74 @@ describe.each(operations)("%s document capability gate", (operation) => {
             expect(negotiated.info.dataComponentTypes).toEqual([
                 "minecraft:enchantments",
             ]);
+            await send(current, operation, document);
+            expect(JSON.parse(fetch.mock.calls[2]![1].body).document).toEqual(
+                document,
+            );
+            expect(contentHash(document)).toBe(hash);
+        },
+    );
+
+    it.each([
+        "group",
+        "rootMarker",
+        "separator",
+        "layoutSeparator",
+        "markers",
+    ] as const)(
+        "gates %s by the presentation.groups capability",
+        async (feature) => {
+            const document = structuredClone(baselineDocument);
+            const item = document.items[0]!;
+            if (feature === "group")
+                item.presentation.blocks.push({
+                    uuid: "00000000-0000-4000-8000-0000000000aa",
+                    type: "group",
+                    children: [],
+                    marker: "TREE",
+                    style: null,
+                    anchor: null,
+                });
+            if (feature === "rootMarker") item.presentation.dividers = "NONE";
+            if (feature === "separator") {
+                const field = item.presentation.blocks.find(
+                    (block) => block.type === "field",
+                )!;
+                if (field.type === "field") field.separator = { kind: "none" };
+            }
+            if (feature === "layoutSeparator") {
+                const layout = document.layouts.find(
+                    (entry) => entry.kind === "flow",
+                )!;
+                if (layout.kind === "flow")
+                    layout.fieldSeparator = { kind: "none" };
+            }
+            if (feature === "markers")
+                document.themes[0]!.markers = {
+                    bullet: { kind: "text", text: "* " },
+                };
+            const hash = contentHash(document);
+            const fetch = vi.fn().mockResolvedValueOnce(response(handshake));
+            vi.stubGlobal("fetch", fetch);
+            const old = new PluginClient("http://example.test", "");
+            await old.handshake();
+            await expect(send(old, operation, document)).rejects.toThrow(
+                "GROUPS_UNSUPPORTED",
+            );
+            expect(fetch).toHaveBeenCalledTimes(1);
+            fetch
+                .mockResolvedValueOnce(
+                    response({
+                        ...handshake,
+                        capabilities: [
+                            ...handshake.capabilities,
+                            GROUPS_CAPABILITY,
+                        ],
+                    }),
+                )
+                .mockResolvedValueOnce(response(reply(operation, document)));
+            const current = new PluginClient("http://example.test", "");
+            await current.handshake();
             await send(current, operation, document);
             expect(JSON.parse(fetch.mock.calls[2]![1].body).document).toEqual(
                 document,

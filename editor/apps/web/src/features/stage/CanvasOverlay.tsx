@@ -21,8 +21,12 @@ import { useEditorStore } from "../../state/store.js";
 import { resolveMessage } from "../common/messages.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
 import { ContentMenu } from "./ContentMenu.js";
-import { locateBlock } from "../../state/blocks.js";
-import { moveBlockTree } from "../../state/blocks.js";
+import {
+    childBlocks,
+    groupOfHeader,
+    locateBlock,
+    moveBlockTree,
+} from "../../state/blocks.js";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { useCanvasReorder } from "./useCanvasReorder.js";
 import { describeContext } from "../../state/interface.js";
@@ -69,13 +73,8 @@ function findBlock(
 ): PresentationBlock | undefined {
     for (const block of blocks) {
         if (block.uuid === uuid) return block;
-        if (block.type === "conditional") {
-            const nested = findBlock(
-                [...block.thenBlocks, ...block.otherwiseBlocks],
-                uuid,
-            );
-            if (nested) return nested;
-        }
+        const nested = findBlock(childBlocks(block), uuid);
+        if (nested) return nested;
     }
     return undefined;
 }
@@ -271,7 +270,11 @@ export function CanvasOverlay({
                                             store.selectedBlockUuid,
                                     )
                                     ? store.selectedBlockUuid
-                                    : origin,
+                                    : // A header is its group's title row: dragging it moves the group.
+                                      (groupOfHeader(
+                                          item.presentation.blocks,
+                                          origin,
+                                      )?.uuid ?? origin),
                             )
                         }
                         onClick={() => {

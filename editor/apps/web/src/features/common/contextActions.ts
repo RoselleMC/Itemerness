@@ -17,6 +17,9 @@ import {
     Braces,
     Repeat2,
     Package,
+    Group,
+    Ungroup,
+    SquareMousePointer,
 } from "lucide-react";
 import type { ItemNode, PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
@@ -31,9 +34,13 @@ import {
     moveSelectedContent,
     insertContent,
     canInsertContent,
+    canWrapInGroup,
+    ungroupContent,
+    wrapContentInGroup,
     type ContentKind,
 } from "../../state/contentActions.js";
 import {
+    childBlocks,
     locateBlock,
     type ContentInsertionTarget,
 } from "../../state/blocks.js";
@@ -169,6 +176,12 @@ export function insertActions(
             disabled: !available("nestedItemList"),
             run: () => add("nestedItemList"),
         },
+        {
+            id: "add-group",
+            label: t("inspector.content.addGroup"),
+            icon: Group,
+            run: () => add("group"),
+        },
     ];
 }
 export function contentActions(uuid: string, t: TFunction): MenuAction[] {
@@ -178,6 +191,10 @@ export function contentActions(uuid: string, t: TFunction): MenuAction[] {
     );
     const found = item ? locateBlock(item.presentation.blocks, uuid) : null;
     const select = () => state.selectBlock(uuid);
+    // The innermost group containing this row; conditionals are transparent to it.
+    const parentGroup = found?.ancestors.findLast(
+        (ancestor) => ancestor.type === "group",
+    );
     return [
         {
             id: "edit-content",
@@ -205,6 +222,22 @@ export function contentActions(uuid: string, t: TFunction): MenuAction[] {
             icon: ArrowDownToLine,
             children: insertActions(uuid, "after", t),
         },
+        ...(found?.block.type === "group"
+            ? [
+                  {
+                      id: "insert-children",
+                      label: t("inspector.content.addToBranch", {
+                          branch: t("inspector.content.groupChildren"),
+                      }),
+                      icon: Group,
+                      children: insertActions(
+                          { parentUuid: uuid, branch: "children" },
+                          "after",
+                          t,
+                      ),
+                  },
+              ]
+            : []),
         ...(found?.block.type === "conditional"
             ? (["thenBlocks", "otherwiseBlocks"] as const).map((branch) => ({
                   id: `insert-${branch}`,
@@ -244,6 +277,38 @@ export function contentActions(uuid: string, t: TFunction): MenuAction[] {
                           moveSelectedContent(1);
                       },
                   },
+                  ...(parentGroup
+                      ? [
+                            {
+                                id: "select-group",
+                                label: t("inspector.content.selectGroup"),
+                                icon: SquareMousePointer,
+                                separator: true,
+                                run: () => state.selectBlock(parentGroup.uuid),
+                            },
+                        ]
+                      : []),
+                  ...(item && canWrapInGroup(item, uuid)
+                      ? [
+                            {
+                                id: "put-in-group",
+                                label: t("inspector.content.putInGroup"),
+                                icon: Group,
+                                separator: !parentGroup,
+                                run: () => wrapContentInGroup(uuid),
+                            },
+                        ]
+                      : []),
+                  ...(found.block.type === "group"
+                      ? [
+                            {
+                                id: "ungroup",
+                                label: t("inspector.content.ungroup"),
+                                icon: Ungroup,
+                                run: () => ungroupContent(uuid),
+                            },
+                        ]
+                      : []),
                   {
                       id: "duplicate-content",
                       label: t("history.duplicate"),
@@ -294,11 +359,10 @@ export function blockUses(block: PresentationBlock, key: string): boolean {
         return (
             [block.condition.left, block.condition.right].some(
                 (value) => value?.kind === "data" && value.key === key,
-            ) ||
-            [...block.thenBlocks, ...block.otherwiseBlocks].some((child) =>
-                blockUses(child, key),
-            )
+            ) || childBlocks(block).some((child) => blockUses(child, key))
         );
+    if (block.type === "group")
+        return childBlocks(block).some((child) => blockUses(child, key));
     return "data" in block && block.data === key;
 }
 export function newItemAction(t: TFunction): MenuAction {

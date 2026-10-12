@@ -1,4 +1,5 @@
 import type { PresentationBlock, ProjectDocument } from "@itemerness/protocol";
+import { childBlocks } from "../../state/blocks.js";
 
 /** Declared messages plus every static message reference checked by the production compiler. */
 export function collectDocumentMessageKeys(
@@ -23,6 +24,8 @@ export function collectReferencedMessageKeys(
             switch (block.type) {
                 case "field":
                     keys.add(block.labelMessage);
+                    if (block.separator?.kind === "message")
+                        keys.add(block.separator.message);
                     break;
                 case "description":
                     keys.add(block.message);
@@ -30,10 +33,12 @@ export function collectReferencedMessageKeys(
                 case "repeat":
                     keys.add(block.template.labelMessage);
                     keys.add(block.template.missingMessage);
+                    if (block.template.separator?.kind === "message")
+                        keys.add(block.template.separator.message);
                     break;
                 case "conditional":
-                    collectBlocks(block.thenBlocks);
-                    collectBlocks(block.otherwiseBlocks);
+                case "group":
+                    collectBlocks(childBlocks(block));
                     break;
             }
         }
@@ -42,6 +47,9 @@ export function collectReferencedMessageKeys(
         keys.add(item.presentation.nameMessage);
         collectBlocks(item.presentation.blocks);
     }
+    for (const layout of document.layouts)
+        if (layout.kind === "flow" && layout.fieldSeparator?.kind === "message")
+            keys.add(layout.fieldSeparator.message);
     for (const format of document.formats) {
         switch (format.kind) {
             case "decimal":

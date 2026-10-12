@@ -8,6 +8,7 @@ import {
     type ProjectDocument,
 } from "@itemerness/protocol";
 import { itemDataKeys } from "../common/typedValues.js";
+import { childBlocks } from "../../state/blocks.js";
 
 export type ItemDefinition = ItemNode["definition"];
 export type Generator = ItemDefinition["instance"]["generators"][number];
@@ -141,9 +142,8 @@ export function definitionReferenceIssues(
                 [block.condition.left, block.condition.right].forEach((ref) => {
                     if (ref?.kind === "data") check(ref.key, undefined, true);
                 });
-                visit(block.thenBlocks);
-                visit(block.otherwiseBlocks);
             }
+            visit(childBlocks(block));
         });
     visit(item.presentation.blocks);
     return [

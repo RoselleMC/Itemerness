@@ -1,10 +1,11 @@
 import { itemKey, itemLayout, itemTheme } from "@itemerness/protocol";
 import { type ReactNode, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2, GitBranch, Copy, Plus, RotateCcw } from "lucide-react";
+import { Trash2, GitBranch, Copy, Plus, RotateCcw, Group } from "lucide-react";
 import { duplicateSelectedContent } from "../../state/contentActions.js";
 import type {
     DataValue,
+    FieldSeparator,
     ItemNode,
     PresentationBlock,
     ProjectDocument,
@@ -24,6 +25,7 @@ import { DataValueEditor } from "../common/DataValueEditor.js";
 import { BufferedInput } from "../common/BufferedInput.js";
 import { ItemDefinitionEditor } from "./ItemDefinitionEditor.js";
 import { ShownFlagsEditor } from "./ShownFlagsEditor.js";
+import { GroupFields, RootGroupFields, SeparatorField } from "./GroupFields.js";
 import { itemIdIssue, renameItem } from "../../state/itemIdentity.js";
 import {
     representativeTheme,
@@ -167,8 +169,16 @@ export function ItemInspector({
                                 }}
                                 data-testid={`select-parent-${ancestor.uuid}`}
                             >
-                                <GitBranch size={14} />
-                                {t("inspector.content.conditional")}
+                                {ancestor.type === "group" ? (
+                                    <Group size={14} />
+                                ) : (
+                                    <GitBranch size={14} />
+                                )}
+                                {t(
+                                    ancestor.type === "group"
+                                        ? "inspector.content.group"
+                                        : "inspector.content.conditional",
+                                )}
                             </button>
                         ))}
                     </nav>
@@ -187,31 +197,34 @@ export function ItemInspector({
                     />
                 </ol>
                 <section className="content-presentation">
-                    <label className="field-inline">
-                        {t("inspector.content.style")}
-                        <SelectField
-                            label={t("inspector.content.style")}
-                            value={block.style ?? ""}
-                            onValueChange={(value) =>
-                                replace({
-                                    ...block,
-                                    style: value || null,
-                                })
-                            }
-                            options={[
-                                { value: "", label: t("inspector.none") },
-                                ...Object.keys(
-                                    representativeTheme(
-                                        doc,
-                                        itemTheme(doc, item),
-                                    )?.styles ?? {},
-                                ).map((style) => ({
-                                    value: style,
-                                    label: humanizePath(style),
-                                })),
-                            ]}
-                        />
-                    </label>
+                    {/* A group emits no text of its own, so a style would have no effect. */}
+                    {block.type !== "group" && (
+                        <label className="field-inline">
+                            {t("inspector.content.style")}
+                            <SelectField
+                                label={t("inspector.content.style")}
+                                value={block.style ?? ""}
+                                onValueChange={(value) =>
+                                    replace({
+                                        ...block,
+                                        style: value || null,
+                                    })
+                                }
+                                options={[
+                                    { value: "", label: t("inspector.none") },
+                                    ...Object.keys(
+                                        representativeTheme(
+                                            doc,
+                                            itemTheme(doc, item),
+                                        )?.styles ?? {},
+                                    ).map((style) => ({
+                                        value: style,
+                                        label: humanizePath(style),
+                                    })),
+                                ]}
+                            />
+                        </label>
+                    )}
                     {"wrapping" in block && (
                         <label className="field-inline">
                             {t("inspector.content.wrapping")}
@@ -723,6 +736,7 @@ export function ItemInspector({
                         </span>
                     </label>
                 )}
+                <RootGroupFields item={item} />
                 <dl>
                     <dt>{t("inspector.advanced.material")}</dt>
                     <dd>
@@ -865,6 +879,32 @@ function BlockRow({
         );
     };
 
+    // Separators may create a message, so they edit the document in one undo step.
+    const applySeparator =
+        (
+            set: (
+                current: PresentationBlock,
+                next: FieldSeparator | undefined,
+            ) => PresentationBlock,
+        ) =>
+        (document: ProjectDocument, separator: FieldSeparator | undefined) => ({
+            ...document,
+            items: document.items.map((entry) =>
+                entry.uuid === item.uuid
+                    ? {
+                          ...entry,
+                          presentation: {
+                              ...entry.presentation,
+                              blocks: editBlockTree(
+                                  entry.presentation.blocks,
+                                  block.uuid,
+                                  (current) => set(current, separator),
+                              ),
+                          },
+                      }
+                    : entry,
+            ),
+        });
     const presentationKeys = itemDataKeys(doc, item)
         .filter((key) => key.presentationReadable)
         .map((key) => key.id);
@@ -979,6 +1019,25 @@ function BlockRow({
                                 ]}
                             />
                         </label>
+                        <details className="advanced">
+                            <summary>
+                                {t("inspector.content.moreOptions")}
+                            </summary>
+                            <SeparatorField
+                                value={block.separator}
+                                inheritable
+                                testId="field-separator"
+                                apply={applySeparator((current, separator) => {
+                                    if (current.type !== "field")
+                                        return current;
+                                    const { separator: _previous, ...rest } =
+                                        current;
+                                    return separator
+                                        ? { ...rest, separator }
+                                        : rest;
+                                })}
+                            />
+                        </details>
                     </div>
                 </li>
             );
@@ -1082,6 +1141,67 @@ function BlockRow({
                             block.template.missingMessage,
                             `repeat-missing-${block.uuid.slice(0, 8)}`,
                         )}
+                        <details className="advanced">
+                            <summary>
+                                {t("inspector.content.moreOptions")}
+                            </summary>
+                            <SeparatorField
+                                value={block.template.separator}
+                                inheritable
+                                testId="repeat-separator"
+                                apply={applySeparator((current, separator) => {
+                                    if (current.type !== "repeat")
+                                        return current;
+                                    const {
+                                        separator: _previous,
+                                        ...template
+                                    } = current.template;
+                                    return {
+                                        ...current,
+                                        template: separator
+                                            ? { ...template, separator }
+                                            : template,
+                                    };
+                                })}
+                            />
+                        </details>
+                    </div>
+                </li>
+            );
+        case "group":
+            return (
+                <li
+                    className={rowClass("block-group")}
+                    {...rowProps}
+                    {...itemProps}
+                >
+                    {handle}
+                    <span className="block-kind">
+                        {t("inspector.content.group")}
+                    </span>
+                    {controls}
+                    <GroupFields block={block} onReplace={onReplace} />
+                    <div className="block-nested">
+                        {block.header && (
+                            <>
+                                <p className="dim small">
+                                    {t("inspector.content.groupHeader")}
+                                </p>
+                                <NestedRows
+                                    doc={doc}
+                                    blocks={[block.header]}
+                                    locale={locale}
+                                />
+                            </>
+                        )}
+                        <p className="dim small">
+                            {t("inspector.content.groupChildren")}
+                        </p>
+                        <NestedRows
+                            doc={doc}
+                            blocks={block.children}
+                            locale={locale}
+                        />
                     </div>
                 </li>
             );
@@ -1126,7 +1246,7 @@ function NestedRows({
                 const label = key
                     ? resolveMessage(doc, locale, key).text
                     : t(
-                          `inspector.content.${nested.type === "conditional" ? "conditional" : nested.type === "repeat" ? "repeat" : nested.type === "text" ? "value" : "nested"}`,
+                          `inspector.content.${nested.type === "conditional" ? "conditional" : nested.type === "repeat" ? "repeat" : nested.type === "text" ? "value" : nested.type === "group" ? "group" : "nested"}`,
                       );
                 return (
                     <li key={nested.uuid}>

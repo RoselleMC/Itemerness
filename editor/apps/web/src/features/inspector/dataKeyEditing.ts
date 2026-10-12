@@ -7,6 +7,7 @@ import {
     type PresentationBlock,
     type ProjectDocument,
 } from "@itemerness/protocol";
+import { childBlocks } from "../../state/blocks.js";
 
 export function dataKeyReferences(
     document: ProjectDocument,
@@ -27,10 +28,7 @@ export function dataKeyReferences(
                 labels.add(block.labelMessage);
             if (block.type === "repeat" && block.data === key.id)
                 labels.add(block.template.labelMessage);
-            if (block.type === "conditional") {
-                collect(block.thenBlocks);
-                collect(block.otherwiseBlocks);
-            }
+            collect(childBlocks(block));
         }
     };
     const items = document.items.filter((item) => {
@@ -66,8 +64,9 @@ export function dataKeyPreviewItem(
             return (
                 [block.condition.left, block.condition.right].some(
                     (value) => value?.kind === "data" && value.key === key.id,
-                ) || [...block.thenBlocks, ...block.otherwiseBlocks].some(uses)
+                ) || childBlocks(block).some(uses)
             );
+        if (block.type === "group") return childBlocks(block).some(uses);
         return "data" in block && block.data === key.id;
     };
     const items = dataKeyReferences(document, uuid).items.filter((item) =>
