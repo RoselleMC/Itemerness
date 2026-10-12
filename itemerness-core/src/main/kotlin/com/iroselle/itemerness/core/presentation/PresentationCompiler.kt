@@ -15,6 +15,12 @@ import java.util.UUID
 /** Upper bound on cases in one theme selector; selectors are evaluated for every render. */
 const val MAXIMUM_THEME_SELECTOR_CASES: Int = 64
 
+/** Upper bound on a group's gap-before-lines; each line is a full tooltip row. */
+const val MAXIMUM_GROUP_GAP_LINES: Int = 16
+
+/** Upper bound on the code points of one theme marker piece. */
+const val MAXIMUM_MARKER_PIECE_CODE_POINTS: Int = 32
+
 class PresentationCompiler(
     private val defaultLocale: String = "en_us",
     private val budgets: PresentationBudgets = PresentationBudgets(),
@@ -54,7 +60,7 @@ class PresentationCompiler(
         validateItemLayoutContracts(items, layouts, themes, themeSelectors, diagnostics)
         validateItemFactReferences(items, viewerFacts, diagnostics)
         validateThemeSelectorFactReferences(themeSelectors, viewerFacts, diagnostics)
-        validateMessages(items, formats, locales, diagnostics)
+        validateMessages(items, formats, layouts, locales, diagnostics)
 
         if (defaultLocale !in locales) {
             diagnostics.add(
@@ -432,6 +438,7 @@ class PresentationCompiler(
                     if (source.descriptionLeftPaddingPixels + source.descriptionRightPaddingPixels >= source.maximumWidthPixels) {
                         diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.description-padding", "Description padding consumes the layout width")
                     }
+                    validateSeparator(source.fieldSeparator, "$path.sections.field.separator", diagnostics)
                     validateWrapping(source.wrapping, "$path.wrapping", diagnostics)
                     CompiledLayout.Flow(id, source)
                 }
@@ -548,6 +555,7 @@ class PresentationCompiler(
                 ThemeRenderer.SEGMENTED_FRAME -> validateSegmentedFrame(source, path, glyphs, spacing, diagnostics)
                 ThemeRenderer.BITMAP_CANVAS -> validateCanvasTheme(source, path, glyphs, bitmaps, spacing, diagnostics)
             }
+            source.markers?.let { validateMarkers(it, source.requiresResourcePack, "$path.markers", glyphs, diagnostics) }
             if (source.renderer in setOf(ThemeRenderer.SEGMENTED_FRAME, ThemeRenderer.BITMAP_CANVAS) &&
                 source.vanillaTooltipLines != VanillaTooltipLinePolicy.REQUIRE_MANAGED
             ) {
@@ -566,6 +574,49 @@ class PresentationCompiler(
             }
         }
         return result
+    }
+
+    private fun validateMarkers(
+        markers: MarkerThemeSource,
+        requiresResourcePack: Boolean,
+        path: String,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ) {
+        markers.style?.let { validateSemantic(it, "$path.style", diagnostics) }
+        listOf(
+            "bullet" to markers.bullet,
+            "tree.branch" to markers.tree?.branch,
+            "tree.last" to markers.tree?.last,
+            "tree.vertical" to markers.tree?.vertical,
+        ).forEach { (name, piece) ->
+            val piecePath = "$path.$name"
+            when (piece) {
+                null -> Unit
+                is MarkerPieceSource.Text -> {
+                    val length = piece.text.codePointCount(0, piece.text.length)
+                    if (length !in 1..MAXIMUM_MARKER_PIECE_CODE_POINTS) {
+                        diagnostics.add(
+                            PresentationDiagnosticCode.INVALID_VALUE,
+                            piecePath,
+                            "Marker text must contain 1..$MAXIMUM_MARKER_PIECE_CODE_POINTS code points",
+                        )
+                    }
+                    if (piece.text.codePoints().anyMatch(Character::isISOControl)) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "Marker text contains a control character")
+                    }
+                }
+                // Glyph markers follow the field icon rules: they need the resource pack that defines them.
+                is MarkerPieceSource.Glyph -> {
+                    if (!requiresResourcePack) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "Glyph markers require requires-resource-pack: true")
+                    }
+                    if (piece.glyph !in glyphs) {
+                        diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, piecePath, "Unknown glyph ${piece.glyph}")
+                    }
+                }
+            }
+        }
     }
 
     private fun compileThemeSelectors(
@@ -645,7 +696,17 @@ class PresentationCompiler(
                 )
             }
             val shownFlags = compileShownFlags(source.shownFlags, "$path.shown-flags", diagnostics)
-            val item = CompiledItemPresentation(key, source.enabled, layout, theme, source.nameMessage, blocks, shownFlags)
+            val item = CompiledItemPresentation(
+                key,
+                source.enabled,
+                layout,
+                theme,
+                source.nameMessage,
+                blocks,
+                shownFlags,
+                source.marker,
+                source.dividers,
+            )
             if (result.putIfAbsent(key, item) != null) {
                 diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Duplicate item presentation $key")
             }
@@ -698,100 +759,151 @@ class PresentationCompiler(
             diagnostics.add(PresentationDiagnosticCode.BUDGET_EXCEEDED, path, "Block nesting exceeds ${budgets.maximumBlockDepth}")
             return emptyList()
         }
-        val result = ArrayList<CompiledPresentationBlock>(sources.size)
-        sources.forEachIndexed { index, source ->
-            counter.count++
-            val blockPath = "$path[$index]"
-            source.style?.let { validateSemantic(it, "$blockPath.style", diagnostics) }
-            source.anchor?.let { validateSemantic(it, "$blockPath.anchor", diagnostics) }
-            when (source) {
-                is PresentationBlockSource.Text -> {
-                    val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return@forEachIndexed
-                    result += CompiledPresentationBlock.Text(
-                        data,
-                        source.style,
-                        source.anchor,
-                        source.wrapping,
-                        source.unbreakable,
-                        source.missingPolicy,
+        return sources.mapIndexedNotNull { index, source ->
+            compileBlock(source, "$path[$index]", depth, counter, formats, glyphs, diagnostics)
+        }
+    }
+
+    private fun compileBlock(
+        source: PresentationBlockSource,
+        blockPath: String,
+        depth: Int,
+        counter: BlockCounter,
+        formats: Map<ItemKey, FormatSource>,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ): CompiledPresentationBlock? {
+        counter.count++
+        source.style?.let { validateSemantic(it, "$blockPath.style", diagnostics) }
+        source.anchor?.let { validateSemantic(it, "$blockPath.anchor", diagnostics) }
+        return when (source) {
+            is PresentationBlockSource.Text -> {
+                val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return null
+                CompiledPresentationBlock.Text(
+                    data,
+                    source.style,
+                    source.anchor,
+                    source.wrapping,
+                    source.unbreakable,
+                    source.missingPolicy,
+                )
+            }
+
+            is PresentationBlockSource.Field -> {
+                validateMessageKey(source.labelMessage, "$blockPath.label", diagnostics)
+                validateSeparator(source.separator, "$blockPath.separator", diagnostics)
+                val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return null
+                val format = source.format?.let { parseKey(it, "$blockPath.format", diagnostics) }
+                if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.format", "Unknown format $format")
+                if (source.icon != null && source.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.icon", "Unknown glyph ${source.icon}")
+                CompiledPresentationBlock.Field(
+                    source.labelMessage,
+                    data,
+                    format,
+                    source.icon,
+                    source.style,
+                    source.anchor,
+                    source.wrapping,
+                    source.missingPolicy,
+                    source.separator,
+                )
+            }
+
+            is PresentationBlockSource.Description -> {
+                validateMessageKey(source.message, "$blockPath.message", diagnostics)
+                CompiledPresentationBlock.Description(source.message, source.style, source.anchor, source.wrapping)
+            }
+
+            is PresentationBlockSource.Conditional -> {
+                val condition = compileCondition(source.condition, "$blockPath.condition", diagnostics) ?: return null
+                val thenBlocks = compileBlocks(source.thenBlocks, "$blockPath.then", depth + 1, counter, formats, glyphs, diagnostics)
+                val otherwiseBlocks = compileBlocks(source.otherwiseBlocks, "$blockPath.otherwise", depth + 1, counter, formats, glyphs, diagnostics)
+                CompiledPresentationBlock.Conditional(
+                    condition,
+                    thenBlocks,
+                    otherwiseBlocks,
+                    source.style,
+                    source.anchor,
+                )
+            }
+
+            is PresentationBlockSource.Repeat -> {
+                val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return null
+                if (source.maximumElements !in 1..budgets.maximumRepeatElements) {
+                    diagnostics.add(
+                        PresentationDiagnosticCode.BUDGET_EXCEEDED,
+                        "$blockPath.maximum-elements",
+                        "Repeat maximum must be within 1..${budgets.maximumRepeatElements}",
                     )
                 }
-
-                is PresentationBlockSource.Field -> {
-                    validateMessageKey(source.labelMessage, "$blockPath.label", diagnostics)
-                    val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return@forEachIndexed
-                    val format = source.format?.let { parseKey(it, "$blockPath.format", diagnostics) }
-                    if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.format", "Unknown format $format")
-                    if (source.icon != null && source.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.icon", "Unknown glyph ${source.icon}")
-                    result += CompiledPresentationBlock.Field(
-                        source.labelMessage,
-                        data,
+                val template = source.template
+                validateMessageKey(template.labelMessage, "$blockPath.template.label", diagnostics)
+                validateMessageKey(template.missingMessage, "$blockPath.template.missing-message", diagnostics)
+                validateSeparator(template.separator, "$blockPath.template.separator", diagnostics)
+                if (!COMPOUND_PATH_PATTERN.matches(template.valuePath)) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_ID, "$blockPath.template.value-path", "Invalid compound value path")
+                }
+                val format = template.format?.let { parseKey(it, "$blockPath.template.format", diagnostics) }
+                if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.format", "Unknown format $format")
+                if (template.icon != null && template.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.icon", "Unknown glyph ${template.icon}")
+                CompiledPresentationBlock.Repeat(
+                    data,
+                    source.maximumElements,
+                    CompiledCompoundFieldTemplate(
+                        template.labelMessage,
+                        template.valuePath,
+                        template.missingMessage,
+                        template.icon,
                         format,
-                        source.icon,
-                        source.style,
-                        source.anchor,
-                        source.wrapping,
-                        source.missingPolicy,
+                        template.separator,
+                    ),
+                    source.style,
+                    source.anchor,
+                    source.missingPolicy,
+                )
+            }
+
+            is PresentationBlockSource.NestedItemList -> CompiledPresentationBlock.NestedItemList(source.style, source.anchor)
+
+            is PresentationBlockSource.Group -> {
+                if (source.gapBeforeLines !in 0..MAXIMUM_GROUP_GAP_LINES) {
+                    diagnostics.add(
+                        PresentationDiagnosticCode.INVALID_VALUE,
+                        "$blockPath.gap-before-lines",
+                        "Group gap must be within 0..$MAXIMUM_GROUP_GAP_LINES lines",
                     )
                 }
-
-                is PresentationBlockSource.Description -> {
-                    validateMessageKey(source.message, "$blockPath.message", diagnostics)
-                    result += CompiledPresentationBlock.Description(source.message, source.style, source.anchor, source.wrapping)
-                }
-
-                is PresentationBlockSource.Conditional -> {
-                    val condition = compileCondition(source.condition, "$blockPath.condition", diagnostics) ?: return@forEachIndexed
-                    val thenBlocks = compileBlocks(source.thenBlocks, "$blockPath.then", depth + 1, counter, formats, glyphs, diagnostics)
-                    val otherwiseBlocks = compileBlocks(source.otherwiseBlocks, "$blockPath.otherwise", depth + 1, counter, formats, glyphs, diagnostics)
-                    result += CompiledPresentationBlock.Conditional(
-                        condition,
-                        thenBlocks,
-                        otherwiseBlocks,
-                        source.style,
-                        source.anchor,
-                    )
-                }
-
-                is PresentationBlockSource.Repeat -> {
-                    val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return@forEachIndexed
-                    if (source.maximumElements !in 1..budgets.maximumRepeatElements) {
-                        diagnostics.add(
-                            PresentationDiagnosticCode.BUDGET_EXCEEDED,
-                            "$blockPath.maximum-elements",
-                            "Repeat maximum must be within 1..${budgets.maximumRepeatElements}",
-                        )
+                // A header is one row: anything that can expand into several rows or containers
+                // would make the parent's marker ambiguous.
+                val header = source.header?.let { header ->
+                    if (header !is PresentationBlockSource.Field && header !is PresentationBlockSource.Text) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$blockPath.header", "A group header must be a field or text block")
+                        null
+                    } else if (depth + 1 > budgets.maximumBlockDepth) {
+                        diagnostics.add(PresentationDiagnosticCode.BUDGET_EXCEEDED, "$blockPath.header", "Block nesting exceeds ${budgets.maximumBlockDepth}")
+                        null
+                    } else {
+                        compileBlock(header, "$blockPath.header", depth + 1, counter, formats, glyphs, diagnostics)
                     }
-                    val template = source.template
-                    validateMessageKey(template.labelMessage, "$blockPath.template.label", diagnostics)
-                    validateMessageKey(template.missingMessage, "$blockPath.template.missing-message", diagnostics)
-                    if (!COMPOUND_PATH_PATTERN.matches(template.valuePath)) {
-                        diagnostics.add(PresentationDiagnosticCode.INVALID_ID, "$blockPath.template.value-path", "Invalid compound value path")
-                    }
-                    val format = template.format?.let { parseKey(it, "$blockPath.template.format", diagnostics) }
-                    if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.format", "Unknown format $format")
-                    if (template.icon != null && template.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.icon", "Unknown glyph ${template.icon}")
-                    result += CompiledPresentationBlock.Repeat(
-                        data,
-                        source.maximumElements,
-                        CompiledCompoundFieldTemplate(
-                            template.labelMessage,
-                            template.valuePath,
-                            template.missingMessage,
-                            template.icon,
-                            format,
-                        ),
-                        source.style,
-                        source.anchor,
-                        source.missingPolicy,
-                    )
                 }
-
-                is PresentationBlockSource.NestedItemList -> result +=
-                    CompiledPresentationBlock.NestedItemList(source.style, source.anchor)
+                val children = compileBlocks(source.children, "$blockPath.children", depth + 1, counter, formats, glyphs, diagnostics)
+                CompiledPresentationBlock.Group(
+                    header,
+                    children,
+                    source.marker,
+                    source.dividers,
+                    source.whenHeaderMissing,
+                    source.whenEmpty,
+                    source.gapBeforeLines,
+                    source.style,
+                    source.anchor,
+                )
             }
         }
-        return result
+    }
+
+    private fun validateSeparator(separator: FieldSeparatorSource?, path: String, diagnostics: Diagnostics) {
+        if (separator is FieldSeparatorSource.Message) validateMessageKey(separator.message, path, diagnostics)
     }
 
     private fun compileCondition(
@@ -1018,6 +1130,9 @@ class PresentationCompiler(
                     )
                 }
             }
+            if (layout is CompiledLayout.Canvas && item.marker != GroupMarker.NONE) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "items.${item.key}.marker", "Root markers require a flow layout")
+            }
             validateBlockLayoutReferences(item.blocks, layout, "items.${item.key}.blocks", diagnostics)
         }
     }
@@ -1039,11 +1154,16 @@ class PresentationCompiler(
         diagnostics: Diagnostics,
     ) {
         blocks.forEachIndexed { index, block ->
-            if (block !is CompiledPresentationBlock.Conditional) return@forEachIndexed
             val blockPath = "$path[$index]"
-            validateConditionFactReferences(block.condition, facts, "$blockPath.condition", diagnostics)
-            validateBlockFactReferences(block.thenBlocks, facts, "$blockPath.then", diagnostics)
-            validateBlockFactReferences(block.otherwiseBlocks, facts, "$blockPath.otherwise", diagnostics)
+            when (block) {
+                is CompiledPresentationBlock.Conditional -> {
+                    validateConditionFactReferences(block.condition, facts, "$blockPath.condition", diagnostics)
+                    validateBlockFactReferences(block.thenBlocks, facts, "$blockPath.then", diagnostics)
+                    validateBlockFactReferences(block.otherwiseBlocks, facts, "$blockPath.otherwise", diagnostics)
+                }
+                is CompiledPresentationBlock.Group -> validateBlockFactReferences(block.children, facts, "$blockPath.children", diagnostics)
+                else -> Unit
+            }
         }
     }
 
@@ -1087,35 +1207,50 @@ class PresentationCompiler(
         path: String,
         diagnostics: Diagnostics,
     ) {
-        blocks.forEachIndexed { index, block ->
-            val blockPath = "$path[$index]"
-            if (block.anchor != null) {
-                val valid = layout is CompiledLayout.Canvas && block.anchor in layout.source.anchors
-                if (!valid) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.anchor", "Unknown layout anchor ${block.anchor}")
+        blocks.forEachIndexed { index, block -> validateBlockLayoutReference(block, layout, "$path[$index]", diagnostics) }
+    }
+
+    private fun validateBlockLayoutReference(
+        block: CompiledPresentationBlock,
+        layout: CompiledLayout,
+        blockPath: String,
+        diagnostics: Diagnostics,
+    ) {
+        if (block.anchor != null) {
+            val valid = layout is CompiledLayout.Canvas && block.anchor in layout.source.anchors
+            if (!valid) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.anchor", "Unknown layout anchor ${block.anchor}")
+        }
+        val wrapping = when (block) {
+            is CompiledPresentationBlock.Text -> block.wrapping
+            is CompiledPresentationBlock.Field -> block.wrapping
+            is CompiledPresentationBlock.Description -> block.wrapping
+            else -> null
+        }
+        if (wrapping != null) {
+            val known = when (layout) {
+                is CompiledLayout.Flow -> wrapping in layout.source.wrapping
+                is CompiledLayout.Canvas -> wrapping in layout.source.wrapping
             }
-            val wrapping = when (block) {
-                is CompiledPresentationBlock.Text -> block.wrapping
-                is CompiledPresentationBlock.Field -> block.wrapping
-                is CompiledPresentationBlock.Description -> block.wrapping
-                else -> null
+            if (!known) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.wrapping", "Unknown wrapping policy $wrapping")
+        }
+        if (block is CompiledPresentationBlock.Conditional) {
+            validateBlockLayoutReferences(block.thenBlocks, layout, "$blockPath.then", diagnostics)
+            validateBlockLayoutReferences(block.otherwiseBlocks, layout, "$blockPath.otherwise", diagnostics)
+        }
+        if (block is CompiledPresentationBlock.Group) {
+            // Canvas layouts place every block at an anchor; groups only decorate flow rows.
+            if (layout is CompiledLayout.Canvas) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, blockPath, "Groups require a flow layout")
             }
-            if (wrapping != null) {
-                val known = when (layout) {
-                    is CompiledLayout.Flow -> wrapping in layout.source.wrapping
-                    is CompiledLayout.Canvas -> wrapping in layout.source.wrapping
-                }
-                if (!known) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.wrapping", "Unknown wrapping policy $wrapping")
-            }
-            if (block is CompiledPresentationBlock.Conditional) {
-                validateBlockLayoutReferences(block.thenBlocks, layout, "$blockPath.then", diagnostics)
-                validateBlockLayoutReferences(block.otherwiseBlocks, layout, "$blockPath.otherwise", diagnostics)
-            }
+            block.header?.let { validateBlockLayoutReference(it, layout, "$blockPath.header", diagnostics) }
+            validateBlockLayoutReferences(block.children, layout, "$blockPath.children", diagnostics)
         }
     }
 
     private fun validateMessages(
         items: Map<ItemKey, CompiledItemPresentation>,
         formats: Map<ItemKey, FormatSource>,
+        layouts: Map<ItemKey, CompiledLayout>,
         locales: Map<String, LocaleSource>,
         diagnostics: Diagnostics,
     ) {
@@ -1129,6 +1264,11 @@ class PresentationCompiler(
                 is FormatSource.DecimalFormat -> source.suffixMessage?.let { required[it] = "formats.$id.suffix-message" }
                 is FormatSource.ListFormat -> required[source.separatorMessage] = "formats.$id.separator-message"
                 else -> Unit
+            }
+        }
+        layouts.forEach { (id, layout) ->
+            ((layout.source as? LayoutSource.Flow)?.fieldSeparator as? FieldSeparatorSource.Message)?.let {
+                required[it.message] = "layouts.$id.sections.field.separator"
             }
         }
         items.values.forEach { item ->
@@ -1147,21 +1287,36 @@ class PresentationCompiler(
         path: String,
         result: MutableMap<String, String>,
     ) {
-        blocks.forEachIndexed { index, block ->
-            val blockPath = "$path[$index]"
-            when (block) {
-                is CompiledPresentationBlock.Field -> result[block.labelMessage] = "$blockPath.label"
-                is CompiledPresentationBlock.Description -> result[block.message] = "$blockPath.message"
-                is CompiledPresentationBlock.Repeat -> {
-                    result[block.template.labelMessage] = "$blockPath.template.label"
-                    result[block.template.missingMessage] = "$blockPath.template.missing-message"
-                }
-                is CompiledPresentationBlock.Conditional -> {
-                    collectBlockMessages(block.thenBlocks, "$blockPath.then", result)
-                    collectBlockMessages(block.otherwiseBlocks, "$blockPath.otherwise", result)
-                }
-                else -> Unit
+        blocks.forEachIndexed { index, block -> collectBlockMessage(block, "$path[$index]", result) }
+    }
+
+    private fun collectBlockMessage(
+        block: CompiledPresentationBlock,
+        blockPath: String,
+        result: MutableMap<String, String>,
+    ) {
+        when (block) {
+            is CompiledPresentationBlock.Field -> {
+                result[block.labelMessage] = "$blockPath.label"
+                (block.separator as? FieldSeparatorSource.Message)?.let { result[it.message] = "$blockPath.separator" }
             }
+            is CompiledPresentationBlock.Description -> result[block.message] = "$blockPath.message"
+            is CompiledPresentationBlock.Repeat -> {
+                result[block.template.labelMessage] = "$blockPath.template.label"
+                result[block.template.missingMessage] = "$blockPath.template.missing-message"
+                (block.template.separator as? FieldSeparatorSource.Message)?.let {
+                    result[it.message] = "$blockPath.template.separator"
+                }
+            }
+            is CompiledPresentationBlock.Conditional -> {
+                collectBlockMessages(block.thenBlocks, "$blockPath.then", result)
+                collectBlockMessages(block.otherwiseBlocks, "$blockPath.otherwise", result)
+            }
+            is CompiledPresentationBlock.Group -> {
+                block.header?.let { collectBlockMessage(it, "$blockPath.header", result) }
+                collectBlockMessages(block.children, "$blockPath.children", result)
+            }
+            else -> Unit
         }
     }
 

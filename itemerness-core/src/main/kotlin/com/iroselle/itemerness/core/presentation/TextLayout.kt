@@ -16,13 +16,32 @@ internal data class SemanticRun(
     val fieldValue: Boolean = false,
 )
 
+/**
+ * A rendered row. Prefixes list marker pieces from the outermost to the innermost decorated
+ * container: [firstPrefix] decorates the row's first line, [continuationPrefix] every following
+ * line, and [gapPrefix] each empty line inserted directly before the row.
+ */
 internal data class SemanticBlock(
     val runs: List<SemanticRun>,
     val anchor: String?,
     val wrapping: String?,
     val sectionBoundaryBefore: Boolean = false,
     val kind: SemanticBlockKind = SemanticBlockKind.GENERIC,
+    val firstPrefix: List<MarkerPiece> = emptyList(),
+    val continuationPrefix: List<MarkerPiece> = emptyList(),
+    val gapPrefix: List<MarkerPiece> = emptyList(),
+    val gapBeforeLines: Int = 0,
 )
+
+/** One container level's contribution to a line prefix. Blank pieces are padding of equal width. */
+internal enum class MarkerPiece(val blank: Boolean) {
+    BULLET(false),
+    BULLET_BLANK(true),
+    TREE_BRANCH(false),
+    TREE_LAST(false),
+    TREE_VERTICAL(false),
+    TREE_BLANK(true),
+}
 
 internal enum class SemanticBlockKind {
     GENERIC,

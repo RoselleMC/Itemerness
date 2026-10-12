@@ -213,6 +213,8 @@ sealed interface LayoutSource {
         val descriptionRightPaddingPixels: Int = 0,
         val descriptionGapBeforePixels: Int = 0,
         wrapping: Map<String, WrappingSource> = mapOf("body" to WrappingSource()),
+        /** Default separator between field labels and values; null keeps the built-in colon. */
+        val fieldSeparator: FieldSeparatorSource? = null,
     ) : LayoutSource {
         val wrapping: Map<String, WrappingSource> = immutableMap(wrapping)
     }
@@ -289,10 +291,36 @@ class ThemeSource(
     val segmentedFrame: SegmentedFrameSource? = null,
     val canvas: CanvasThemeSource? = null,
     val requireExactFontMetrics: Boolean = false,
+    /** Marker art for decorated groups; absent pieces keep the built-in defaults. */
+    val markers: MarkerThemeSource? = null,
 ) {
     val requiredCapabilities: Set<String> = immutableSet(requiredCapabilities)
     val fonts: Map<String, String> = immutableMap(fonts)
     val styles: Map<String, TextStyleSource> = immutableMap(styles)
+}
+
+/**
+ * Theme art for group markers. [style] names the style role of marker runs and defaults to
+ * "label". Every absent piece uses its built-in default, so themes without markers still render
+ * decorated groups.
+ */
+data class MarkerThemeSource(
+    val style: String? = null,
+    val bullet: MarkerPieceSource? = null,
+    val tree: TreeMarkerSource? = null,
+)
+
+data class TreeMarkerSource(
+    val branch: MarkerPieceSource? = null,
+    val last: MarkerPieceSource? = null,
+    val vertical: MarkerPieceSource? = null,
+)
+
+/** One marker piece: literal text, or a resource-pack glyph like a field icon. */
+sealed interface MarkerPieceSource {
+    data class Text(val text: String) : MarkerPieceSource
+
+    data class Glyph(val glyph: String) : MarkerPieceSource
 }
 
 data class TextStyleSource(
@@ -411,6 +439,10 @@ class ItemPresentationSource(
      * them.
      */
     shownFlags: Collection<String> = emptyList(),
+    /** How the item's top-level blocks are decorated; the item root is the implicit root group. */
+    val marker: GroupMarker = GroupMarker.NONE,
+    /** Root dividers default to a section boundary between every rendered block, as before groups. */
+    val dividers: GroupDividers = GroupDividers.BETWEEN_CHILDREN,
 ) {
     val blocks: List<PresentationBlockSource> = java.util.List.copyOf(blocks)
     val shownFlags: List<String> = java.util.List.copyOf(shownFlags)
@@ -438,6 +470,8 @@ sealed interface PresentationBlockSource {
         override val anchor: String? = null,
         val wrapping: String? = null,
         val missingPolicy: MissingDataPolicy = MissingDataPolicy.ERROR,
+        /** Overrides the layout separator; null inherits it. */
+        val separator: FieldSeparatorSource? = null,
     ) : PresentationBlockSource
 
     data class Description(
@@ -471,6 +505,53 @@ sealed interface PresentationBlockSource {
         override val style: String? = null,
         override val anchor: String? = null,
     ) : PresentationBlockSource
+
+    /**
+     * A recursive container with an optional single-row [header]. Its children are decorated by
+     * [marker] and separated by [dividers]. [style] is accepted for block uniformity and, like a
+     * conditional's, emits nothing because a group has no text of its own.
+     */
+    class Group(
+        val header: PresentationBlockSource?,
+        children: Collection<PresentationBlockSource>,
+        val marker: GroupMarker = GroupMarker.NONE,
+        val dividers: GroupDividers = GroupDividers.NONE,
+        val whenHeaderMissing: GroupHeaderMissingPolicy = GroupHeaderMissingPolicy.HIDE,
+        val whenEmpty: GroupEmptyPolicy = GroupEmptyPolicy.SHOW_HEADER,
+        val gapBeforeLines: Int = 0,
+        override val style: String? = null,
+        override val anchor: String? = null,
+    ) : PresentationBlockSource {
+        val children: List<PresentationBlockSource> = java.util.List.copyOf(children)
+    }
+}
+
+enum class GroupMarker {
+    NONE,
+    BULLET,
+    TREE,
+}
+
+enum class GroupDividers {
+    NONE,
+    BETWEEN_CHILDREN,
+}
+
+enum class GroupHeaderMissingPolicy {
+    HIDE,
+    SHOW_CHILDREN,
+}
+
+enum class GroupEmptyPolicy {
+    SHOW_HEADER,
+    HIDE,
+}
+
+/** The run between a field label and its value. */
+sealed interface FieldSeparatorSource {
+    data object None : FieldSeparatorSource
+
+    data class Message(val message: String) : FieldSeparatorSource
 }
 
 enum class MissingDataPolicy {
@@ -484,6 +565,8 @@ data class CompoundFieldTemplateSource(
     val missingMessage: String,
     val icon: String? = null,
     val format: String? = null,
+    /** Overrides the layout separator; null inherits it. */
+    val separator: FieldSeparatorSource? = null,
 )
 
 enum class ConditionOperator {

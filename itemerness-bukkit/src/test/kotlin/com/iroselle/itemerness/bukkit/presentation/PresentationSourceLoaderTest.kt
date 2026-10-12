@@ -6,7 +6,10 @@ import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.bukkit.catalog.CatalogSourceLoader
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.core.catalog.CatalogCompiler
+import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
+import com.iroselle.itemerness.core.presentation.GroupMarker
 import com.iroselle.itemerness.core.presentation.NestedItemPresentation
+import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.MissingDataPolicy
 import com.iroselle.itemerness.core.presentation.PresentationDisplay
 import com.iroselle.itemerness.core.presentation.PresentationDiagnosticCode
@@ -32,7 +35,7 @@ class PresentationSourceLoaderTest {
     lateinit var directory: Path
 
     @BeforeEach
-    fun copyBundledResources() {
+    fun copyBundledResourcesFromIndex() {
         val paths = checkNotNull(javaClass.classLoader.getResourceAsStream("itemerness-resources.txt"))
             .bufferedReader()
             .useLines { lines ->
@@ -475,6 +478,55 @@ class PresentationSourceLoaderTest {
     }
 
     @Test
+    fun `group YAML loads strictly and renders tree rows through the real loader`() {
+        enableTravelToken()
+        replace("items/examples.yml", TRAVEL_DESCRIPTION, GROUP_YAML)
+        val loaded = load()
+        assertTrue(loaded.compilation.successful, loaded.compilation.diagnostics.joinToString())
+        val group = loaded.source.items.single { it.id == "itemerness:travel-token" }.blocks.last() as PresentationBlockSource.Group
+        assertEquals(GroupMarker.TREE, group.marker)
+        assertEquals(FieldSeparatorSource.None, (group.header as PresentationBlockSource.Field).separator)
+        val display = renderTravelToken(PresentationEngine(requireNotNull(loaded.compilation.catalog)))
+        val lines = display.lore.map { it.plainText }
+        assertTrue(lines.any { "├─ " in it }, lines.toString())
+        assertTrue(lines.any { "└─ " in it }, lines.toString())
+        assertTrue(lines.any { "Charges3" in it }, lines.toString())
+    }
+
+    @Test
+    fun `group separator and marker YAML is strict`() {
+        enableTravelToken()
+        val invalid = listOf(
+            GROUP_YAML.replace("marker: tree", "marker: arrow"),
+            GROUP_YAML.replace("marker: tree", "marker: tree\n          collapsed: true"),
+            GROUP_YAML.replace("separator: none", "separator: colon"),
+            GROUP_YAML.replace("separator: none", "separator:\n              text: \" = \""),
+            GROUP_YAML.replace("when-empty: hide", "when-empty: collapse"),
+        )
+        invalid.forEach { yaml ->
+            copyBundledResources()
+            enableTravelToken()
+            replace("items/examples.yml", TRAVEL_DESCRIPTION, yaml)
+            assertThrows(StrictYamlException::class.java, { load() }, yaml)
+        }
+        copyBundledResources()
+        replace("themes/default.yml", "    icons:\n", "    markers:\n      bullet: 3\n    icons:\n")
+        assertThrows(StrictYamlException::class.java) { load() }
+        copyBundledResources()
+        replace("themes/default.yml", "    icons:\n", "    markers:\n      arrow: \"> \"\n    icons:\n")
+        assertThrows(StrictYamlException::class.java) { load() }
+        copyBundledResources()
+        replace("themes/default.yml", "    icons:\n", "    markers:\n      bullet:\n        glyph: icon.region\n    icons:\n")
+        val glyphWithoutPack = load().compilation.diagnostics
+        assertTrue(glyphWithoutPack.any { it.path.endsWith("markers.bullet") && it.code == PresentationDiagnosticCode.INVALID_VALUE }, glyphWithoutPack.toString())
+        copyBundledResources()
+        enableTravelToken()
+        replace("items/examples.yml", TRAVEL_DESCRIPTION, GROUP_YAML.replace("type: field\n            label: data.charges.label", "type: description\n            message: data.charges.label").replace("            data: example:charges\n            format: itemerness:integer\n            separator: none\n", ""))
+        val badHeader = load().compilation.diagnostics
+        assertTrue(badHeader.any { it.path.endsWith(".header") && it.code == PresentationDiagnosticCode.INVALID_VALUE }, badHeader.toString())
+    }
+
+    @Test
     fun `theme fallback cycle rejects the candidate`() {
         replace(
             "themes/vanilla-frame.yml",
@@ -549,6 +601,23 @@ class PresentationSourceLoaderTest {
         Files.writeString(destination, original.replace(old, new))
     }
 
+    private fun enableTravelToken() {
+        replace("items/examples.yml", "  travel-token:\n    enabled: false", "  travel-token:\n    enabled: true")
+    }
+
+    private fun renderTravelToken(engine: PresentationEngine): PresentationDisplay {
+        val result = engine.render(
+            PresentationRenderRequest(
+                itemKey = ItemKey.parse("itemerness:travel-token"),
+                data = mapOf(DataKey.parse("example:charges") to IntegerDataValue(3)),
+                viewer = PresentationViewer("en_us", requestedTheme = ItemKey.parse("itemerness:default")),
+            ),
+        )
+        return assertInstanceOf(PresentationRenderResult.Rendered::class.java, result).display
+    }
+
+    private fun copyBundledResources() = copyBundledResourcesFromIndex()
+
     private fun enableNestedSatchel() {
         replace(
             "items/examples.yml",
@@ -577,6 +646,25 @@ class PresentationSourceLoaderTest {
     }
 
     private companion object {
+        const val TRAVEL_DESCRIPTION = "        - type: description\n          message: item.travel-token.description\n"
+        val GROUP_YAML = """
+        - type: group
+          header:
+            type: field
+            label: data.charges.label
+            data: example:charges
+            format: itemerness:integer
+            separator: none
+          marker: tree
+          when-empty: hide
+          children:
+            - type: description
+              message: item.travel-token.description
+            - type: field
+              label: data.charges.label
+              data: example:charges
+              format: itemerness:integer
+""".trimStart('\n')
         val SELECTOR_YAML = """
             schema-version: 1
             theme-selectors:

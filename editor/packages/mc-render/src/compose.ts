@@ -3,6 +3,9 @@ import type {
     DataValue,
     DataTypeNode,
     Diagnostic,
+    FieldSeparator,
+    GroupDividers,
+    GroupMarker,
     ItemNode,
     LayoutNode,
     PresentationBlock,
@@ -23,7 +26,12 @@ import {
     type CanvasBlock,
     type CanvasElementOrigin,
 } from "./canvasLayout.js";
-import { FlowComposer, lineOf as toPreviewLine, themeStyle } from "./flow.js";
+import {
+    FlowComposer,
+    lineOf as toPreviewLine,
+    themeStyle,
+    type MarkerPiece,
+} from "./flow.js";
 import { SegmentedFrameComposer, usesDecoratedFrame } from "./segmentedFrame.js";
 
 /**
@@ -379,9 +387,25 @@ function iconRun(
     ];
 }
 
+/** The text between a label and its value: block, then layout, then the original colon. */
+function separatorText(
+    context: ComposeContext,
+    separator: FieldSeparator | undefined,
+): string {
+    const effective =
+        separator ??
+        (context.layout.kind === "flow"
+            ? context.layout.fieldSeparator
+            : undefined);
+    if (!effective) return ": ";
+    if (effective.kind === "none") return "";
+    return context.messages.lookup(effective.message);
+}
+
 function blockRuns(
     context: ComposeContext,
     block: PresentationBlock,
+    containerMarker: GroupMarker = "NONE",
 ): Array<{ runs: PreviewRun[]; origin: string }> {
     switch (block.type) {
         case "text": {
@@ -438,7 +462,7 @@ function blockRuns(
                     runs: [
                         ...iconRun(context, block.icon, block.style ?? "value"),
                         {
-                            text: `${context.messages.lookup(block.labelMessage)}: `,
+                            text: `${context.messages.lookup(block.labelMessage)}${separatorText(context, block.separator)}`,
                             kind: "TEXT",
                             unbreakable: true,
                             style: styleFor(context, block.style ?? "label"),
@@ -483,7 +507,9 @@ function blockRuns(
             const branch = matched ? block.thenBlocks : block.otherwiseBlocks;
             // Nested blocks keep their own uuids, so a click on a conditional's output selects the
             // nested row rather than the whole conditional.
-            return branch.flatMap((nested) => blockRuns(context, nested));
+            return branch.flatMap((nested) =>
+                blockRuns(context, nested, containerMarker),
+            );
         }
         case "repeat": {
             const value = context.data.get(block.data);
@@ -531,7 +557,7 @@ function blockRuns(
                                 block.style ?? "value",
                             ),
                             {
-                                text: `${context.messages.lookup(block.template.labelMessage)}: `,
+                                text: `${context.messages.lookup(block.template.labelMessage)}${separatorText(context, block.template.separator)}`,
                                 kind: "TEXT" as const,
                                 unbreakable: true,
                                 style: styleFor(
@@ -556,12 +582,20 @@ function blockRuns(
             return context.item.definition.contents.map((entry) => ({
                 origin: block.uuid,
                 runs: [
-                    {
-                        text: "\u2022 ",
-                        kind: "TEXT" as const,
-                        unbreakable: true,
-                        style: styleFor(context, block.style ?? "label"),
-                    },
+                    // A decorated container's marker replaces the built-in bullet.
+                    ...(containerMarker === "NONE"
+                        ? [
+                              {
+                                  text: "\u2022 ",
+                                  kind: "TEXT" as const,
+                                  unbreakable: true,
+                                  style: styleFor(
+                                      context,
+                                      block.style ?? "label",
+                                  ),
+                              },
+                          ]
+                        : []),
                     {
                         text: (() => {
                             const nested = context.document.items.find(
@@ -591,6 +625,156 @@ function blockRuns(
         default:
             return [];
     }
+}
+
+/** A rendered row with the decoration its containers give it, mirroring the compiler. */
+interface ResolvedRow {
+    runs: PreviewRun[];
+    origin: string;
+    boundaryBefore: boolean;
+    firstPrefix: MarkerPiece[];
+    continuationPrefix: MarkerPiece[];
+    gapPrefix: MarkerPiece[];
+    gapBeforeLines: number;
+}
+
+/** A leaf row, one repeat element, one nested item, or a whole child group. */
+interface ResolvedUnit {
+    rows: ResolvedRow[];
+    gapBeforeLines: number;
+}
+
+function leafRow(entry: { runs: PreviewRun[]; origin: string }): ResolvedRow {
+    return {
+        ...entry,
+        boundaryBefore: false,
+        firstPrefix: [],
+        continuationPrefix: [],
+        gapPrefix: [],
+        gapBeforeLines: 0,
+    };
+}
+
+function collectUnits(
+    context: ComposeContext,
+    blocks: readonly PresentationBlock[],
+    containerMarker: GroupMarker,
+    units: ResolvedUnit[],
+): void {
+    for (const block of blocks) {
+        if (block.type === "conditional") {
+            // Transparent: the selected branch's blocks are units of this container.
+            const matched = conditionHolds(
+                block.condition,
+                context.data,
+                context.facts,
+            );
+            collectUnits(
+                context,
+                matched ? block.thenBlocks : block.otherwiseBlocks,
+                containerMarker,
+                units,
+            );
+        } else if (block.type === "group") {
+            const rows = resolveGroup(context, block);
+            if (rows)
+                units.push({ rows, gapBeforeLines: block.gapBeforeLines ?? 0 });
+        } else {
+            for (const entry of blockRuns(context, block, containerMarker))
+                units.push({ rows: [leafRow(entry)], gapBeforeLines: 0 });
+        }
+    }
+}
+
+function resolveGroup(
+    context: ComposeContext,
+    group: Extract<PresentationBlock, { type: "group" }>,
+): ResolvedRow[] | null {
+    const header =
+        group.header &&
+        (group.header.type === "field" || group.header.type === "text")
+            ? (blockRuns(context, group.header)[0] ?? null)
+            : null;
+    if (group.header && !header && (group.whenHeaderMissing ?? "HIDE") === "HIDE")
+        return null;
+    const children = resolveContainer(
+        context,
+        group.children,
+        group.marker ?? "NONE",
+        group.dividers ?? "NONE",
+    );
+    if (children.length)
+        return [...(header ? [leafRow(header)] : []), ...children];
+    if (!header || (group.whenEmpty ?? "SHOW_HEADER") === "HIDE") return null;
+    return [leafRow(header)];
+}
+
+/** Resolves every unit before decorating, because a connector depends on later siblings. */
+function resolveContainer(
+    context: ComposeContext,
+    blocks: readonly PresentationBlock[],
+    marker: GroupMarker,
+    dividers: GroupDividers,
+): ResolvedRow[] {
+    const units: ResolvedUnit[] = [];
+    collectUnits(context, blocks, marker, units);
+    const output: ResolvedRow[] = [];
+    units.forEach((unit, unitIndex) => {
+        const last = unitIndex === units.length - 1;
+        const lead: MarkerPiece | null =
+            marker === "BULLET"
+                ? "BULLET"
+                : marker === "TREE"
+                  ? last
+                      ? "TREE_LAST"
+                      : "TREE_BRANCH"
+                  : null;
+        const continuation: MarkerPiece | null =
+            marker === "BULLET"
+                ? "BULLET_BLANK"
+                : marker === "TREE"
+                  ? last
+                      ? "TREE_BLANK"
+                      : "TREE_VERTICAL"
+                  : null;
+        const above: MarkerPiece | null =
+            marker === "BULLET"
+                ? "BULLET_BLANK"
+                : marker === "TREE"
+                  ? unitIndex === 0
+                      ? "TREE_BLANK"
+                      : "TREE_VERTICAL"
+                  : null;
+        const own = (piece: MarkerPiece | null) => (piece ? [piece] : []);
+        unit.rows.forEach((row, rowIndex) => {
+            if (rowIndex === 0)
+                output.push({
+                    ...row,
+                    boundaryBefore:
+                        unitIndex > 0 && dividers === "BETWEEN_CHILDREN",
+                    gapBeforeLines:
+                        row.gapBeforeLines +
+                        (unitIndex > 0 ? unit.gapBeforeLines : 0),
+                    firstPrefix: [...own(lead), ...row.firstPrefix],
+                    continuationPrefix: [
+                        ...own(continuation),
+                        ...row.continuationPrefix,
+                    ],
+                    gapPrefix: [...own(above), ...row.gapPrefix],
+                });
+            else
+                output.push({
+                    ...row,
+                    firstPrefix: [...own(continuation), ...row.firstPrefix],
+                    continuationPrefix: [
+                        ...own(continuation),
+                        ...row.continuationPrefix,
+                    ],
+                    gapPrefix: [...own(continuation), ...row.gapPrefix],
+                });
+        });
+    });
+    return output;
 }
 
 export interface ComposeOptions {
@@ -747,16 +931,37 @@ function composeAttempt(
                 collect(block.thenBlocks);
                 collect(block.otherwiseBlocks);
             }
+            if (block.type === "group") {
+                if (block.header) collect([block.header]);
+                collect(block.children);
+            }
         });
     collect(item.presentation.blocks);
-    const blocks: CanvasBlock[] = item.presentation.blocks
-        .flatMap((block) => blockRuns(context, block))
-        .map(({ runs, origin }) => {
+    const blocks: CanvasBlock[] = resolveContainer(
+        context,
+        item.presentation.blocks,
+        item.presentation.marker ?? "NONE",
+        item.presentation.dividers ?? "BETWEEN_CHILDREN",
+    ).map(
+        ({
+            runs,
+            origin,
+            boundaryBefore,
+            firstPrefix,
+            continuationPrefix,
+            gapPrefix,
+            gapBeforeLines,
+        }) => {
             const source = sources.get(origin)!;
             const field = source.type === "field" || source.type === "repeat";
             return {
                 runs,
                 origin,
+                boundaryBefore,
+                firstPrefix,
+                continuationPrefix,
+                gapPrefix,
+                gapBeforeLines,
                 kind: field
                     ? "field"
                     : source.type === "description"

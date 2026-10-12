@@ -53,21 +53,38 @@ internal object CatalogYamlEncoding {
             } }),
         "contents" to item.contents.map { map("item" to it.item, "amount" to it.amount) },
         "presentation" to map("layout" to layout, "theme" to theme, "name" to map("message" to presentation.nameMessage), "blocks" to presentation.blocks.map(::block),
-            "shown-flags" to presentation.shownFlags.takeIf { it.isNotEmpty() }),
+            "shown-flags" to presentation.shownFlags.takeIf { it.isNotEmpty() },
+            // The root group's defaults are the pre-group behaviour and stay implicit.
+            "marker" to presentation.marker.takeIf { it != GroupMarker.NONE }?.let(YamlEncoding::enum),
+            "dividers" to presentation.dividers.takeIf { it != GroupDividers.BETWEEN_CHILDREN }?.let(YamlEncoding::enum)),
     )
 
     private fun assignments(assignments: List<DataAssignmentSource>): Map<String, Any?> = assignments.associate { it.key to YamlEncoding.source(it.value) }
 
     private fun block(block: PresentationBlockSource): Map<String, Any?> = map("style" to block.style, "anchor" to block.anchor) + when (block) {
         is PresentationBlockSource.Text -> map("type" to "text", "data" to block.data, "wrapping" to block.wrapping, "unbreakable" to block.unbreakable, "missing-policy" to YamlEncoding.enum(block.missingPolicy))
-        is PresentationBlockSource.Field -> map("type" to "field", "data" to block.data, "label" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missing-policy" to YamlEncoding.enum(block.missingPolicy))
+        is PresentationBlockSource.Field -> map("type" to "field", "data" to block.data, "label" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missing-policy" to YamlEncoding.enum(block.missingPolicy),
+            "separator" to block.separator?.let(::separator))
         is PresentationBlockSource.Description -> map("type" to "description", "message" to block.message, "wrapping" to block.wrapping)
         is PresentationBlockSource.Conditional -> map("type" to "conditional", "condition" to condition(block.condition),
             "then" to block.thenBlocks.map(::block), "otherwise" to block.otherwiseBlocks.map(::block))
         is PresentationBlockSource.Repeat -> map("type" to "repeat", "data" to block.data, "maximum-elements" to block.maximumElements,
             "missing-policy" to YamlEncoding.enum(block.missingPolicy), "template" to map("type" to "compound-field", "label" to block.template.labelMessage,
-                "value-path" to block.template.valuePath, "missing-message" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format))
+                "value-path" to block.template.valuePath, "missing-message" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format,
+                "separator" to block.template.separator?.let(::separator)))
         is PresentationBlockSource.NestedItemList -> map("type" to "nested-item-list")
+        is PresentationBlockSource.Group -> map("type" to "group", "header" to block.header?.let(::block), "children" to block.children.map(::block),
+            "marker" to block.marker.takeIf { it != GroupMarker.NONE }?.let(YamlEncoding::enum),
+            "dividers" to block.dividers.takeIf { it != GroupDividers.NONE }?.let(YamlEncoding::enum),
+            "when-header-missing" to block.whenHeaderMissing.takeIf { it != GroupHeaderMissingPolicy.HIDE }?.let(YamlEncoding::enum),
+            "when-empty" to block.whenEmpty.takeIf { it != GroupEmptyPolicy.SHOW_HEADER }?.let(YamlEncoding::enum),
+            "gap-before-lines" to block.gapBeforeLines.takeIf { it != 0 })
+    }
+
+    /** Shared by fields, repeat templates and flow layouts. */
+    fun separator(separator: FieldSeparatorSource): Any = when (separator) {
+        FieldSeparatorSource.None -> "none"
+        is FieldSeparatorSource.Message -> map("message" to separator.message)
     }
 
     /** Shared by conditional blocks and theme selector cases, which use the same condition model. */

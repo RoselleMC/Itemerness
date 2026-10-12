@@ -188,6 +188,98 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `groups separators and markers import export and verify losslessly through the YAML loaders`() {
+        fixture()
+        val items = directory.resolve("items/examples.yml")
+        val group = """
+            - type: group
+              header:
+                type: field
+                label: data.charges.label
+                data: example:charges
+                format: itemerness:integer
+                separator: none
+              marker: tree
+              when-empty: hide
+              children:
+                - type: description
+                  message: item.travel-token.description
+                - type: group
+                  marker: bullet
+                  dividers: between-children
+                  when-header-missing: show-children
+                  gap-before-lines: 1
+                  children:
+                    - type: field
+                      label: data.region.label
+                      data: example:region
+                      missing-policy: omit
+                      format: itemerness:key-message
+                      separator:
+                        message: data.charges.label
+        """.trimIndent().prependIndent("        ") + "\n"
+        Files.writeString(items, Files.readString(items)
+            .replace("        - type: description\n          message: item.travel-token.description\n", group)
+            .replace(
+                "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n",
+                "      layout: itemerness:plain\n      theme: itemerness:vanilla-frame\n      marker: bullet\n      dividers: none\n",
+            ))
+        val layout = directory.resolve("layouts/plain.yml")
+        Files.writeString(layout, Files.readString(layout).replace(
+            "        gap-after-pixels: 0\n",
+            "        gap-after-pixels: 0\n    sections:\n      field:\n        separator:\n          message: data.region.label\n",
+        ))
+        val theme = directory.resolve("themes/default.yml")
+        Files.writeString(theme, Files.readString(theme).replace(
+            "    icons:\n",
+            "    markers:\n      style: label\n      bullet: \"* \"\n      tree:\n        last: \"+- \"\n    icons:\n",
+        ))
+
+        val document = requireNotNull(read().raw("document"))
+        val root = JsonObject.of(document, "document")
+        val token = root.requiredObjects("items").single { it.requiredString("id") == "itemerness:travel-token" }.requiredObject("presentation")
+        assertEquals("BULLET", token.requiredString("marker"))
+        assertEquals("NONE", token.requiredString("dividers"))
+        val node = token.requiredObjects("blocks").last()
+        assertEquals("group", node.requiredString("type"))
+        assertEquals("TREE", node.requiredString("marker"))
+        assertEquals("HIDE", node.requiredString("whenEmpty"))
+        assertFalse(node.keys.contains("dividers"))
+        assertEquals(JsonValue.Obj(mapOf("kind" to JsonValue.Text("none"))), node.requiredObject("header").raw("separator"))
+        val nested = node.requiredObjects("children").last()
+        assertEquals(1, nested.requiredInt("gapBeforeLines"))
+        assertEquals("SHOW_CHILDREN", nested.requiredString("whenHeaderMissing"))
+        val plain = root.requiredObjects("layouts").single { it.requiredString("id") == "itemerness:plain" }
+        assertEquals("data.region.label", plain.requiredObject("fieldSeparator").requiredString("message"))
+        val markers = root.requiredObjects("themes").single { it.requiredString("id") == "itemerness:default" }.requiredObject("markers")
+        assertEquals("* ", markers.requiredObject("bullet").requiredString("text"))
+        assertTrue(root.requiredObjects("items").filter { it.requiredString("id") != "itemerness:travel-token" }.none { "marker" in it.requiredObject("presentation").keys })
+
+        // Export re-reads the written YAML through the real loaders and refuses any difference.
+        val files = export(document).requiredObjects("files").associate { it.requiredString("path") to it.requiredString("content") }
+        val exported = files.values.single { it.contains("travel-token:") }
+        listOf("type: group", "marker: tree", "when-empty: hide", "separator: none", "gap-before-lines: 1", "when-header-missing: show-children",
+            "dividers: between-children", "marker: bullet", "dividers: none").forEach { assertTrue(exported.contains(it), "$it\n$exported") }
+        assertFalse(exported.contains("when-header-missing: hide"), exported)
+        assertFalse(exported.contains("gap-before-lines: 0"), exported)
+        assertTrue(files.values.single { it.contains("itemerness:plain:") }.contains("message: data.region.label"))
+        assertTrue(files.values.single { it.contains("itemerness:default:") }.contains("markers:"))
+    }
+
+    @Test
+    fun `documents without groups keep group fields out of documents and exports`() {
+        fixture()
+        val document = requireNotNull(read().raw("document"))
+        val text = Json.canonicalize(document)
+        listOf("\"marker\"", "\"dividers\"", "\"separator\"", "\"fieldSeparator\"", "\"markers\"", "\"group\"").forEach {
+            assertFalse(text.contains(it), it)
+        }
+        val files = export(document).requiredObjects("files").map { it.requiredString("content") }
+        val keys = Regex("(?m)^\\s+(marker|dividers|separator|markers):")
+        assertTrue(files.none { keys.containsMatchIn(it) || it.contains("type: group") })
+    }
+
+    @Test
     fun `assumed resource-pack delivery imports exports and verifies losslessly`() {
         fixture()
         val assets = directory.resolve("assets/bitmaps.yml")

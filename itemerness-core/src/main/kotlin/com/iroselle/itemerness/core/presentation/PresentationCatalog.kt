@@ -215,6 +215,10 @@ class CompiledItemPresentation internal constructor(
     val nameMessage: String,
     blocks: Collection<CompiledPresentationBlock>,
     shownFlags: Collection<ItemKey> = emptyList(),
+    /** The implicit root group's marker; NONE keeps undecorated top-level blocks. */
+    val marker: GroupMarker = GroupMarker.NONE,
+    /** The implicit root group's dividers; BETWEEN_CHILDREN is the pre-group behaviour. */
+    val dividers: GroupDividers = GroupDividers.BETWEEN_CHILDREN,
 ) {
     val blocks: List<CompiledPresentationBlock> = java.util.List.copyOf(blocks)
 
@@ -244,6 +248,7 @@ sealed interface CompiledPresentationBlock {
         override val anchor: String?,
         val wrapping: String?,
         val missingPolicy: MissingDataPolicy,
+        val separator: FieldSeparatorSource? = null,
     ) : CompiledPresentationBlock
 
     data class Description(
@@ -277,6 +282,20 @@ sealed interface CompiledPresentationBlock {
         override val style: String?,
         override val anchor: String?,
     ) : CompiledPresentationBlock
+
+    class Group(
+        val header: CompiledPresentationBlock?,
+        children: Collection<CompiledPresentationBlock>,
+        val marker: GroupMarker,
+        val dividers: GroupDividers,
+        val whenHeaderMissing: GroupHeaderMissingPolicy,
+        val whenEmpty: GroupEmptyPolicy,
+        val gapBeforeLines: Int,
+        override val style: String?,
+        override val anchor: String?,
+    ) : CompiledPresentationBlock {
+        val children: List<CompiledPresentationBlock> = java.util.List.copyOf(children)
+    }
 }
 
 data class CompiledCompoundFieldTemplate(
@@ -285,6 +304,7 @@ data class CompiledCompoundFieldTemplate(
     val missingMessage: String,
     val icon: String?,
     val format: ItemKey?,
+    val separator: FieldSeparatorSource? = null,
 )
 
 data class CompiledCondition(

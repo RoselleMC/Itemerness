@@ -41,14 +41,21 @@ import com.iroselle.itemerness.core.presentation.CompoundFieldTemplateSource
 import com.iroselle.itemerness.core.presentation.ConditionOperator
 import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.ContentAreaSource
+import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FieldValueAlignment
 import com.iroselle.itemerness.core.presentation.FontSource
 import com.iroselle.itemerness.core.presentation.FormatSource
 import com.iroselle.itemerness.core.presentation.FrameRowSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
 import com.iroselle.itemerness.core.presentation.GlyphSource
+import com.iroselle.itemerness.core.presentation.GroupDividers
+import com.iroselle.itemerness.core.presentation.GroupEmptyPolicy
+import com.iroselle.itemerness.core.presentation.GroupHeaderMissingPolicy
+import com.iroselle.itemerness.core.presentation.GroupMarker
 import com.iroselle.itemerness.core.presentation.LayoutSource
 import com.iroselle.itemerness.core.presentation.LocaleSource
+import com.iroselle.itemerness.core.presentation.MarkerPieceSource
+import com.iroselle.itemerness.core.presentation.MarkerThemeSource
 import com.iroselle.itemerness.core.presentation.MissingDataPolicy
 import com.iroselle.itemerness.core.presentation.MissingKeyValue
 import com.iroselle.itemerness.core.presentation.NamespacedKeyFormatMode
@@ -66,6 +73,7 @@ import com.iroselle.itemerness.core.presentation.ThemeRenderer
 import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
 import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ThemeSource
+import com.iroselle.itemerness.core.presentation.TreeMarkerSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
 import com.iroselle.itemerness.core.presentation.ViewerFactSource
@@ -642,7 +650,7 @@ object ProjectDocumentCodec {
                     "uuid", "extensions", "kind", "id", "minimumWidthPixels", "maximumWidthPixels",
                     "blockGapAfterPixels", "fieldLeftPaddingPixels", "fieldIconGapPixels", "fieldValueAlignment",
                     "descriptionLeftPaddingPixels", "descriptionRightPaddingPixels", "descriptionGapBeforePixels",
-                    "wrapping",
+                    "wrapping", "fieldSeparator",
                 )
                 LayoutSource.Flow(
                     id = id,
@@ -657,6 +665,7 @@ object ProjectDocumentCodec {
                     descriptionRightPaddingPixels = node.optionalInt("descriptionRightPaddingPixels") ?: 0,
                     descriptionGapBeforePixels = node.optionalInt("descriptionGapBeforePixels") ?: 0,
                     wrapping = wrappingMap(node.requiredObject("wrapping")),
+                    fieldSeparator = node.optionalObject("fieldSeparator")?.let(::separator),
                 )
             }
 
@@ -701,7 +710,7 @@ object ProjectDocumentCodec {
         node.rejectUnknown(
             "uuid", "extensions", "id", "renderer", "requiresResourcePack", "requiredCapabilities",
             "vanillaTooltipLines", "fallback", "fonts", "styles", "tooltipStyle", "requireExactFontMetrics",
-            "content", "characterFrame", "segmentedFrame", "canvas",
+            "content", "characterFrame", "segmentedFrame", "canvas", "markers",
         )
         val fonts = node.requiredObject("fonts")
         val styles = node.optionalObject("styles")
@@ -770,7 +779,48 @@ object ProjectDocumentCodec {
             }?.takeIf { renderer == ThemeRenderer.SEGMENTED_FRAME },
             canvas = node.optionalObject("canvas")?.let(::canvasTheme)?.takeIf { renderer == ThemeRenderer.BITMAP_CANVAS },
             requireExactFontMetrics = node.optionalBoolean("requireExactFontMetrics", false),
+            markers = node.optionalObject("markers")?.let(::markers),
         )
+    }
+
+    private fun markers(node: JsonObject): MarkerThemeSource {
+        node.rejectUnknown("style", "bullet", "tree")
+        val tree = node.optionalObject("tree")?.also { it.rejectUnknown("branch", "last", "vertical") }
+        return MarkerThemeSource(
+            style = node.optionalString("style"),
+            bullet = node.optionalObject("bullet")?.let(::markerPiece),
+            tree = tree?.let {
+                TreeMarkerSource(
+                    branch = it.optionalObject("branch")?.let(::markerPiece),
+                    last = it.optionalObject("last")?.let(::markerPiece),
+                    vertical = it.optionalObject("vertical")?.let(::markerPiece),
+                )
+            },
+        )
+    }
+
+    private fun markerPiece(node: JsonObject): MarkerPieceSource = when (val kind = node.requiredString("kind")) {
+        "text" -> {
+            node.rejectUnknown("kind", "text")
+            MarkerPieceSource.Text(node.requiredString("text"))
+        }
+        "glyph" -> {
+            node.rejectUnknown("kind", "glyph")
+            MarkerPieceSource.Glyph(node.requiredString("glyph"))
+        }
+        else -> throw JsonException("Unknown marker piece kind \"$kind\"")
+    }
+
+    private fun separator(node: JsonObject): FieldSeparatorSource = when (val kind = node.requiredString("kind")) {
+        "none" -> {
+            node.rejectUnknown("kind")
+            FieldSeparatorSource.None
+        }
+        "message" -> {
+            node.rejectUnknown("kind", "message")
+            FieldSeparatorSource.Message(node.requiredString("message"))
+        }
+        else -> throw JsonException("Unknown field separator kind \"$kind\"")
     }
 
     private fun canvasTheme(node: JsonObject): CanvasThemeSource {
@@ -859,7 +909,7 @@ object ProjectDocumentCodec {
             "field" -> {
                 node.rejectUnknown(
                     "uuid", "type", "labelMessage", "data", "format", "icon", "style", "anchor", "wrapping",
-                    "missingPolicy",
+                    "missingPolicy", "separator",
                 )
                 PresentationBlockSource.Field(
                     labelMessage = node.requiredString("labelMessage"),
@@ -871,6 +921,7 @@ object ProjectDocumentCodec {
                     wrapping = node.optionalString("wrapping"),
                     missingPolicy = node.optionalString("missingPolicy")?.let { enum<MissingDataPolicy>(it) }
                         ?: MissingDataPolicy.ERROR,
+                    separator = node.optionalObject("separator")?.let(::separator),
                 )
             }
 
@@ -898,7 +949,7 @@ object ProjectDocumentCodec {
             "repeat" -> {
                 node.rejectUnknown("uuid", "type", "data", "maximumElements", "template", "style", "anchor", "missingPolicy")
                 val template = node.requiredObject("template")
-                template.rejectUnknown("labelMessage", "valuePath", "missingMessage", "icon", "format")
+                template.rejectUnknown("labelMessage", "valuePath", "missingMessage", "icon", "format", "separator")
                 PresentationBlockSource.Repeat(
                     data = node.requiredString("data"),
                     maximumElements = node.requiredInt("maximumElements"),
@@ -908,6 +959,7 @@ object ProjectDocumentCodec {
                         missingMessage = template.requiredString("missingMessage"),
                         icon = template.optionalString("icon"),
                         format = template.optionalString("format"),
+                        separator = template.optionalObject("separator")?.let(::separator),
                     ),
                     style = style,
                     anchor = anchor,
@@ -919,6 +971,25 @@ object ProjectDocumentCodec {
             "nestedItemList" -> {
                 node.rejectUnknown("uuid", "type", "style", "anchor")
                 PresentationBlockSource.NestedItemList(style = style, anchor = anchor)
+            }
+
+            "group" -> {
+                node.rejectUnknown(
+                    "uuid", "type", "header", "children", "marker", "dividers", "whenHeaderMissing", "whenEmpty",
+                    "gapBeforeLines", "style", "anchor",
+                )
+                PresentationBlockSource.Group(
+                    header = node.optionalObject("header")?.let(::block),
+                    children = node.requiredObjects("children").map(::block),
+                    marker = node.optionalString("marker")?.let { enum<GroupMarker>(it) } ?: GroupMarker.NONE,
+                    dividers = node.optionalString("dividers")?.let { enum<GroupDividers>(it) } ?: GroupDividers.NONE,
+                    whenHeaderMissing = node.optionalString("whenHeaderMissing")?.let { enum<GroupHeaderMissingPolicy>(it) }
+                        ?: GroupHeaderMissingPolicy.HIDE,
+                    whenEmpty = node.optionalString("whenEmpty")?.let { enum<GroupEmptyPolicy>(it) } ?: GroupEmptyPolicy.SHOW_HEADER,
+                    gapBeforeLines = node.optionalInt("gapBeforeLines") ?: 0,
+                    style = style,
+                    anchor = anchor,
+                )
             }
 
             else -> throw JsonException("Unknown presentation block type \"$type\"")
@@ -937,7 +1008,7 @@ object ProjectDocumentCodec {
         node: JsonObject, namespace: String, schemaVersion: Int, defaultLayout: String?, defaultTheme: String?,
     ): ItemPresentationSource {
         val presentation = node.requiredObject("presentation")
-        presentation.rejectUnknown("layout", "theme", "nameMessage", "blocks", "shownFlags")
+        presentation.rejectUnknown("layout", "theme", "nameMessage", "blocks", "shownFlags", "marker", "dividers")
         return ItemPresentationSource(
             id = itemKey(node, namespace, schemaVersion),
             layout = if (schemaVersion == 1) presentation.requiredString("layout") else
@@ -954,6 +1025,8 @@ object ProjectDocumentCodec {
                 (value as? JsonValue.Text)?.value
                     ?: throw JsonException("Expected a string at presentation.shownFlags[$index]")
             },
+            marker = presentation.optionalString("marker")?.let { enum<GroupMarker>(it) } ?: GroupMarker.NONE,
+            dividers = presentation.optionalString("dividers")?.let { enum<GroupDividers>(it) } ?: GroupDividers.BETWEEN_CHILDREN,
         )
     }
 

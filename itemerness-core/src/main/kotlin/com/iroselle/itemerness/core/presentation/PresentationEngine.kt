@@ -159,8 +159,9 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
     ): ResolvedPresentation {
         val name = messages.resolve(item.nameMessage)
             ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${item.nameMessage}")
-        val blocks = ArrayList<SemanticBlock>()
-        resolveBlocks(item.blocks, request, messages, formatter, blocks, depth = 1)
+        val layoutSeparator = (catalog.layouts[item.layout]?.source as? LayoutSource.Flow)?.fieldSeparator
+        val resolution = Resolution(request, messages, formatter, layoutSeparator, catalog.budgets.maximumBlocksPerItem)
+        val blocks = resolveContainer(item.blocks, item.marker, item.dividers, resolution, depth = 1)
         val codePoints = name.codePointCount(0, name.length) + blocks.sumOf { block ->
             block.runs.sumOf { run -> run.text.codePointCount(0, run.text.length) }
         }
@@ -173,82 +174,50 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         return ResolvedPresentation(name, blocks)
     }
 
-    private fun resolveBlocks(
+    /**
+     * Resolves one container (the item root or a group) into decorated rows.
+     *
+     * Every child unit is resolved before any is decorated, because a tree connector depends on
+     * whether a later sibling actually renders: omitted rows, unselected branches, hidden groups
+     * and empty repeats never consume a connector.
+     */
+    private fun resolveContainer(
         sources: List<CompiledPresentationBlock>,
-        request: PresentationRenderRequest,
-        messages: MessageResolver,
-        formatter: ValueFormatter,
-        output: MutableList<SemanticBlock>,
+        marker: GroupMarker,
+        dividers: GroupDividers,
+        resolution: Resolution,
         depth: Int,
+    ): List<SemanticBlock> {
+        val units = ArrayList<ResolvedUnit>()
+        collectUnits(sources, marker, resolution, depth, units)
+        return decorate(units, marker, dividers)
+    }
+
+    private fun collectUnits(
+        sources: List<CompiledPresentationBlock>,
+        containerMarker: GroupMarker,
+        resolution: Resolution,
+        depth: Int,
+        units: MutableList<ResolvedUnit>,
     ) {
         if (depth > catalog.budgets.maximumBlockDepth) {
             throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Runtime block nesting exceeded")
         }
+        val request = resolution.request
+        val messages = resolution.messages
+        val formatter = resolution.formatter
         sources.forEach { block ->
-            if (output.size >= catalog.budgets.maximumBlocksPerItem) {
-                throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Runtime block count exceeded")
-            }
+            resolution.requireRowCapacity()
             when (block) {
-                is CompiledPresentationBlock.Text -> {
-                    val value = request.data[block.data]
-                    if (value == null) {
-                        if (block.missingPolicy == MissingDataPolicy.OMIT) return@forEach
-                        throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_DATA, "Missing data ${block.data}")
-                    }
-                    val text = formatter.format(value).getOrElse {
-                        throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
-                    }
-                    output += SemanticBlock(
-                        listOf(SemanticRun(text, block.style ?: "value", unbreakable = block.unbreakable)),
-                        block.anchor,
-                        block.wrapping,
-                        output.isNotEmpty(),
-                        SemanticBlockKind.GENERIC,
-                    )
-                }
+                is CompiledPresentationBlock.Text,
+                is CompiledPresentationBlock.Field,
+                is CompiledPresentationBlock.Description,
+                -> resolveLeaf(block, resolution)?.let { units += ResolvedUnit(listOf(it)) }
 
-                is CompiledPresentationBlock.Field -> {
-                    val value = request.data[block.data]
-                    if (value == null) {
-                        if (block.missingPolicy == MissingDataPolicy.OMIT) return@forEach
-                        throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_DATA, "Missing data ${block.data}")
-                    }
-                    val label = messages.resolve(block.labelMessage)
-                        ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.labelMessage}")
-                    val formatted = formatter.format(value, block.format).getOrElse {
-                        throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
-                    }
-                    val role = block.style
-                    val runs = buildList {
-                        block.icon?.let { add(SemanticRun("", role ?: "value", PresentationRunKind.ICON, true, it)) }
-                        add(SemanticRun(label, role ?: "label", unbreakable = true))
-                        add(SemanticRun(": ", role ?: "label", unbreakable = true))
-                        add(SemanticRun(formatted, role ?: "value", fieldValue = true))
-                    }
-                    output += SemanticBlock(
-                        runs,
-                        block.anchor,
-                        block.wrapping,
-                        output.isNotEmpty(),
-                        SemanticBlockKind.FIELD,
-                    )
-                }
-
-                is CompiledPresentationBlock.Description -> {
-                    val text = messages.resolve(block.message)
-                        ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.message}")
-                    output += SemanticBlock(
-                        listOf(SemanticRun(text, block.style ?: "description")),
-                        block.anchor,
-                        block.wrapping,
-                        output.isNotEmpty(),
-                        SemanticBlockKind.DESCRIPTION,
-                    )
-                }
-
+                // Conditionals are transparent: the selected branch's blocks are units of this container.
                 is CompiledPresentationBlock.Conditional -> {
                     val selected = if (evaluate(block.condition, request)) block.thenBlocks else block.otherwiseBlocks
-                    resolveBlocks(selected, request, messages, formatter, output, depth + 1)
+                    collectUnits(selected, containerMarker, resolution, depth + 1, units)
                 }
 
                 is CompiledPresentationBlock.Repeat -> {
@@ -276,17 +245,17 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                         }
                         val label = messages.resolve(block.template.labelMessage)
                             ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.template.labelMessage}")
-                        output += SemanticBlock(
-                            buildList {
-                                block.template.icon?.let { add(SemanticRun("", block.style ?: "value", PresentationRunKind.ICON, true, it)) }
-                                add(SemanticRun(label, block.style ?: "label", unbreakable = true))
-                                add(SemanticRun(": ", block.style ?: "label", unbreakable = true))
-                                add(SemanticRun(formatted, block.style ?: "value", fieldValue = true))
-                            },
-                            block.anchor,
-                            null,
-                            output.isNotEmpty(),
-                            SemanticBlockKind.FIELD,
+                        units += ResolvedUnit(
+                            listOf(
+                                resolution.row(
+                                    SemanticBlock(
+                                        fieldRuns(block.template.icon, label, block.template.separator, formatted, block.style, resolution),
+                                        block.anchor,
+                                        null,
+                                        kind = SemanticBlockKind.FIELD,
+                                    ),
+                                ),
+                            ),
                         )
                     }
                 }
@@ -299,21 +268,186 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                         )
                     }
                     request.nestedItems.forEach { nested ->
-                        output += SemanticBlock(
+                        units += ResolvedUnit(
                             listOf(
-                                SemanticRun("• ", block.style ?: "label", unbreakable = true),
-                                SemanticRun(nested.displayName, block.style ?: "value"),
-                                SemanticRun(" ×${nested.amount}", block.style ?: "value", unbreakable = true),
+                                resolution.row(
+                                    SemanticBlock(
+                                        buildList {
+                                            // A decorated container's marker replaces the built-in bullet.
+                                            if (containerMarker == GroupMarker.NONE) {
+                                                add(SemanticRun("• ", block.style ?: "label", unbreakable = true))
+                                            }
+                                            add(SemanticRun(nested.displayName, block.style ?: "value"))
+                                            add(SemanticRun(" ×${nested.amount}", block.style ?: "value", unbreakable = true))
+                                        },
+                                        block.anchor,
+                                        null,
+                                    ),
+                                ),
                             ),
-                            block.anchor,
-                            null,
-                            output.isNotEmpty(),
-                            SemanticBlockKind.GENERIC,
                         )
                     }
                 }
+
+                is CompiledPresentationBlock.Group -> resolveGroup(block, resolution, depth + 1)?.let { rows ->
+                    units += ResolvedUnit(rows, block.gapBeforeLines)
+                }
             }
         }
+    }
+
+    private fun resolveGroup(
+        group: CompiledPresentationBlock.Group,
+        resolution: Resolution,
+        depth: Int,
+    ): List<SemanticBlock>? {
+        val header = group.header?.let { source ->
+            resolution.requireRowCapacity()
+            resolveLeaf(source, resolution)
+        }
+        if (group.header != null && header == null && group.whenHeaderMissing == GroupHeaderMissingPolicy.HIDE) return null
+        val children = resolveContainer(group.children, group.marker, group.dividers, resolution, depth)
+        if (children.isNotEmpty()) return listOfNotNull(header) + children
+        if (header == null || group.whenEmpty == GroupEmptyPolicy.HIDE) {
+            if (header != null) resolution.discardRow()
+            return null
+        }
+        return listOf(header)
+    }
+
+    /** Resolves a single-row block, or null when its data is absent and the block may be omitted. */
+    private fun resolveLeaf(block: CompiledPresentationBlock, resolution: Resolution): SemanticBlock? {
+        val request = resolution.request
+        val messages = resolution.messages
+        val formatter = resolution.formatter
+        return when (block) {
+            is CompiledPresentationBlock.Text -> {
+                val value = request.data[block.data]
+                if (value == null) {
+                    if (block.missingPolicy == MissingDataPolicy.OMIT) return null
+                    throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_DATA, "Missing data ${block.data}")
+                }
+                val text = formatter.format(value).getOrElse {
+                    throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
+                }
+                resolution.row(
+                    SemanticBlock(
+                        listOf(SemanticRun(text, block.style ?: "value", unbreakable = block.unbreakable)),
+                        block.anchor,
+                        block.wrapping,
+                        kind = SemanticBlockKind.GENERIC,
+                    ),
+                )
+            }
+
+            is CompiledPresentationBlock.Field -> {
+                val value = request.data[block.data]
+                if (value == null) {
+                    if (block.missingPolicy == MissingDataPolicy.OMIT) return null
+                    throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_DATA, "Missing data ${block.data}")
+                }
+                val label = messages.resolve(block.labelMessage)
+                    ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.labelMessage}")
+                val formatted = formatter.format(value, block.format).getOrElse {
+                    throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
+                }
+                resolution.row(
+                    SemanticBlock(
+                        fieldRuns(block.icon, label, block.separator, formatted, block.style, resolution),
+                        block.anchor,
+                        block.wrapping,
+                        kind = SemanticBlockKind.FIELD,
+                    ),
+                )
+            }
+
+            is CompiledPresentationBlock.Description -> {
+                val text = messages.resolve(block.message)
+                    ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.message}")
+                resolution.row(
+                    SemanticBlock(
+                        listOf(SemanticRun(text, block.style ?: "description")),
+                        block.anchor,
+                        block.wrapping,
+                        kind = SemanticBlockKind.DESCRIPTION,
+                    ),
+                )
+            }
+
+            else -> error("Block ${block::class.simpleName} is not a single row")
+        }
+    }
+
+    /** Label, separator and value runs shared by fields and repeat templates. */
+    private fun fieldRuns(
+        icon: String?,
+        label: String,
+        separator: FieldSeparatorSource?,
+        formatted: String,
+        role: String?,
+        resolution: Resolution,
+    ): List<SemanticRun> {
+        // Precedence: the block's own separator, the layout default, then the original colon.
+        val separatorText = when (val effective = separator ?: resolution.layoutSeparator) {
+            null -> ": "
+            FieldSeparatorSource.None -> null
+            is FieldSeparatorSource.Message -> resolution.messages.resolve(effective.message)
+                ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${effective.message}")
+        }
+        return buildList {
+            icon?.let { add(SemanticRun("", role ?: "value", PresentationRunKind.ICON, true, it)) }
+            add(SemanticRun(label, role ?: "label", unbreakable = true))
+            separatorText?.let { add(SemanticRun(it, role ?: "label", unbreakable = true)) }
+            add(SemanticRun(formatted, role ?: "value", fieldValue = true))
+        }
+    }
+
+    /**
+     * Applies a container's dividers and marker to its child units. A unit is one leaf row, one
+     * repeat element, one nested item, or a whole child group; prefixes compose outermost first.
+     */
+    private fun decorate(units: List<ResolvedUnit>, marker: GroupMarker, dividers: GroupDividers): List<SemanticBlock> {
+        val output = ArrayList<SemanticBlock>()
+        units.forEachIndexed { unitIndex, unit ->
+            val last = unitIndex == units.lastIndex
+            val lead = when (marker) {
+                GroupMarker.NONE -> null
+                GroupMarker.BULLET -> MarkerPiece.BULLET
+                GroupMarker.TREE -> if (last) MarkerPiece.TREE_LAST else MarkerPiece.TREE_BRANCH
+            }
+            val continuation = when (marker) {
+                GroupMarker.NONE -> null
+                GroupMarker.BULLET -> MarkerPiece.BULLET_BLANK
+                GroupMarker.TREE -> if (last) MarkerPiece.TREE_BLANK else MarkerPiece.TREE_VERTICAL
+            }
+            // An empty line above a unit continues the connector from the previous sibling.
+            val above = when (marker) {
+                GroupMarker.NONE -> null
+                GroupMarker.BULLET -> MarkerPiece.BULLET_BLANK
+                GroupMarker.TREE -> if (unitIndex == 0) MarkerPiece.TREE_BLANK else MarkerPiece.TREE_VERTICAL
+            }
+            unit.rows.forEachIndexed { rowIndex, row ->
+                val first = rowIndex == 0
+                output += if (first) {
+                    row.copy(
+                        sectionBoundaryBefore = unitIndex > 0 && dividers == GroupDividers.BETWEEN_CHILDREN,
+                        gapBeforeLines = row.gapBeforeLines + if (unitIndex > 0) unit.gapBeforeLines else 0,
+                        firstPrefix = listOfNotNull(lead) + row.firstPrefix,
+                        continuationPrefix = listOfNotNull(continuation) + row.continuationPrefix,
+                        gapPrefix = listOfNotNull(above) + row.gapPrefix,
+                    )
+                } else if (marker == GroupMarker.NONE) {
+                    row
+                } else {
+                    row.copy(
+                        firstPrefix = listOfNotNull(continuation) + row.firstPrefix,
+                        continuationPrefix = listOfNotNull(continuation) + row.continuationPrefix,
+                        gapPrefix = listOfNotNull(continuation) + row.gapPrefix,
+                    )
+                }
+            }
+        }
+        return output
     }
 
     private fun evaluate(condition: CompiledCondition, request: PresentationRenderRequest): Boolean {
@@ -373,6 +507,38 @@ private data class ResolvedPresentation(
     val name: String,
     val blocks: List<SemanticBlock>,
 )
+
+/** One child unit of a container: a leaf row, a repeat element, a nested item or a whole group. */
+private class ResolvedUnit(
+    val rows: List<SemanticBlock>,
+    val gapBeforeLines: Int = 0,
+)
+
+/** Per-render resolution state; [rows] counts every emitted row against the block budget. */
+private class Resolution(
+    val request: PresentationRenderRequest,
+    val messages: MessageResolver,
+    val formatter: ValueFormatter,
+    val layoutSeparator: FieldSeparatorSource?,
+    private val maximumRows: Int,
+) {
+    private var rows = 0
+
+    fun requireRowCapacity() {
+        if (rows >= maximumRows) {
+            throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Runtime block count exceeded")
+        }
+    }
+
+    fun row(block: SemanticBlock): SemanticBlock {
+        rows++
+        return block
+    }
+
+    fun discardRow() {
+        rows--
+    }
+}
 
 private class RuntimePresentationException(
     val code: PresentationRenderFailureCode,
@@ -448,6 +614,10 @@ private class ThemeRendererEngine(
             wrapping = block.wrapping,
             sectionBoundaryBefore = block.sectionBoundaryBefore,
             kind = block.kind,
+            firstPrefix = block.firstPrefix,
+            continuationPrefix = block.continuationPrefix,
+            gapPrefix = block.gapPrefix,
+            gapBeforeLines = block.gapBeforeLines,
         )
     }
 
@@ -512,18 +682,20 @@ private class ThemeRendererEngine(
             } else {
                 0
             }
+            val prefix = prefixWidth(block)
             block.lines.maxOfOrNull { line ->
                 val withIconGap = addIconGap(line.values, flow)
                 measurer.measure(withIconGap.map(StyledRun::run)).logicalWidthPixels +
-                    themeLeft + themeRight + sectionLeft + sectionRight
+                    themeLeft + themeRight + sectionLeft + sectionRight + prefix
             } ?: 0
         }?.coerceIn(minimumWidth, maximumWidth) ?: minimumWidth.coerceAtMost(maximumWidth)
         val rendered = ArrayList<PresentationLine>()
         val boundaries = LinkedHashSet<Int>()
         blocks.forEachIndexed { blockIndex, block ->
             if (block.sectionBoundaryBefore && rendered.isNotEmpty()) boundaries += rendered.size
+            repeat(block.gapBeforeLines) { rendered += gapLine(block.gapPrefix) }
             if (flow != null && block.kind == SemanticBlockKind.DESCRIPTION && rendered.isNotEmpty()) {
-                appendVerticalGap(rendered, flow.descriptionGapBeforePixels)
+                appendVerticalGap(rendered, flow.descriptionGapBeforePixels, block.gapPrefix)
             }
             val policy = wrappingPolicy(layout, block.wrapping)
             val sectionLeft = when {
@@ -539,7 +711,8 @@ private class ThemeRendererEngine(
             }
             val left = themeLeft + sectionLeft
             val right = themeRight + sectionRight
-            val available = minOf(policy.widthPixels ?: targetWidth, targetWidth) - left - right
+            // Marker prefixes are measured runs, so the text beside them wraps in what remains.
+            val available = minOf(policy.widthPixels ?: targetWidth, targetWidth) - left - right - prefixWidth(block)
             if (available <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Section padding consumes its width")
             val logicalLines = if (policy.preserveExplicitLines) block.lines else listOf(joinExplicitLines(block.lines))
             var emittedForBlock = 0
@@ -564,12 +737,17 @@ private class ThemeRendererEngine(
                 )
                 rendered += wrapped.mapIndexed { index, line ->
                     val continuation = if (index > 0) policy.continuationIndentPixels else 0
-                    appendRightPadding(indentLine(line, left + continuation), right)
+                    val prefix = if (emittedForBlock == 0 && index == 0) block.firstPrefix else block.continuationPrefix
+                    if (prefix.isEmpty()) {
+                        appendRightPadding(indentLine(line, left + continuation), right)
+                    } else {
+                        appendRightPadding(decorateLine(line, themeLeft, prefix, sectionLeft + continuation), right)
+                    }
                 }
                 emittedForBlock += wrapped.size
             }
             if (flow != null && blockIndex < blocks.lastIndex) {
-                appendVerticalGap(rendered, flow.blockGapAfterPixels)
+                appendVerticalGap(rendered, flow.blockGapAfterPixels, blocks[blockIndex + 1].gapPrefix)
             }
         }
         if (rendered.size > catalog.budgets.maximumLines) {
@@ -657,8 +835,90 @@ private class ThemeRendererEngine(
         return runs.take(valueIndex) + boundedPaddingRuns(widthPixels - measured, style) + runs.drop(valueIndex)
     }
 
-    private fun appendVerticalGap(output: MutableList<PresentationLine>, pixels: Int) {
-        repeat(pixels / TOOLTIP_LINE_HEIGHT_PIXELS) { output += measurer.measure(emptyList()) }
+    private fun appendVerticalGap(output: MutableList<PresentationLine>, pixels: Int, prefix: List<MarkerPiece>) {
+        repeat(pixels / TOOLTIP_LINE_HEIGHT_PIXELS) { output += gapLine(prefix) }
+    }
+
+    /** An empty line that keeps the connectors of its decorated ancestors continuous. */
+    private fun gapLine(prefix: List<MarkerPiece>): PresentationLine {
+        val visible = prefix.dropLastWhile(MarkerPiece::blank)
+        if (visible.isEmpty()) return measurer.measure(emptyList())
+        return measurer.measure(paddingRuns(theme.source.content?.leftPaddingPixels ?: 0, markerStyle) + prefixRuns(visible))
+    }
+
+    /** Places marker runs after the theme's content inset and before section padding and text. */
+    private fun decorateLine(line: PresentationLine, themeLeft: Int, prefix: List<MarkerPiece>, innerPixels: Int): PresentationLine {
+        val style = line.runs.firstOrNull()?.style ?: style("value", theme.fonts.getValue("text"))
+        return measurer.measure(paddingRuns(themeLeft, style) + prefixRuns(prefix) + paddingRuns(innerPixels, style) + line.runs)
+    }
+
+    private fun prefixWidth(block: StyledBlock): Int {
+        if (block.firstPrefix.isEmpty() && block.continuationPrefix.isEmpty()) return 0
+        return max(
+            measurer.measure(prefixRuns(block.firstPrefix)).logicalWidthPixels,
+            measurer.measure(prefixRuns(block.continuationPrefix)).logicalWidthPixels,
+        )
+    }
+
+    private fun prefixRuns(prefix: List<MarkerPiece>): List<PresentationTextRun> = prefix.flatMap(::markerRuns)
+
+    private val markerRole: String = theme.source.markers?.style ?: "label"
+    private val markerStyle: PresentationTextStyle by lazy(LazyThreadSafetyMode.NONE) { style(markerRole, theme.fonts.getValue("text")) }
+    private val markerPieces = java.util.EnumMap<MarkerPiece, List<PresentationTextRun>>(MarkerPiece::class.java)
+
+    /**
+     * One piece padded to its kind's slot width, so siblings align whatever the glyph widths are.
+     * Blank pieces are pure padding of that width.
+     */
+    private fun markerRuns(piece: MarkerPiece): List<PresentationTextRun> = markerPieces.getOrPut(piece) {
+        val art = markerArt(piece)
+        art + markerPadding(slotWidth(piece) - measurer.measure(art).logicalWidthPixels)
+    }
+
+    private fun slotWidth(piece: MarkerPiece): Int = when (piece) {
+        MarkerPiece.BULLET, MarkerPiece.BULLET_BLANK -> measurer.measure(markerArt(MarkerPiece.BULLET)).logicalWidthPixels
+        MarkerPiece.TREE_BRANCH, MarkerPiece.TREE_LAST, MarkerPiece.TREE_VERTICAL, MarkerPiece.TREE_BLANK ->
+            listOf(MarkerPiece.TREE_BRANCH, MarkerPiece.TREE_LAST, MarkerPiece.TREE_VERTICAL)
+                .maxOf { measurer.measure(markerArt(it)).logicalWidthPixels }
+    }
+
+    private fun markerArt(piece: MarkerPiece): List<PresentationTextRun> {
+        val markers = theme.source.markers
+        val source = when (piece) {
+            MarkerPiece.BULLET -> markers?.bullet ?: DEFAULT_BULLET
+            MarkerPiece.TREE_BRANCH -> markers?.tree?.branch ?: DEFAULT_TREE_BRANCH
+            MarkerPiece.TREE_LAST -> markers?.tree?.last ?: DEFAULT_TREE_LAST
+            MarkerPiece.TREE_VERTICAL -> markers?.tree?.vertical ?: DEFAULT_TREE_VERTICAL
+            MarkerPiece.BULLET_BLANK, MarkerPiece.TREE_BLANK -> return emptyList()
+        }
+        return when (source) {
+            is MarkerPieceSource.Text -> listOf(PresentationTextRun(source.text, markerStyle, PresentationRunKind.TEXT, unbreakable = true))
+            is MarkerPieceSource.Glyph -> {
+                val glyph = requireNotNull(catalog.glyphs[source.glyph]) { "Unknown glyph ${source.glyph}" }
+                listOf(
+                    PresentationTextRun(
+                        String(Character.toChars(glyph.codePoint)),
+                        style(markerRole, glyph.font).copy(bold = false, italic = false),
+                        PresentationRunKind.TEXT,
+                        unbreakable = true,
+                    ),
+                )
+            }
+        }
+    }
+
+    /**
+     * Exact-width marker padding. Resource-pack themes use signed spacing; otherwise whole spaces
+     * are completed with the one-pixel width anchor so continuation lines align to the pixel.
+     */
+    private fun markerPadding(pixels: Int): List<PresentationTextRun> {
+        if (pixels <= 0) return emptyList()
+        if (theme.source.requiresResourcePack && catalog.spacing != null) {
+            return spacingRuns(pixels, PresentationRunKind.SPACING)
+        }
+        val plain = markerStyle.copy(bold = false, italic = false, underlined = false, strikethrough = false)
+        val spaces = boundedPaddingRuns(pixels, plain)
+        return spaces + exactWidthAnchorRuns(pixels - measurer.measure(spaces).logicalWidthPixels, plain)
     }
 
     private fun appendRightPadding(line: PresentationLine, pixels: Int): PresentationLine {
@@ -1189,6 +1449,10 @@ private class ThemeRendererEngine(
         val wrapping: String?,
         val sectionBoundaryBefore: Boolean,
         val kind: SemanticBlockKind,
+        val firstPrefix: List<MarkerPiece>,
+        val continuationPrefix: List<MarkerPiece>,
+        val gapPrefix: List<MarkerPiece>,
+        val gapBeforeLines: Int,
     )
 
     private data class StyledLine(val values: List<StyledRun>) {
@@ -1246,6 +1510,10 @@ private class ThemeRendererEngine(
         const val MAX_SERIALIZED_TOTAL_RUNS = 4_096
         const val MAX_SERIALIZED_TOTAL_UTF16 = 131_072
         const val ZERO_WIDTH_NON_JOINER = "\u200C"
+        val DEFAULT_BULLET = MarkerPieceSource.Text("• ")
+        val DEFAULT_TREE_BRANCH = MarkerPieceSource.Text("├─ ")
+        val DEFAULT_TREE_LAST = MarkerPieceSource.Text("└─ ")
+        val DEFAULT_TREE_VERTICAL = MarkerPieceSource.Text("│  ")
         val NAMED_COLORS = mapOf(
             "black" to 0x000000,
             "dark_blue" to 0x0000AA,

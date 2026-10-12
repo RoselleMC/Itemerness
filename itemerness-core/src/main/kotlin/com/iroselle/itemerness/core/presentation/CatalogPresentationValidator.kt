@@ -89,64 +89,79 @@ object CatalogPresentationValidator {
         diagnostics: MutableList<CatalogDiagnostic>,
     ) {
         blocks.forEachIndexed { index, block ->
-            val blockPath = "$path[$index]"
-            when (block) {
-                is CompiledPresentationBlock.Text -> dataType(
-                    item,
-                    domain,
-                    block.data,
-                    "$blockPath.data",
-                    diagnostics,
-                )
+            validateBlock(block, "$path[$index]", item, domain, presentation, diagnostics)
+        }
+    }
 
-                is CompiledPresentationBlock.Field -> {
-                    val type = dataType(item, domain, block.data, "$blockPath.data", diagnostics)
-                    validateFormat(type, block.format, "$blockPath.format", presentation, diagnostics)
-                }
+    private fun validateBlock(
+        block: CompiledPresentationBlock,
+        blockPath: String,
+        item: CatalogItemDefinition,
+        domain: CatalogSnapshot,
+        presentation: PresentationCatalogSnapshot,
+        diagnostics: MutableList<CatalogDiagnostic>,
+    ) {
+        when (block) {
+            is CompiledPresentationBlock.Text -> dataType(
+                item,
+                domain,
+                block.data,
+                "$blockPath.data",
+                diagnostics,
+            )
 
-                is CompiledPresentationBlock.Description -> Unit
-                is CompiledPresentationBlock.Conditional -> {
-                    validateCondition(block.condition, "$blockPath.condition", item, domain, presentation, diagnostics)
-                    validateBlocks(block.thenBlocks, "$blockPath.then", item, domain, presentation, diagnostics)
-                    validateBlocks(block.otherwiseBlocks, "$blockPath.otherwise", item, domain, presentation, diagnostics)
-                }
+            is CompiledPresentationBlock.Field -> {
+                val type = dataType(item, domain, block.data, "$blockPath.data", diagnostics)
+                validateFormat(type, block.format, "$blockPath.format", presentation, diagnostics)
+            }
 
-                is CompiledPresentationBlock.Repeat -> {
-                    val type = dataType(item, domain, block.data, "$blockPath.data", diagnostics)
-                    val compound = (type as? DataType.ListType)?.element as? DataType.CompoundType
-                    if (type != null && compound == null) {
-                        diagnostics += CatalogDiagnostic(
-                            CatalogDiagnosticCode.INVALID_VALUE,
-                            "$blockPath.data",
-                            "Repeat data ${block.data} must be a list of compounds",
+            is CompiledPresentationBlock.Description -> Unit
+            is CompiledPresentationBlock.Conditional -> {
+                validateCondition(block.condition, "$blockPath.condition", item, domain, presentation, diagnostics)
+                validateBlocks(block.thenBlocks, "$blockPath.then", item, domain, presentation, diagnostics)
+                validateBlocks(block.otherwiseBlocks, "$blockPath.otherwise", item, domain, presentation, diagnostics)
+            }
+
+            is CompiledPresentationBlock.Repeat -> {
+                val type = dataType(item, domain, block.data, "$blockPath.data", diagnostics)
+                val compound = (type as? DataType.ListType)?.element as? DataType.CompoundType
+                if (type != null && compound == null) {
+                    diagnostics += CatalogDiagnostic(
+                        CatalogDiagnosticCode.INVALID_VALUE,
+                        "$blockPath.data",
+                        "Repeat data ${block.data} must be a list of compounds",
+                    )
+                } else if (compound != null) {
+                    when (val resolved = resolveCompoundPath(compound, block.template.valuePath)) {
+                        CompoundPath.Open -> Unit
+                        CompoundPath.Missing -> diagnostics += CatalogDiagnostic(
+                            CatalogDiagnosticCode.MISSING_REFERENCE,
+                            "$blockPath.template.value-path",
+                            "Compound path ${block.template.valuePath} is not defined by ${block.data}",
                         )
-                    } else if (compound != null) {
-                        when (val resolved = resolveCompoundPath(compound, block.template.valuePath)) {
-                            CompoundPath.Open -> Unit
-                            CompoundPath.Missing -> diagnostics += CatalogDiagnostic(
-                                CatalogDiagnosticCode.MISSING_REFERENCE,
-                                "$blockPath.template.value-path",
-                                "Compound path ${block.template.valuePath} is not defined by ${block.data}",
-                            )
 
-                            is CompoundPath.Resolved -> validateFormat(
-                                resolved.type,
-                                block.template.format,
-                                "$blockPath.template.format",
-                                presentation,
-                                diagnostics,
-                            )
-                        }
+                        is CompoundPath.Resolved -> validateFormat(
+                            resolved.type,
+                            block.template.format,
+                            "$blockPath.template.format",
+                            presentation,
+                            diagnostics,
+                        )
                     }
                 }
+            }
 
-                is CompiledPresentationBlock.NestedItemList -> if (item.contents.isEmpty()) {
-                    diagnostics += CatalogDiagnostic(
-                        CatalogDiagnosticCode.INVALID_CONTENT,
-                        blockPath,
-                        "A nested item list requires configured item contents",
-                    )
-                }
+            is CompiledPresentationBlock.Group -> {
+                block.header?.let { validateBlock(it, "$blockPath.header", item, domain, presentation, diagnostics) }
+                validateBlocks(block.children, "$blockPath.children", item, domain, presentation, diagnostics)
+            }
+
+            is CompiledPresentationBlock.NestedItemList -> if (item.contents.isEmpty()) {
+                diagnostics += CatalogDiagnostic(
+                    CatalogDiagnosticCode.INVALID_CONTENT,
+                    blockPath,
+                    "A nested item list requires configured item contents",
+                )
             }
         }
     }

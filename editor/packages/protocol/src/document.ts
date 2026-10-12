@@ -9,7 +9,12 @@ import {
     dataValueSchema,
     decimalStringSchema,
     fieldValueAlignmentSchema,
+    groupDividersSchema,
+    groupEmptyPolicySchema,
+    groupHeaderMissingPolicySchema,
+    groupMarkerSchema,
     idPathSchema,
+    MAXIMUM_GROUP_GAP_LINES,
     itemIdSchema,
     instanceIdGeneratorSchema,
     itemInstanceModeSchema,
@@ -310,6 +315,16 @@ export const wrappingSchema = z.strictObject({
 });
 export type Wrapping = z.infer<typeof wrappingSchema>;
 
+/**
+ * The run between a field label and its value. Absent inherits the layout default, whose absence
+ * keeps the original ": ".
+ */
+export const fieldSeparatorSchema = z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("none") }),
+    z.strictObject({ kind: z.literal("message"), message: messageKeySchema }),
+]);
+export type FieldSeparator = z.infer<typeof fieldSeparatorSchema>;
+
 const canvasAnchorSchema = z.strictObject({
     x: z.number().int().min(-4096).max(4096),
     y: z.number().int().min(-4096).max(4096),
@@ -353,6 +368,8 @@ export const layoutNodeSchema = z.discriminatedUnion("kind", [
             .max(2147483647)
             .default(0),
         wrapping: z.record(z.string().min(1), wrappingSchema),
+        /** Absent keeps the built-in colon so existing documents keep their hashes. */
+        fieldSeparator: fieldSeparatorSchema.optional(),
     }),
     z.strictObject({
         ...nodeIdentity,
@@ -386,6 +403,29 @@ const frameRowSchema = z.strictObject({
     center: z.string().min(1).nullable().optional(),
     kern: z.string().min(1).nullable().optional(),
 });
+
+/** Marker art: literal text, or a resource-pack glyph (requires `requiresResourcePack`). */
+export const markerPieceSchema = z.discriminatedUnion("kind", [
+    z.strictObject({
+        kind: z.literal("text"),
+        text: z.string().min(1).max(64),
+    }),
+    z.strictObject({ kind: z.literal("glyph"), glyph: z.string().min(1) }),
+]);
+export type MarkerPiece = z.infer<typeof markerPieceSchema>;
+
+export const themeMarkersSchema = z.strictObject({
+    style: z.string().min(1).optional(),
+    bullet: markerPieceSchema.optional(),
+    tree: z
+        .strictObject({
+            branch: markerPieceSchema.optional(),
+            last: markerPieceSchema.optional(),
+            vertical: markerPieceSchema.optional(),
+        })
+        .optional(),
+});
+export type ThemeMarkers = z.infer<typeof themeMarkersSchema>;
 
 export const themeNodeSchema = z.strictObject({
     ...nodeIdentity,
@@ -487,6 +527,8 @@ export const themeNodeSchema = z.strictObject({
         })
         .nullable()
         .default(null),
+    /** Group marker art; absent keeps the built-in pieces and the existing hash. */
+    markers: themeMarkersSchema.optional(),
 });
 export type ThemeNode = z.infer<typeof themeNodeSchema>;
 
@@ -607,6 +649,7 @@ const compoundFieldTemplateSchema = z.strictObject({
     missingMessage: messageKeySchema,
     icon: z.string().min(1).nullable().default(null),
     format: namespacedIdSchema.nullable().default(null),
+    separator: fieldSeparatorSchema.optional(),
 });
 
 export type PresentationBlock =
@@ -631,6 +674,7 @@ export type PresentationBlock =
           anchor: string | null;
           wrapping: string | null;
           missingPolicy: z.infer<typeof missingDataPolicySchema>;
+          separator?: FieldSeparator;
       }
     | {
           uuid: string;
@@ -662,6 +706,21 @@ export type PresentationBlock =
     | {
           uuid: string;
           type: "nestedItemList";
+          style: string | null;
+          anchor: string | null;
+      }
+    | {
+          uuid: string;
+          type: "group";
+          /** A single-row field or text block; absent means a header-less group. */
+          header?: PresentationBlock;
+          children: PresentationBlock[];
+          /** Every option is absent when it has its default value. */
+          marker?: z.infer<typeof groupMarkerSchema>;
+          dividers?: z.infer<typeof groupDividersSchema>;
+          whenHeaderMissing?: z.infer<typeof groupHeaderMissingPolicySchema>;
+          whenEmpty?: z.infer<typeof groupEmptyPolicySchema>;
+          gapBeforeLines?: number;
           style: string | null;
           anchor: string | null;
       };
@@ -699,6 +758,7 @@ export const presentationBlockSchema: z.ZodType<
             anchor: anchorRef,
             wrapping: wrappingRef,
             missingPolicy: missingDataPolicySchema.default("ERROR"),
+            separator: fieldSeparatorSchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -730,6 +790,24 @@ export const presentationBlockSchema: z.ZodType<
         z.strictObject({
             uuid: uuidSchema,
             type: z.literal("nestedItemList"),
+            style: styleRef,
+            anchor: anchorRef,
+        }),
+        z.strictObject({
+            uuid: uuidSchema,
+            type: z.literal("group"),
+            header: presentationBlockSchema.optional(),
+            children: z.array(presentationBlockSchema).max(128),
+            marker: groupMarkerSchema.optional(),
+            dividers: groupDividersSchema.optional(),
+            whenHeaderMissing: groupHeaderMissingPolicySchema.optional(),
+            whenEmpty: groupEmptyPolicySchema.optional(),
+            gapBeforeLines: z
+                .number()
+                .int()
+                .min(0)
+                .max(MAXIMUM_GROUP_GAP_LINES)
+                .optional(),
             style: styleRef,
             anchor: anchorRef,
         }),
@@ -806,6 +884,12 @@ export const itemNodeSchema = z.strictObject({
          * hidden. Absent means none. Editors omit an empty list so older plugins keep loading.
          */
         shownFlags: z.array(namespacedIdSchema).max(64).optional(),
+        /**
+         * The implicit root group's decoration. Absent means NONE and BETWEEN_CHILDREN, the
+         * behaviour before groups existed, so existing documents keep their hashes.
+         */
+        marker: groupMarkerSchema.optional(),
+        dividers: groupDividersSchema.optional(),
     }),
     /** Editor-only: instance data used when previewing this item. Never published. */
     previewData: z.array(dataAssignmentSchema).max(256).default([]),

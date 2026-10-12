@@ -1,5 +1,5 @@
 import type { DataTypeNode } from "./common.js";
-import type { ProjectDocument } from "./document.js";
+import type { PresentationBlock, ProjectDocument } from "./document.js";
 
 export const EXTENDED_BASE_COMPONENTS_CAPABILITY =
     "catalog.base-components.attributes-enchantments";
@@ -165,5 +165,53 @@ export function supportsShownFlags(
 export function usesShownFlags(document: Pick<ProjectDocument, "items">): boolean {
     return document.items.some((item) =>
         Object.hasOwn(item.presentation, "shownFlags"),
+    );
+}
+
+export const GROUPS_CAPABILITY = "presentation.groups";
+
+export function supportsGroups(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(GROUPS_CAPABILITY) === true;
+}
+
+function blockUsesGroups(block: PresentationBlock): boolean {
+    switch (block.type) {
+        case "group":
+            return true;
+        case "field":
+            return Object.hasOwn(block, "separator");
+        case "repeat":
+            return Object.hasOwn(block.template, "separator");
+        case "conditional":
+            return [...block.thenBlocks, ...block.otherwiseBlocks].some(
+                blockUsesGroups,
+            );
+        default:
+            return false;
+    }
+}
+
+/**
+ * Old strict decoders reject group blocks, root `marker`/`dividers`, field and layout
+ * separators, and theme `markers`; one capability covers them because they ship together.
+ */
+export function usesGroups(
+    document: Pick<ProjectDocument, "items" | "layouts" | "themes">,
+): boolean {
+    return (
+        document.items.some(
+            (item) =>
+                Object.hasOwn(item.presentation, "marker") ||
+                Object.hasOwn(item.presentation, "dividers") ||
+                item.presentation.blocks.some(blockUsesGroups),
+        ) ||
+        document.layouts.some(
+            (layout) =>
+                layout.kind === "flow" &&
+                Object.hasOwn(layout, "fieldSeparator"),
+        ) ||
+        document.themes.some((theme) => Object.hasOwn(theme, "markers"))
     );
 }

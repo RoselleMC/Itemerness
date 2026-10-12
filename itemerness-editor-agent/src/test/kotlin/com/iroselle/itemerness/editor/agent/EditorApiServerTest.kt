@@ -154,6 +154,10 @@ class EditorApiServerTest {
                     JsonValue.Text("presentation.shown-flags") in handshake.requiredArray("capabilities"),
                     version,
                 )
+                assertTrue(
+                    JsonValue.Text("presentation.groups") in handshake.requiredArray("capabilities"),
+                    version,
+                )
                 // Suggestions are optional and omitted when the server provides none.
                 assertFalse(handshake.contains("dataComponentTypes"), version)
             }

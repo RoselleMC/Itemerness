@@ -19,7 +19,8 @@ internal object PresentationYamlEncoding {
     fun layout(layout: LayoutSource): Map<String, Any?> = when (layout) {
         is LayoutSource.Flow -> map("content-width" to map("minimum-pixels" to layout.minimumWidthPixels, "maximum-pixels" to layout.maximumWidthPixels, "strategy" to "clamp-content"),
             "flow" to listOf(map("source" to "blocks", "gap-after-pixels" to layout.blockGapAfterPixels)),
-            "sections" to map("field" to map("left-padding-pixels" to layout.fieldLeftPaddingPixels, "icon-gap-pixels" to layout.fieldIconGapPixels, "value-alignment" to token(layout.fieldValueAlignment)),
+            "sections" to map("field" to map("left-padding-pixels" to layout.fieldLeftPaddingPixels, "icon-gap-pixels" to layout.fieldIconGapPixels, "value-alignment" to token(layout.fieldValueAlignment),
+                "separator" to layout.fieldSeparator?.let(CatalogYamlEncoding::separator)),
                 "description" to map("left-padding-pixels" to layout.descriptionLeftPaddingPixels, "right-padding-pixels" to layout.descriptionRightPaddingPixels, "gap-before-pixels" to layout.descriptionGapBeforePixels)),
             "wrapping" to layout.wrapping.mapValues { wrapping(it.value) })
         is LayoutSource.Canvas -> map("renderer" to "bitmap-canvas", "canvas" to map("width-pixels" to layout.widthPixels, "height-pixels" to layout.heightPixels,
@@ -35,7 +36,8 @@ internal object PresentationYamlEncoding {
     fun theme(theme: ThemeSource): Map<String, Any?> {
         val common = map("renderer" to token(theme.renderer), "requires-resource-pack" to theme.requiresResourcePack,
             "requires-capabilities" to theme.requiredCapabilities, "vanilla-tooltip-lines" to token(theme.vanillaTooltipLines), "fallback" to theme.fallback,
-            "fonts" to theme.fonts, "styles" to theme.styles.mapValues { (_, style) -> map("color" to style.color, "bold" to style.bold, "italic" to style.italic, "underlined" to style.underlined, "strikethrough" to style.strikethrough) })
+            "fonts" to theme.fonts, "styles" to theme.styles.mapValues { (_, style) -> map("color" to style.color, "bold" to style.bold, "italic" to style.italic, "underlined" to style.underlined, "strikethrough" to style.strikethrough) },
+            "markers" to theme.markers?.let(::markers))
         return common + when (theme.renderer) {
             ThemeRenderer.PLAIN -> map("icons" to map("unsupported-token" to "omit"))
             ThemeRenderer.NATIVE_TOOLTIP_STYLE -> map("tooltip-style" to theme.tooltipStyle, "content" to theme.content?.let { content -> map(
@@ -70,6 +72,14 @@ internal object PresentationYamlEncoding {
         "cases" to selector.cases.map { case -> map("when" to CatalogYamlEncoding.condition(case.condition), "theme" to case.theme) },
         "default" to selector.defaultTheme,
     )
+
+    private fun markers(markers: MarkerThemeSource): Map<String, Any?> = map("style" to markers.style, "bullet" to markers.bullet?.let(::markerPiece),
+        "tree" to markers.tree?.let { tree -> map("branch" to tree.branch?.let(::markerPiece), "last" to tree.last?.let(::markerPiece), "vertical" to tree.vertical?.let(::markerPiece)) })
+
+    private fun markerPiece(piece: MarkerPieceSource): Any = when (piece) {
+        is MarkerPieceSource.Text -> piece.text
+        is MarkerPieceSource.Glyph -> map("glyph" to piece.glyph)
+    }
 
     private fun row(row: FrameRowSource): Map<String, Any?> = map("left" to row.left, "fill" to row.fill, "right" to row.right, "center" to row.center, "kern" to row.kern)
 }

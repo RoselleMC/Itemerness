@@ -1,6 +1,9 @@
 package com.iroselle.itemerness.editor.protocol
 
+import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FrameRowSource
+import com.iroselle.itemerness.core.presentation.MarkerPieceSource
+import com.iroselle.itemerness.core.presentation.MarkerThemeSource
 import com.iroselle.itemerness.core.presentation.LayoutSource
 import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
@@ -19,7 +22,11 @@ internal object PresentationDocumentEncoding {
             "fieldIconGapPixels" to layout.fieldIconGapPixels, "fieldValueAlignment" to layout.fieldValueAlignment,
             "descriptionLeftPaddingPixels" to layout.descriptionLeftPaddingPixels, "descriptionRightPaddingPixels" to layout.descriptionRightPaddingPixels,
             "descriptionGapBeforePixels" to layout.descriptionGapBeforePixels, "wrapping" to layout.wrapping.mapValues { wrapping(it.value) },
-        )
+        ).let { encoded ->
+            // An inherited separator stays absent so existing documents keep their hashes.
+            val separator = layout.fieldSeparator ?: return@let encoded
+            JsonValue.Obj(encoded.entries + ("fieldSeparator" to separator(separator)))
+        }
         is LayoutSource.Canvas -> obj(
             "id" to layout.id, "kind" to "canvas", "widthPixels" to layout.widthPixels, "heightPixels" to layout.heightPixels,
             "maximumWidthPixels" to layout.maximumWidthPixels, "maximumHeightPixels" to layout.maximumHeightPixels,
@@ -33,7 +40,29 @@ internal object PresentationDocumentEncoding {
         "preserveExplicitLines" to wrapping.preserveExplicitLines, "continuationIndentPixels" to wrapping.continuationIndentPixels, "lineHeightPixels" to wrapping.lineHeightPixels,
     )
 
-    fun theme(theme: ThemeSource): JsonValue.Obj = obj(
+    fun separator(separator: FieldSeparatorSource): JsonValue = when (separator) {
+        FieldSeparatorSource.None -> obj("kind" to "none")
+        is FieldSeparatorSource.Message -> obj("kind" to "message", "message" to separator.message)
+    }
+
+    private fun markers(markers: MarkerThemeSource): JsonValue = JsonValue.Obj(buildMap {
+        markers.style?.let { put("style", JsonValue.Text(it)) }
+        markers.bullet?.let { put("bullet", markerPiece(it)) }
+        markers.tree?.let { tree ->
+            put("tree", JsonValue.Obj(buildMap {
+                tree.branch?.let { put("branch", markerPiece(it)) }
+                tree.last?.let { put("last", markerPiece(it)) }
+                tree.vertical?.let { put("vertical", markerPiece(it)) }
+            }))
+        }
+    })
+
+    private fun markerPiece(piece: MarkerPieceSource): JsonValue = when (piece) {
+        is MarkerPieceSource.Text -> obj("kind" to "text", "text" to piece.text)
+        is MarkerPieceSource.Glyph -> obj("kind" to "glyph", "glyph" to piece.glyph)
+    }
+
+    fun theme(theme: ThemeSource): JsonValue.Obj = withMarkers(theme, obj(
         "id" to theme.id, "renderer" to theme.renderer, "requiresResourcePack" to theme.requiresResourcePack,
         "requiredCapabilities" to theme.requiredCapabilities, "vanillaTooltipLines" to theme.vanillaTooltipLines,
         "fallback" to theme.fallback, "fonts" to theme.fonts, "tooltipStyle" to theme.tooltipStyle, "requireExactFontMetrics" to theme.requireExactFontMetrics,
@@ -60,7 +89,11 @@ internal object PresentationDocumentEncoding {
             "layers" to it.layers.map { layer -> obj("asset" to layer.asset, "anchor" to layer.anchor, "xPixels" to layer.xPixels,
                 "baselineLine" to layer.baselineLine, "baselineVariant" to layer.baselineVariant, "drawOrder" to layer.drawOrder) },
         ) },
-    )
+    ))
+
+    /** Absent marker art stays absent so existing theme documents keep their hashes. */
+    private fun withMarkers(theme: ThemeSource, encoded: JsonValue.Obj): JsonValue.Obj =
+        theme.markers?.let { JsonValue.Obj(encoded.entries + ("markers" to markers(it))) } ?: encoded
 
     private fun row(row: FrameRowSource): JsonValue = JsonValue.Obj(buildMap {
         putAll(obj("left" to row.left, "fill" to row.fill, "right" to row.right).entries)

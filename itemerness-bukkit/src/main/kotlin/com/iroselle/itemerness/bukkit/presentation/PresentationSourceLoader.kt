@@ -27,15 +27,22 @@ import com.iroselle.itemerness.core.presentation.CompoundFieldTemplateSource
 import com.iroselle.itemerness.core.presentation.ConditionOperator
 import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.ContentAreaSource
+import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FieldValueAlignment
 import com.iroselle.itemerness.core.presentation.FontSource
 import com.iroselle.itemerness.core.presentation.FormatSource
 import com.iroselle.itemerness.core.presentation.FrameRowSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
 import com.iroselle.itemerness.core.presentation.GlyphSource
+import com.iroselle.itemerness.core.presentation.GroupDividers
+import com.iroselle.itemerness.core.presentation.GroupEmptyPolicy
+import com.iroselle.itemerness.core.presentation.GroupHeaderMissingPolicy
+import com.iroselle.itemerness.core.presentation.GroupMarker
 import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.LayoutSource
 import com.iroselle.itemerness.core.presentation.LocaleSource
+import com.iroselle.itemerness.core.presentation.MarkerPieceSource
+import com.iroselle.itemerness.core.presentation.MarkerThemeSource
 import com.iroselle.itemerness.core.presentation.MissingDataPolicy
 import com.iroselle.itemerness.core.presentation.MissingKeyValue
 import com.iroselle.itemerness.core.presentation.NamespacedKeyFormatMode
@@ -52,6 +59,7 @@ import com.iroselle.itemerness.core.presentation.ThemeRenderer
 import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
 import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ThemeSource
+import com.iroselle.itemerness.core.presentation.TreeMarkerSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.core.presentation.VanillaTooltipLinePolicy
 import com.iroselle.itemerness.core.presentation.VisualBoundsSource
@@ -244,7 +252,7 @@ internal class PresentationSourceLoader(
         val sections = node.optionalObject("sections")
         sections?.rejectUnknown("field", "description")
         val field = sections?.optionalObject("field")
-        field?.rejectUnknown("left-padding-pixels", "icon-gap-pixels", "value-alignment")
+        field?.rejectUnknown("left-padding-pixels", "icon-gap-pixels", "value-alignment", "separator")
         field?.optionalString("value-alignment")?.let { alignment ->
             if (alignment !in setOf("left", "right")) invalid("Unsupported field alignment", path, id)
         }
@@ -267,6 +275,9 @@ internal class PresentationSourceLoader(
             descriptionRightPaddingPixels = description?.optionalInt("right-padding-pixels") ?: 0,
             descriptionGapBeforePixels = description?.optionalInt("gap-before-pixels") ?: 0,
             wrapping = parseWrapping(node.requiredObject("wrapping"), path, "layouts.$id.wrapping"),
+            fieldSeparator = field?.takeIf { it.contains("separator") }?.let {
+                parseSeparator(it.raw("separator"), path.toString(), "layouts.$id.sections.field.separator")
+            },
         )
     }
 
@@ -715,6 +726,7 @@ internal class PresentationSourceLoader(
                 "fallback",
                 "fonts",
                 "styles",
+                "markers",
             )
             val rendererKeys = when (renderer) {
                 ThemeRenderer.PLAIN -> setOf("icons")
@@ -789,8 +801,32 @@ internal class PresentationSourceLoader(
                 canvas = canvas,
                 requireExactFontMetrics = node.optionalObject("safety")
                     ?.optionalBoolean("require-exact-font-metrics", false) ?: false,
+                markers = node.optionalObject("markers")?.let { parseMarkers(it, path.toString(), "themes.$id.markers") },
             )
         }
+    }
+
+    private fun parseMarkers(node: YamlObject, source: String, path: String): MarkerThemeSource {
+        node.rejectUnknown("style", "bullet", "tree")
+        val tree = node.optionalObject("tree")?.rejectUnknown("branch", "last", "vertical")
+        return MarkerThemeSource(
+            style = node.optionalString("style"),
+            bullet = node.raw("bullet")?.let { parseMarkerPiece(it, source, "$path.bullet") },
+            tree = tree?.let {
+                TreeMarkerSource(
+                    branch = it.raw("branch")?.let { raw -> parseMarkerPiece(raw, source, "$path.tree.branch") },
+                    last = it.raw("last")?.let { raw -> parseMarkerPiece(raw, source, "$path.tree.last") },
+                    vertical = it.raw("vertical")?.let { raw -> parseMarkerPiece(raw, source, "$path.tree.vertical") },
+                )
+            },
+        )
+    }
+
+    /** A marker piece is literal text or, like a field icon, a resource-pack glyph token. */
+    private fun parseMarkerPiece(raw: Any, source: String, path: String): MarkerPieceSource = when (raw) {
+        is String -> MarkerPieceSource.Text(raw)
+        is Map<*, *> -> MarkerPieceSource.Glyph(objectNode(raw, source, path).rejectUnknown("glyph").requiredString("glyph"))
+        else -> throw StrictYamlException("$path in $source must be a string or a glyph mapping")
     }
 
     private fun parseStyles(node: YamlObject, source: Path, path: String): Map<String, TextStyleSource> =
@@ -1000,6 +1036,8 @@ internal class PresentationSourceLoader(
                 "name",
                 "blocks",
                 "shown-flags",
+                "marker",
+                "dividers",
             )
             presentation.optionalString("nested-items")?.let {
                 if (it != "recursive") {
@@ -1027,6 +1065,13 @@ internal class PresentationSourceLoader(
                         "presentation.shown-flags[$index] in catalog item $itemKey must be a string",
                     )
                 },
+                marker = parseGroupMarker(presentation.optionalString("marker"), "catalog item $itemKey", "presentation.marker"),
+                dividers = parseGroupDividers(
+                    presentation.optionalString("dividers"),
+                    GroupDividers.BETWEEN_CHILDREN,
+                    "catalog item $itemKey",
+                    "presentation.dividers",
+                ),
             )
         }
 
@@ -1034,10 +1079,15 @@ internal class PresentationSourceLoader(
         values: List<Any?>,
         source: String,
         path: String,
-    ): List<PresentationBlockSource> = values.mapIndexed { index, raw ->
-        val blockPath = "$path[$index]"
+    ): List<PresentationBlockSource> = values.mapIndexed { index, raw -> parseBlock(raw, source, "$path[$index]") }
+
+    private fun parseBlock(
+        raw: Any?,
+        source: String,
+        blockPath: String,
+    ): PresentationBlockSource {
         val node = objectNode(raw, source, blockPath)
-        when (node.requiredString("type")) {
+        return when (node.requiredString("type")) {
             "text" -> {
                 node.rejectUnknown("type", "id", "data", "style", "anchor", "wrapping", "unbreakable", "missing-policy")
                 validateOptionalSemanticId(node, source, blockPath)
@@ -1051,7 +1101,7 @@ internal class PresentationSourceLoader(
                 )
             }
             "field" -> {
-                node.rejectUnknown("type", "id", "icon", "label", "data", "format", "style", "anchor", "wrapping", "missing-policy")
+                node.rejectUnknown("type", "id", "icon", "label", "data", "format", "style", "anchor", "wrapping", "missing-policy", "separator")
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Field(
                     labelMessage = node.requiredString("label"),
@@ -1062,6 +1112,9 @@ internal class PresentationSourceLoader(
                     anchor = node.optionalString("anchor"),
                     wrapping = node.optionalString("wrapping"),
                     missingPolicy = parseMissingDataPolicy(node.optionalString("missing-policy"), source, blockPath),
+                    separator = node.takeIf { it.contains("separator") }?.let {
+                        parseSeparator(it.raw("separator"), source, "$blockPath.separator")
+                    },
                 )
             }
             "description" -> {
@@ -1097,6 +1150,7 @@ internal class PresentationSourceLoader(
                     "value-path",
                     "missing-message",
                     "format",
+                    "separator",
                 )
                 if (template.requiredString("type") != "compound-field") {
                     throw StrictYamlException("Unsupported repeat template at $blockPath in $source")
@@ -1110,6 +1164,9 @@ internal class PresentationSourceLoader(
                         missingMessage = template.requiredString("missing-message"),
                         icon = template.optionalString("icon"),
                         format = template.optionalString("format"),
+                        separator = template.takeIf { it.contains("separator") }?.let {
+                            parseSeparator(it.raw("separator"), source, "$blockPath.template.separator")
+                        },
                     ),
                     style = node.optionalString("style"),
                     anchor = node.optionalString("anchor"),
@@ -1124,8 +1181,56 @@ internal class PresentationSourceLoader(
                     anchor = node.optionalString("anchor"),
                 )
             }
+            "group" -> {
+                node.rejectUnknown(
+                    "type", "id", "header", "children", "marker", "dividers", "when-header-missing", "when-empty",
+                    "gap-before-lines", "style", "anchor",
+                )
+                validateOptionalSemanticId(node, source, blockPath)
+                PresentationBlockSource.Group(
+                    header = node.optionalObject("header")?.let { parseBlock(node.raw("header"), source, "$blockPath.header") },
+                    children = parseBlocks(node.requiredList("children"), source, "$blockPath.children"),
+                    marker = parseGroupMarker(node.optionalString("marker"), source, "$blockPath.marker"),
+                    dividers = parseGroupDividers(node.optionalString("dividers"), GroupDividers.NONE, source, "$blockPath.dividers"),
+                    whenHeaderMissing = when (node.optionalString("when-header-missing") ?: "hide") {
+                        "hide" -> GroupHeaderMissingPolicy.HIDE
+                        "show-children" -> GroupHeaderMissingPolicy.SHOW_CHILDREN
+                        else -> throw StrictYamlException("Unsupported when-header-missing policy at $blockPath in $source")
+                    },
+                    whenEmpty = when (node.optionalString("when-empty") ?: "show-header") {
+                        "show-header" -> GroupEmptyPolicy.SHOW_HEADER
+                        "hide" -> GroupEmptyPolicy.HIDE
+                        else -> throw StrictYamlException("Unsupported when-empty policy at $blockPath in $source")
+                    },
+                    gapBeforeLines = node.optionalInt("gap-before-lines") ?: 0,
+                    style = node.optionalString("style"),
+                    anchor = node.optionalString("anchor"),
+                )
+            }
             else -> throw StrictYamlException("Unsupported block type at $blockPath in $source")
         }
+    }
+
+    private fun parseGroupMarker(value: String?, source: String, path: String): GroupMarker = when (value ?: "none") {
+        "none" -> GroupMarker.NONE
+        "bullet" -> GroupMarker.BULLET
+        "tree" -> GroupMarker.TREE
+        else -> throw StrictYamlException("Unsupported marker at $path in $source")
+    }
+
+    private fun parseGroupDividers(value: String?, default: GroupDividers, source: String, path: String): GroupDividers =
+        when (value) {
+            null -> default
+            "none" -> GroupDividers.NONE
+            "between-children" -> GroupDividers.BETWEEN_CHILDREN
+            else -> throw StrictYamlException("Unsupported dividers at $path in $source")
+        }
+
+    /** A field separator is `none` or a localized `{message: key}`; absent inherits the layout. */
+    private fun parseSeparator(raw: Any?, source: String, path: String): FieldSeparatorSource = when (raw) {
+        "none" -> FieldSeparatorSource.None
+        is Map<*, *> -> FieldSeparatorSource.Message(objectNode(raw, source, path).rejectUnknown("message").requiredString("message"))
+        else -> throw StrictYamlException("$path in $source must be none or a message mapping")
     }
 
     private fun parseMissingDataPolicy(value: String?, source: String, path: String): MissingDataPolicy = when (value ?: "error") {

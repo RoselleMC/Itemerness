@@ -6,7 +6,12 @@ import com.iroselle.itemerness.core.catalog.DataGeneratorSource
 import com.iroselle.itemerness.core.catalog.DataSchemaSource
 import com.iroselle.itemerness.core.catalog.ItemDefinitionSource
 import com.iroselle.itemerness.core.presentation.ConditionSource
+import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FormatSource
+import com.iroselle.itemerness.core.presentation.GroupDividers
+import com.iroselle.itemerness.core.presentation.GroupEmptyPolicy
+import com.iroselle.itemerness.core.presentation.GroupHeaderMissingPolicy
+import com.iroselle.itemerness.core.presentation.GroupMarker
 import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationBudgets
@@ -147,6 +152,11 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
                 "blocks" to presentation.blocks.mapIndexed { index, block -> block(block, "${item.id}/$index") },
                 // Omitted when empty so documents without shown components keep their hashes.
                 *listOfNotNull(presentation.shownFlags.takeIf { it.isNotEmpty() }?.let { "shownFlags" to it }).toTypedArray(),
+                // The implicit root group's defaults stay absent for the same reason.
+                *listOfNotNull(
+                    presentation.marker.takeIf { it != GroupMarker.NONE }?.let { "marker" to it },
+                    presentation.dividers.takeIf { it != GroupDividers.BETWEEN_CHILDREN }?.let { "dividers" to it },
+                ).toTypedArray(),
             ),
             "previewData" to emptyList<JsonValue>(),
         )
@@ -166,19 +176,40 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
     private fun block(block: PresentationBlockSource, path: String): JsonValue {
         val fields = when (block) {
             is PresentationBlockSource.Text -> obj("type" to "text", "data" to block.data, "wrapping" to block.wrapping, "unbreakable" to block.unbreakable, "missingPolicy" to block.missingPolicy)
-            is PresentationBlockSource.Field -> obj("type" to "field", "data" to block.data, "labelMessage" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missingPolicy" to block.missingPolicy)
+            is PresentationBlockSource.Field -> withSeparator(
+                obj("type" to "field", "data" to block.data, "labelMessage" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missingPolicy" to block.missingPolicy),
+                block.separator,
+            )
             is PresentationBlockSource.Description -> obj("type" to "description", "message" to block.message, "wrapping" to block.wrapping)
             is PresentationBlockSource.Conditional -> obj("type" to "conditional", "condition" to condition(block.condition),
                 "thenBlocks" to block.thenBlocks.mapIndexed { index, child -> block(child, "$path/then/$index") },
                 "otherwiseBlocks" to block.otherwiseBlocks.mapIndexed { index, child -> block(child, "$path/otherwise/$index") },
             )
             is PresentationBlockSource.Repeat -> obj("type" to "repeat", "data" to block.data, "maximumElements" to block.maximumElements, "missingPolicy" to block.missingPolicy,
-                "template" to obj("labelMessage" to block.template.labelMessage, "valuePath" to block.template.valuePath, "missingMessage" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format),
+                "template" to withSeparator(
+                    obj("labelMessage" to block.template.labelMessage, "valuePath" to block.template.valuePath, "missingMessage" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format),
+                    block.template.separator,
+                ),
             )
             is PresentationBlockSource.NestedItemList -> obj("type" to "nestedItemList")
+            is PresentationBlockSource.Group -> JsonValue.Obj(buildMap {
+                put("type", JsonValue.Text("group"))
+                block.header?.let { put("header", block(it, "$path/header")) }
+                put("children", JsonValue.Arr(block.children.mapIndexed { index, child -> block(child, "$path/children/$index") }))
+                // Defaults stay absent so a group's shape names only what an author changed.
+                if (block.marker != GroupMarker.NONE) put("marker", JsonValue.Text(block.marker.name))
+                if (block.dividers != GroupDividers.NONE) put("dividers", JsonValue.Text(block.dividers.name))
+                if (block.whenHeaderMissing != GroupHeaderMissingPolicy.HIDE) put("whenHeaderMissing", JsonValue.Text(block.whenHeaderMissing.name))
+                if (block.whenEmpty != GroupEmptyPolicy.SHOW_HEADER) put("whenEmpty", JsonValue.Text(block.whenEmpty.name))
+                if (block.gapBeforeLines != 0) put("gapBeforeLines", JsonValue.Num(block.gapBeforeLines.toDouble()))
+            })
         }
         return withIdentity("blocks", path, JsonValue.Obj(fields.entries + obj("style" to block.style, "anchor" to block.anchor).entries))
     }
+
+    /** Absent separators inherit; they stay absent so existing documents keep their hashes. */
+    private fun withSeparator(node: JsonValue.Obj, separator: FieldSeparatorSource?): JsonValue.Obj =
+        if (separator == null) node else JsonValue.Obj(node.entries + ("separator" to PresentationDocumentEncoding.separator(separator)))
 
     private fun condition(condition: ConditionSource): JsonValue = obj("operator" to condition.operator, "left" to reference(condition.left), "right" to condition.right?.let(::reference))
 

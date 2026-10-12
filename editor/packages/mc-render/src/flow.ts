@@ -10,12 +10,33 @@ import { parseColor } from "./colors.js";
 import { measureLine } from "./measure.js";
 import { LayoutOverflowError, wrapRuns } from "./wrap.js";
 
+/** One container level's contribution to a line prefix; blank pieces are equal-width padding. */
+export type MarkerPiece =
+    | "BULLET"
+    | "BULLET_BLANK"
+    | "TREE_BRANCH"
+    | "TREE_LAST"
+    | "TREE_VERTICAL"
+    | "TREE_BLANK";
+
+const BLANK_PIECES: ReadonlySet<MarkerPiece> = new Set([
+    "BULLET_BLANK",
+    "TREE_BLANK",
+]);
+
 export interface FlowBlock {
     runs: PreviewRun[];
     origin: string;
     kind: "field" | "description" | "generic";
     wrapping: string | null;
     fieldValueIndex: number | null;
+    /** Mirrors the compiler's section boundary: a frame divider precedes this row. */
+    boundaryBefore?: boolean;
+    /** Marker pieces, outermost first, for the row's first line, later lines, and gaps above it. */
+    firstPrefix?: readonly MarkerPiece[];
+    continuationPrefix?: readonly MarkerPiece[];
+    gapPrefix?: readonly MarkerPiece[];
+    gapBeforeLines?: number;
 }
 export interface ComposedLine {
     line: PreviewLine;
@@ -171,6 +192,120 @@ export class FlowComposer {
             );
         return [{ ...unit, text: unit.text.repeat(pixels) }];
     }
+    private readonly markerCache = new Map<MarkerPiece, PreviewRun[]>();
+    private get markerRole(): string {
+        return this.theme.markers?.style ?? "label";
+    }
+    private markerStyle(): PreviewRun["style"] {
+        return themeStyle(this.theme, this.markerRole);
+    }
+    /** The theme's art for one piece, or the built-in default; blank pieces have none. */
+    private markerArt(piece: MarkerPiece): PreviewRun[] {
+        const markers = this.theme.markers;
+        const source =
+            piece === "BULLET"
+                ? (markers?.bullet ?? {
+                      kind: "text" as const,
+                      text: "\u2022 ",
+                  })
+                : piece === "TREE_BRANCH"
+                  ? (markers?.tree?.branch ?? {
+                        kind: "text" as const,
+                        text: "\u251c\u2500 ",
+                    })
+                  : piece === "TREE_LAST"
+                    ? (markers?.tree?.last ?? {
+                          kind: "text" as const,
+                          text: "\u2514\u2500 ",
+                      })
+                    : piece === "TREE_VERTICAL"
+                      ? (markers?.tree?.vertical ?? {
+                            kind: "text" as const,
+                            text: "\u2502  ",
+                        })
+                      : null;
+        if (!source) return [];
+        if (source.kind === "text")
+            return [this.run(source.text, this.markerStyle())];
+        const glyph = this.document.glyphs.find(
+            (entry) => entry.id === source.glyph,
+        );
+        if (!glyph)
+            throw new LayoutOverflowError("Marker glyph is not declared");
+        return [
+            this.run(String.fromCodePoint(glyph.codePoint), {
+                ...this.markerStyle(),
+                font: glyph.font,
+                bold: false,
+                italic: false,
+            }),
+        ];
+    }
+    private slotWidth(piece: MarkerPiece): number {
+        if (piece === "BULLET" || piece === "BULLET_BLANK")
+            return this.width(this.markerArt("BULLET"));
+        return Math.max(
+            ...(["TREE_BRANCH", "TREE_LAST", "TREE_VERTICAL"] as const).map(
+                (entry) => this.width(this.markerArt(entry)),
+            ),
+        );
+    }
+    /** Exact-width padding: signed spacing in pack themes, else spaces plus one-pixel anchors. */
+    private markerPadding(pixels: number): PreviewRun[] {
+        if (pixels <= 0) return [];
+        if (this.theme.requiresResourcePack && this.document.spacing)
+            return this.spacing(pixels);
+        const plain = {
+            ...this.markerStyle(),
+            bold: false,
+            italic: false,
+            underlined: false,
+            strikethrough: false,
+        };
+        const space = this.run(" ", plain);
+        const count = Math.floor(pixels / Math.max(1, this.width([space])));
+        const spaces = count > 0 ? [{ ...space, text: " ".repeat(count) }] : [];
+        return [...spaces, ...this.anchor(pixels - this.width(spaces), plain)];
+    }
+    private markerRuns(piece: MarkerPiece): PreviewRun[] {
+        let runs = this.markerCache.get(piece);
+        if (!runs) {
+            const art = this.markerArt(piece);
+            runs = [
+                ...art,
+                ...this.markerPadding(this.slotWidth(piece) - this.width(art)),
+            ];
+            this.markerCache.set(piece, runs);
+        }
+        return runs;
+    }
+    private prefixRuns(
+        prefix: readonly MarkerPiece[] | undefined,
+    ): PreviewRun[] {
+        return (prefix ?? []).flatMap((piece) => this.markerRuns(piece));
+    }
+    private prefixWidth(block: FlowBlock): number {
+        if (!block.firstPrefix?.length && !block.continuationPrefix?.length)
+            return 0;
+        return Math.max(
+            this.width(this.prefixRuns(block.firstPrefix)),
+            this.width(this.prefixRuns(block.continuationPrefix)),
+        );
+    }
+    /** An empty line that keeps the connectors of decorated ancestors continuous. */
+    private gapLine(prefix: readonly MarkerPiece[] | undefined): PreviewLine {
+        const visible = [...(prefix ?? [])];
+        while (visible.length && BLANK_PIECES.has(visible.at(-1)!))
+            visible.pop();
+        if (!visible.length) return this.line([]);
+        return this.line([
+            ...this.padding(
+                this.theme.content?.leftPaddingPixels ?? 0,
+                this.markerStyle(),
+            ),
+            ...this.prefixRuns(visible),
+        ]);
+    }
     private explicit(runs: readonly PreviewRun[]): PreviewRun[][] {
         const lines: PreviewRun[][] = [[]];
         for (const run of runs)
@@ -195,12 +330,13 @@ export class FlowComposer {
                 "Minimum width exceeds the available width",
             );
         const minimum = Math.min(maximum, requestedMinimum);
+        const themeLeft = this.theme.content?.leftPaddingPixels ?? 0;
+        const sectionLeft = (block: FlowBlock) =>
+            block.kind === "description"
+                ? (layout?.descriptionLeftPaddingPixels ?? 0)
+                : (layout?.fieldLeftPaddingPixels ?? 0);
         const padding = (block: FlowBlock) => ({
-            left:
-                (this.theme.content?.leftPaddingPixels ?? 0) +
-                (block.kind === "description"
-                    ? (layout?.descriptionLeftPaddingPixels ?? 0)
-                    : (layout?.fieldLeftPaddingPixels ?? 0)),
+            left: themeLeft + sectionLeft(block),
             right:
                 (this.theme.content?.rightPaddingPixels ?? 0) +
                 (block.kind === "description"
@@ -224,30 +360,39 @@ export class FlowComposer {
                         (runs) =>
                             this.width(iconGap(runs)) +
                             padding(block).left +
-                            padding(block).right,
+                            padding(block).right +
+                            this.prefixWidth(block),
                     ),
                 ),
             ),
         );
         const lines: ComposedLine[] = [];
         const boundaries = new Set<number>();
-        const gap = (pixels: number) => {
+        const gap = (pixels: number, prefix?: readonly MarkerPiece[]) => {
             for (let i = 0; i < Math.floor(pixels / 10); i++)
-                lines.push({ line: this.line([]), origin: null });
+                lines.push({ line: this.gapLine(prefix), origin: null });
         };
         blocks.forEach((block, blockIndex) => {
-            if (lines.length) boundaries.add(lines.length);
+            if ((block.boundaryBefore ?? true) && lines.length)
+                boundaries.add(lines.length);
+            for (let i = 0; i < (block.gapBeforeLines ?? 0); i++)
+                lines.push({
+                    line: this.gapLine(block.gapPrefix),
+                    origin: null,
+                });
             if (block.kind === "description" && lines.length)
-                gap(layout?.descriptionGapBeforePixels ?? 0);
+                gap(layout?.descriptionGapBeforePixels ?? 0, block.gapPrefix);
             const policy =
                 (block.wrapping && this.layout.wrapping[block.wrapping]) ||
                 this.layout.wrapping.body ||
                 Object.values(this.layout.wrapping)[0];
             const pads = padding(block);
+            // Marker prefixes are measured runs, so the text beside them wraps in what remains.
             const available =
                 Math.min(policy?.widthPixels ?? target, target) -
                 pads.left -
-                pads.right;
+                pads.right -
+                this.prefixWidth(block);
             if (available < 1)
                 throw new LayoutOverflowError(
                     "Section padding consumes the available width",
@@ -313,6 +458,36 @@ export class FlowComposer {
                 wrapped.forEach((line, i) => {
                     const style =
                         line.runs[0]?.style ?? themeStyle(this.theme, "value");
+                    const prefix =
+                        emitted === 0 && i === 0
+                            ? block.firstPrefix
+                            : block.continuationPrefix;
+                    if (prefix?.length) {
+                        const decorated = [
+                            ...this.padding(themeLeft, style),
+                            ...this.prefixRuns(prefix),
+                            ...this.padding(
+                                sectionLeft(block) +
+                                    (i
+                                        ? (policy?.continuationIndentPixels ??
+                                          0)
+                                        : 0),
+                                style,
+                            ),
+                            ...line.runs,
+                        ];
+                        lines.push({
+                            line: this.line([
+                                ...decorated,
+                                ...this.padding(
+                                    pads.right,
+                                    decorated.at(-1)?.style ?? style,
+                                ),
+                            ]),
+                            origin: block.origin,
+                        });
+                        return;
+                    }
                     lines.push({
                         line: this.line([
                             ...this.padding(
@@ -335,7 +510,10 @@ export class FlowComposer {
                 emitted += wrapped.length;
             }
             if (blockIndex < blocks.length - 1)
-                gap(layout?.blockGapAfterPixels ?? 0);
+                gap(
+                    layout?.blockGapAfterPixels ?? 0,
+                    blocks[blockIndex + 1]!.gapPrefix,
+                );
             if (lines.length > 256)
                 throw new LayoutOverflowError("Lore exceeds its line budget");
         });

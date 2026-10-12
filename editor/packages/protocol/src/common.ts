@@ -284,6 +284,24 @@ export type MissingDataPolicy = z.infer<typeof missingDataPolicySchema>;
 export const fieldValueAlignmentSchema = z.enum(["LEFT", "RIGHT"]);
 export type FieldValueAlignment = z.infer<typeof fieldValueAlignmentSchema>;
 
+/** How a container (a group, or the implicit item root) decorates its child units. */
+export const groupMarkerSchema = z.enum(["NONE", "BULLET", "TREE"]);
+export type GroupMarker = z.infer<typeof groupMarkerSchema>;
+
+export const groupDividersSchema = z.enum(["NONE", "BETWEEN_CHILDREN"]);
+export type GroupDividers = z.infer<typeof groupDividersSchema>;
+
+export const groupHeaderMissingPolicySchema = z.enum(["HIDE", "SHOW_CHILDREN"]);
+export type GroupHeaderMissingPolicy = z.infer<
+    typeof groupHeaderMissingPolicySchema
+>;
+
+export const groupEmptyPolicySchema = z.enum(["SHOW_HEADER", "HIDE"]);
+export type GroupEmptyPolicy = z.infer<typeof groupEmptyPolicySchema>;
+
+/** Mirrors the compiler's MAXIMUM_GROUP_GAP_LINES. */
+export const MAXIMUM_GROUP_GAP_LINES = 16;
+
 export const characterFramePresetSchema = z.enum([
     "UNICODE_SINGLE",
     "UNICODE_DOUBLE",
