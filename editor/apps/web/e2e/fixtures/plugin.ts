@@ -29,6 +29,8 @@ export const HANDSHAKE = {
         "assets.resource-pack-bindings.delivery",
         "presentation.shown-flags",
         "presentation.groups",
+        "presentation.composition",
+        "presentation.hiding",
     ],
 };
 

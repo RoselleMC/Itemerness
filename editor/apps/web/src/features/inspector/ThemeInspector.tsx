@@ -16,7 +16,7 @@ import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
 import { ThemeSelectorInspector } from "./ThemeSelectorInspector.js";
 import { themeSelectorById } from "../../state/themeSelectorLibrary.js";
 import { ThemeRoles } from "./ThemeRoles.js";
-import { ThemeMarkerFields } from "./GroupFields.js";
+import { ThemeDecorationFields, ThemeMarkerFields } from "./GroupFields.js";
 import { ThemeContent, ThemeGeometry } from "./ThemeGeometry.js";
 import { AddThemeEntry, ThemeToggle } from "./ThemeFields.js";
 import {
@@ -366,6 +366,11 @@ export function ThemeInspector({
             <ThemeGeometry theme={theme} document={doc} update={update} />
             <ThemeRoles theme={theme} document={doc} update={update} />
             <ThemeMarkerFields theme={theme} document={doc} update={update} />
+            <ThemeDecorationFields
+                theme={theme}
+                document={doc}
+                update={update}
+            />
             {retained.length > 0 && (
                 <details className="advanced">
                     <summary>{t("themeAuthoring.retainedSettings")}</summary>

@@ -12,6 +12,8 @@ import {
     type ProjectDocument,
     type ThemeMarkers,
     type ThemeNode,
+    type ThemeRules,
+    MAXIMUM_DECORATION_PIXELS,
 } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { setGroupHeader } from "../../state/contentActions.js";
@@ -44,7 +46,7 @@ function withDefaultMessage(
 }
 
 /** The message text of one key in the previewed language, edited in place like content labels. */
-function MessageText({
+export function MessageText({
     messageKey,
     label,
     testId,
@@ -473,7 +475,6 @@ export function ThemeMarkerFields({
             const { markers: _previous, ...rest } = current;
             return markers ? { ...rest, markers } : rest;
         });
-    const glyphs = document.glyphs.map((glyph) => glyph.id);
     return (
         <details className="advanced" data-testid="theme-markers">
             <summary>{t("inspector.theme.markers")}</summary>
@@ -503,105 +504,277 @@ export function ThemeMarkerFields({
                     ]}
                 />
             </label>
-            {MARKER_SLOTS.map((slot) => {
-                const piece = markerPiece(theme.markers, slot);
-                const label = t(`inspector.theme.markerPieces.${slot}`);
-                return (
-                    <div className="field-inline" key={slot}>
-                        <span>{label}</span>
-                        <SelectField
-                            label={label}
-                            value={piece?.kind ?? ""}
-                            data-testid={`theme-marker-${slot}`}
-                            onValueChange={(kind) =>
-                                setMarkers((markers) =>
-                                    withMarkerPiece(
-                                        markers,
-                                        slot,
-                                        kind === "text"
-                                            ? {
-                                                  kind: "text",
-                                                  text: DEFAULT_MARKER_TEXT[
-                                                      slot
-                                                  ],
-                                              }
-                                            : kind === "glyph" && glyphs[0]
-                                              ? {
-                                                    kind: "glyph",
-                                                    glyph: glyphs[0],
-                                                }
-                                              : undefined,
-                                    ),
-                                )
-                            }
-                            options={[
-                                {
-                                    value: "",
-                                    label: t("inspector.theme.markerDefault", {
-                                        text: DEFAULT_MARKER_TEXT[slot],
-                                    }),
-                                },
-                                {
-                                    value: "text",
-                                    label: t("inspector.theme.markerText"),
-                                },
-                                // Glyph pieces follow the icon rule: only resource-pack themes.
-                                ...(theme.requiresResourcePack
-                                    ? [
-                                          {
-                                              value: "glyph",
-                                              label: t(
-                                                  "inspector.theme.markerGlyph",
-                                              ),
-                                              disabled: glyphs.length === 0,
-                                          },
-                                      ]
-                                    : []),
-                            ]}
-                        />
-                        {piece?.kind === "text" && (
-                            <BufferedInput
-                                label={label}
-                                value={piece.text}
-                                owner={`${theme.uuid}:marker-${slot}`}
-                                testId={`theme-marker-${slot}-text`}
-                                validate={(raw) =>
-                                    raw.length > 0 && raw.length <= 32
-                                        ? null
-                                        : t("inspector.theme.markerTextRange")
-                                }
-                                onCommit={(text) =>
-                                    setMarkers((markers) =>
-                                        withMarkerPiece(markers, slot, {
-                                            kind: "text",
-                                            text,
-                                        }),
-                                    )
-                                }
-                            />
-                        )}
-                        {piece?.kind === "glyph" && (
-                            <SelectField
-                                label={label}
-                                value={piece.glyph}
-                                data-testid={`theme-marker-${slot}-glyph`}
-                                onValueChange={(glyph) =>
-                                    setMarkers((markers) =>
-                                        withMarkerPiece(markers, slot, {
-                                            kind: "glyph",
-                                            glyph,
-                                        }),
-                                    )
-                                }
-                                options={glyphs.map((glyph) => ({
-                                    value: glyph,
-                                    label: glyph,
-                                }))}
-                            />
-                        )}
-                    </div>
-                );
-            })}
+            {MARKER_SLOTS.map((slot) => (
+                <ThemePieceField
+                    key={slot}
+                    theme={theme}
+                    document={document}
+                    label={t(`inspector.theme.markerPieces.${slot}`)}
+                    piece={markerPiece(theme.markers, slot)}
+                    defaultText={DEFAULT_MARKER_TEXT[slot]}
+                    testId={`theme-marker-${slot}`}
+                    onChange={(piece) =>
+                        setMarkers((markers) =>
+                            withMarkerPiece(markers, slot, piece),
+                        )
+                    }
+                />
+            ))}
+            <ThemePixels
+                theme={theme}
+                name="markerGap"
+                value={theme.markers?.gapPixels}
+                testId="theme-marker-gap"
+                onChange={(gapPixels) =>
+                    setMarkers((markers) => {
+                        const next: ThemeMarkers = { ...markers };
+                        if (gapPixels === undefined) delete next.gapPixels;
+                        else next.gapPixels = gapPixels;
+                        return Object.keys(next).length ? next : undefined;
+                    })
+                }
+            />
+        </details>
+    );
+}
+
+/** A piece of theme art: the built-in default, literal text, or a resource-pack glyph. */
+export function ThemePieceField({
+    theme,
+    document,
+    label,
+    piece,
+    defaultText,
+    defaultLabel,
+    testId,
+    onChange,
+}: {
+    theme: ThemeNode;
+    document: ProjectDocument;
+    label: string;
+    piece: MarkerPiece | undefined;
+    /** The text a new text piece starts with. */
+    defaultText: string;
+    /** What an absent piece renders as; the built-in text when omitted. */
+    defaultLabel?: string;
+    testId: string;
+    onChange(piece: MarkerPiece | undefined): void;
+}) {
+    const { t } = useTranslation();
+    const glyphs = document.glyphs.map((glyph) => glyph.id);
+    return (
+        <div className="field-inline">
+            <span>{label}</span>
+            <SelectField
+                label={label}
+                value={piece?.kind ?? ""}
+                data-testid={testId}
+                onValueChange={(kind) =>
+                    onChange(
+                        kind === "text"
+                            ? { kind: "text", text: defaultText }
+                            : kind === "glyph" && glyphs[0]
+                              ? { kind: "glyph", glyph: glyphs[0] }
+                              : undefined,
+                    )
+                }
+                options={[
+                    {
+                        value: "",
+                        label:
+                            defaultLabel ??
+                            t("inspector.theme.markerDefault", {
+                                text: defaultText,
+                            }),
+                    },
+                    {
+                        value: "text",
+                        label: t("inspector.theme.markerText"),
+                    },
+                    // Glyph pieces follow the icon rule: only resource-pack themes.
+                    ...(theme.requiresResourcePack
+                        ? [
+                              {
+                                  value: "glyph",
+                                  label: t("inspector.theme.markerGlyph"),
+                                  disabled: glyphs.length === 0,
+                              },
+                          ]
+                        : []),
+                ]}
+            />
+            {piece?.kind === "text" && (
+                <BufferedInput
+                    label={label}
+                    value={piece.text}
+                    owner={`${theme.uuid}:${testId}`}
+                    testId={`${testId}-text`}
+                    validate={(raw) =>
+                        raw.length > 0 && raw.length <= 32
+                            ? null
+                            : t("inspector.theme.markerTextRange")
+                    }
+                    onCommit={(text) => onChange({ kind: "text", text })}
+                />
+            )}
+            {piece?.kind === "glyph" && (
+                <SelectField
+                    label={label}
+                    value={piece.glyph}
+                    data-testid={`${testId}-glyph`}
+                    onValueChange={(glyph) =>
+                        onChange({ kind: "glyph", glyph })
+                    }
+                    options={glyphs.map((glyph) => ({
+                        value: glyph,
+                        label: glyph,
+                    }))}
+                />
+            )}
+        </div>
+    );
+}
+
+/** An optional pixel distance of theme art; clearing it keeps the default. */
+export function ThemePixels({
+    theme,
+    name,
+    value,
+    testId,
+    onChange,
+}: {
+    theme: ThemeNode;
+    name: string;
+    value: number | undefined;
+    testId: string;
+    onChange(value: number | undefined): void;
+}) {
+    const { t } = useTranslation();
+    const label = t(`inspector.theme.${name}`);
+    return (
+        <label className="field-inline">
+            <span>{label}</span>
+            <BufferedInput
+                label={label}
+                value={value === undefined ? "" : String(value)}
+                owner={`${theme.uuid}:${name}`}
+                inputMode="numeric"
+                testId={testId}
+                validate={(raw) =>
+                    raw === "" ||
+                    (/^\d+$/.test(raw) &&
+                        Number(raw) <= MAXIMUM_DECORATION_PIXELS)
+                        ? null
+                        : t("inspector.theme.pixelsRange", {
+                              maximum: MAXIMUM_DECORATION_PIXELS,
+                          })
+                }
+                onCommit={(raw) =>
+                    onChange(raw === "" ? undefined : Number(raw))
+                }
+            />
+        </label>
+    );
+}
+
+type RulePiece = "fill" | "left" | "right";
+const RULE_PIECES: readonly RulePiece[] = ["fill", "left", "right"];
+const DEFAULT_RULE_TEXT: Record<RulePiece, string> = {
+    fill: "─",
+    left: "├",
+    right: "┤",
+};
+
+/** Rule art and the name inset, collapsed because the defaults suit most themes. */
+export function ThemeDecorationFields({
+    theme,
+    document,
+    update,
+}: {
+    theme: ThemeNode;
+    document: ProjectDocument;
+    update(mutate: (current: ThemeNode) => ThemeNode): void;
+}) {
+    const { t } = useTranslation();
+    const setRules = (mutate: (rules: ThemeRules) => ThemeRules) =>
+        update((current) => {
+            const rules = mutate({ ...current.rules });
+            const { rules: _previous, ...rest } = current;
+            return Object.keys(rules).length ? { ...rest, rules } : rest;
+        });
+    const setRule = <K extends keyof ThemeRules>(
+        key: K,
+        value: ThemeRules[K] | undefined,
+    ) =>
+        setRules((rules) => {
+            if (value === undefined) delete rules[key];
+            else rules[key] = value;
+            return rules;
+        });
+    return (
+        <details className="advanced" data-testid="theme-decorations">
+            <summary>{t("inspector.theme.decorations")}</summary>
+            <ThemePixels
+                theme={theme}
+                name="nameInset"
+                value={theme.nameInsetPixels}
+                testId="theme-name-inset"
+                onChange={(nameInsetPixels) =>
+                    update((current) => {
+                        const { nameInsetPixels: _previous, ...rest } = current;
+                        return nameInsetPixels === undefined
+                            ? rest
+                            : { ...rest, nameInsetPixels };
+                    })
+                }
+            />
+            <p className="field-label">{t("inspector.theme.rules")}</p>
+            <label className="field-inline">
+                <span>{t("inspector.theme.ruleStyle")}</span>
+                <SelectField
+                    label={t("inspector.theme.ruleStyle")}
+                    value={theme.rules?.style ?? ""}
+                    data-testid="theme-rule-style"
+                    onValueChange={(style) =>
+                        setRule("style", style || undefined)
+                    }
+                    options={[
+                        {
+                            value: "",
+                            label: t("inspector.theme.ruleStyleDefault"),
+                        },
+                        ...Object.keys(theme.styles).map((role) => ({
+                            value: role,
+                            label: role,
+                        })),
+                    ]}
+                />
+            </label>
+            {RULE_PIECES.map((piece) => (
+                <ThemePieceField
+                    key={piece}
+                    theme={theme}
+                    document={document}
+                    label={t(`inspector.theme.rulePieces.${piece}`)}
+                    piece={theme.rules?.[piece]}
+                    defaultText={DEFAULT_RULE_TEXT[piece]}
+                    // Rules have no end caps unless a theme adds them.
+                    defaultLabel={
+                        piece === "fill"
+                            ? undefined
+                            : t("inspector.theme.ruleNoCap")
+                    }
+                    testId={`theme-rule-${piece}`}
+                    onChange={(next) => setRule(piece, next)}
+                />
+            ))}
+            <ThemePixels
+                theme={theme}
+                name="ruleTitleGap"
+                value={theme.rules?.titleGapPixels}
+                testId="theme-rule-title-gap"
+                onChange={(gap) => setRule("titleGapPixels", gap)}
+            />
         </details>
     );
 }

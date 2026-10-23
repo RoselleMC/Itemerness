@@ -19,7 +19,7 @@ test("imported items keep and reassign their catalog source files", async ({
     await page.getByTestId("mode-items").click();
 
     await page.getByTestId(`item-${first!.id}`).click();
-    await page.locator("details.advanced > summary").click();
+    await page.getByTestId("item-advanced").locator("summary").click();
     const field = page.getByTestId("item-source-file");
     await expect(field).toHaveValue("items/armory/weapons.yml");
 

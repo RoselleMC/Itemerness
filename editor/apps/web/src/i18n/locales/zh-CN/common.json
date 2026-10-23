@@ -566,7 +566,11 @@
                 "colon": "冒号",
                 "none": "无",
                 "message": "自定义文本…"
-            }
+            },
+            "row": "组合行",
+            "rule": "分隔线",
+            "addRow": "左右组合行",
+            "addRule": "分隔线"
         },
         "advanced": {
             "sourceFile": "来源文件",
@@ -613,6 +617,20 @@
                 "branch": "树形分支",
                 "last": "树形末支",
                 "vertical": "树形延续"
+            },
+            "markerGap": "标记后的间距",
+            "nameInset": "名称缩进",
+            "ruleTitleGap": "分隔线标题间距",
+            "pixelsRange": "留空，或输入 0 到 {{maximum}} 像素。",
+            "decorations": "分隔线与名称",
+            "rules": "分隔线",
+            "ruleStyle": "分隔线样式",
+            "ruleStyleDefault": "主题默认",
+            "ruleNoCap": "无",
+            "rulePieces": {
+                "fill": "线条",
+                "left": "左端",
+                "right": "右端"
             }
         },
         "roles": {
@@ -666,6 +684,79 @@
             "presentationReadable": "可在提示框显示",
             "range": "取值范围",
             "allowed": "允许的取值"
+        },
+        "composition": {
+            "newText": "文本",
+            "kind": "片段类型",
+            "kinds": {
+                "message": "文本",
+                "data": "数据值",
+                "glyph": "字形",
+                "literal": "字符",
+                "slot": "摘要槽"
+            },
+            "literalRange": "请输入 1 到 {{maximum}} 个字符。",
+            "slotIdInvalid": "请使用小写字母、数字、点、连字符或下划线。",
+            "slotIdTaken": "此物品已有同名的摘要槽。",
+            "inheritStyle": "跟随内容块",
+            "slot": {
+                "prefix": "条目前",
+                "separator": "条目之间",
+                "suffix": "条目后",
+                "maximum": "最多显示条目",
+                "maximumRange": "留空，或输入 1 到 {{maximum}}。",
+                "count": "剩余计数",
+                "addCount": "显示剩余数量",
+                "removeCount": "不显示剩余数量"
+            },
+            "conditional": "此片段仅在条件满足时显示。",
+            "empty": "暂无片段。",
+            "addPart": "添加片段",
+            "removePart": "移除片段",
+            "left": "左侧",
+            "right": "右侧（贴齐边缘）",
+            "title": "标题（可选）",
+            "partStyles": "分段样式",
+            "parts": {
+                "icon": "图标",
+                "label": "标签",
+                "separator": "分隔符",
+                "value": "值"
+            },
+            "nameDecorations": "名称装饰",
+            "nameBefore": "名称前",
+            "nameAfter": "名称后"
+        },
+        "hiding": {
+            "heading": "提示框放不下时",
+            "inactive": "只有当物品或其布局设为\"隐藏内容\"时，内容才会被隐藏。",
+            "weight": "隐藏",
+            "modes": {
+                "default": "排在有优先级的内容之后",
+                "ranked": "按优先级",
+                "never": "从不隐藏"
+            },
+            "rank": "优先级",
+            "rankRange": "请输入 0 到 {{maximum}} 的整数。",
+            "order": "优先级越低越先隐藏；相同时从下往上隐藏。",
+            "summary": "隐藏后在此留下摘要",
+            "noSlots": "请先在组合行或名称中添加摘要槽。",
+            "leaves": "摘要内容",
+            "leavePiece": "固定片段",
+            "leaveValue": "每个被隐藏条目的值",
+            "valuePath": "条目字段",
+            "valuePathRequired": "请输入要显示的条目字段。",
+            "piece": "片段",
+            "itemOverflow": "提示框放不下时",
+            "layoutOverflow": "物品默认行为",
+            "overflowInherit": "布局默认（{{strategy}}）",
+            "strategies": {
+                "FALLBACK": "改用下一个主题",
+                "HIDE": "隐藏内容"
+            },
+            "overflowHint": "隐藏会按优先级逐个移除内容，直到提示框能放下。",
+            "hiddenNow_other": "此预览中为放下提示框已隐藏 {{count}} 个条目。",
+            "hiddenSummary_other": "为放下提示框已隐藏 {{count}} 行："
         }
     },
     "fidelity": {
@@ -916,7 +1007,9 @@
         "duplicateName": "该布局中已存在此名称。",
         "missingEntry": "此条目已不存在。",
         "referenced": "被 {{count}} 个内容块引用，不能删除。",
-        "implicitDefault": "此操作会替换重复或嵌套内容使用的默认策略。请保留其默认策略，或先调整这些内容。"
+        "implicitDefault": "此操作会替换重复或嵌套内容使用的默认策略。请保留其默认策略，或先调整这些内容。",
+        "fieldIconSlotPixels": "图标槽宽度",
+        "fieldIconSlotPixelsHint": "留空则每个图标保持自身宽度。"
     },
     "locales": {
         "heading": "语言矩阵",
@@ -1280,6 +1373,8 @@
             "RESOURCE_PACK_DELIVERY_UNSUPPORTED": "选择资源包的交付方式需要升级当前插件。文档内容已保留。",
             "SHOWN_FLAGS_UNSUPPORTED": "显示原版 tooltip 组件需要升级当前插件。文档内容已保留。",
             "GROUPS_UNSUPPORTED": "使用分组、标记或字段分隔符需要升级当前插件。文档内容已保留。",
+            "COMPOSITION_UNSUPPORTED": "使用组合行、分隔线、名称装饰、分段样式或主题分隔线样式需要升级当前插件。文档内容已保留。",
+            "HIDING_UNSUPPORTED": "在提示框装满时隐藏行需要升级当前插件。文档内容已保留。",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "使用属性和附魔组件需要升级当前插件。文档内容已保留。",
             "DRAFT_CONFLICT": "服务器草稿已改变，编辑器草稿已保留。",
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",

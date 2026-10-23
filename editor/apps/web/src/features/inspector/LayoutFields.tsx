@@ -58,6 +58,54 @@ export function LayoutNumber({
     );
 }
 
+/** A number that may be absent; clearing the field removes the setting. */
+export function LayoutOptionalNumber({
+    name,
+    value,
+    minimum,
+    maximum,
+    owner,
+    onChange,
+}: {
+    name: string;
+    value: number | undefined;
+    minimum: number;
+    maximum: number;
+    owner: string;
+    onChange(value: number | undefined): void;
+}) {
+    const { t } = useTranslation();
+    return (
+        <label className="field-inline layout-number-field">
+            <span>{t(`layoutAuthoring.${name}`)}</span>
+            <BufferedInput
+                label={t(`layoutAuthoring.${name}`)}
+                value={value === undefined ? "" : String(value)}
+                owner={`${owner}:${name}`}
+                inputMode="numeric"
+                testId={`layout-${name}`}
+                validate={(raw) => {
+                    if (raw === "") return null;
+                    const error = layoutNumberError(raw, minimum, maximum, 1);
+                    return error
+                        ? t(`layoutAuthoring.${error}`, {
+                              minimum,
+                              maximum,
+                              step: 1,
+                          })
+                        : null;
+                }}
+                onCommit={(raw) =>
+                    onChange(raw === "" ? undefined : Number(raw))
+                }
+            />
+            <span className="muted small">
+                {t(`layoutAuthoring.${name}Hint`)}
+            </span>
+        </label>
+    );
+}
+
 export function LayoutOverflow({
     value,
     onChange,

@@ -20,6 +20,8 @@ import {
     Group,
     Ungroup,
     SquareMousePointer,
+    Columns2,
+    SeparatorHorizontal,
 } from "lucide-react";
 import type { ItemNode, PresentationBlock } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
@@ -181,6 +183,18 @@ export function insertActions(
             label: t("inspector.content.addGroup"),
             icon: Group,
             run: () => add("group"),
+        },
+        {
+            id: "add-row",
+            label: t("inspector.content.addRow"),
+            icon: Columns2,
+            run: () => add("row"),
+        },
+        {
+            id: "add-rule",
+            label: t("inspector.content.addRule"),
+            icon: SeparatorHorizontal,
+            run: () => add("rule"),
         },
     ];
 }

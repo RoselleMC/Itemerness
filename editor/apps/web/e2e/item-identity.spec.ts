@@ -56,7 +56,7 @@ async function start(page: Page, document: ProjectDocument) {
 async function stableId(page: Page) {
     const details = page
         .getByTestId("global-inspector")
-        .locator("details.advanced");
+        .getByTestId("item-advanced");
     if (!(await details.getAttribute("open")))
         await details.locator(":scope > summary").click();
     return page.getByTestId("item-stable-id");

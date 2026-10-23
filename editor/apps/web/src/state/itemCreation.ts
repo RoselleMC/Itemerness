@@ -4,6 +4,7 @@ import {
     type PresentationBlock,
     type ProjectDocument,
 } from "@itemerness/protocol";
+import { remapBlockFragments, remapNameFragments } from "./composition.js";
 import { itemIdIssue } from "./itemIdentity.js";
 
 export interface ItemCreationOptions {
@@ -48,7 +49,12 @@ export function copyItemDocument(
         return messages.get(sourceKey)!;
     };
     const clone = (block: PresentationBlock): PresentationBlock => {
-        const next = { ...structuredClone(block), uuid: crypto.randomUUID() };
+        // Slot ids are scoped to one item, so a copied item keeps its own.
+        const next = remapBlockFragments(
+            { ...structuredClone(block), uuid: crypto.randomUUID() },
+            key,
+            (id) => id,
+        );
         if (next.type === "field") next.labelMessage = key(next.labelMessage);
         if (next.type === "description") next.message = key(next.message);
         if (next.type === "repeat") {
@@ -76,7 +82,7 @@ export function copyItemDocument(
         uuid: crypto.randomUUID(),
         id,
         presentation: {
-            ...structuredClone(source.presentation),
+            ...remapNameFragments(structuredClone(source.presentation), key),
             nameMessage: nameKey,
             blocks: source.presentation.blocks.map(clone),
         },

@@ -571,7 +571,11 @@
                 "colon": "Colon",
                 "none": "None",
                 "message": "Custom text…"
-            }
+            },
+            "row": "Row",
+            "rule": "Rule",
+            "addRow": "Row with left and right parts",
+            "addRule": "Rule line"
         },
         "advanced": {
             "sourceFile": "Source file",
@@ -618,6 +622,20 @@
                 "branch": "Tree branch",
                 "last": "Last tree branch",
                 "vertical": "Tree continuation"
+            },
+            "markerGap": "Gap after markers",
+            "nameInset": "Name inset",
+            "ruleTitleGap": "Gap around rule titles",
+            "pixelsRange": "Leave empty or use 0 to {{maximum}} pixels.",
+            "decorations": "Rules and name",
+            "rules": "Rule lines",
+            "ruleStyle": "Rule style",
+            "ruleStyleDefault": "Theme default",
+            "ruleNoCap": "None",
+            "rulePieces": {
+                "fill": "Line",
+                "left": "Left end",
+                "right": "Right end"
             }
         },
         "roles": {
@@ -671,6 +689,81 @@
             "presentationReadable": "Shown in tooltips",
             "range": "Range",
             "allowed": "Allowed values"
+        },
+        "composition": {
+            "newText": "Text",
+            "kind": "Part kind",
+            "kinds": {
+                "message": "Text",
+                "data": "Data value",
+                "glyph": "Glyph",
+                "literal": "Characters",
+                "slot": "Summary slot"
+            },
+            "literalRange": "Use 1 to {{maximum}} characters.",
+            "slotIdInvalid": "Use lowercase letters, digits, dots, dashes or underscores.",
+            "slotIdTaken": "This item already has a slot with this name.",
+            "inheritStyle": "Block style",
+            "slot": {
+                "prefix": "Before entries",
+                "separator": "Between entries",
+                "suffix": "After entries",
+                "maximum": "Most entries shown",
+                "maximumRange": "Leave empty or use 1 to {{maximum}}.",
+                "count": "Remaining count",
+                "addCount": "Show how many more",
+                "removeCount": "Hide the remaining count"
+            },
+            "conditional": "This part is only shown when its condition holds.",
+            "empty": "No parts yet.",
+            "addPart": "Add part",
+            "removePart": "Remove part",
+            "left": "Left",
+            "right": "Right (aligned to the edge)",
+            "title": "Title (optional)",
+            "partStyles": "Part styles",
+            "parts": {
+                "icon": "Icon",
+                "label": "Label",
+                "separator": "Separator",
+                "value": "Value"
+            },
+            "nameDecorations": "Name decorations",
+            "nameBefore": "Before the name",
+            "nameAfter": "After the name"
+        },
+        "hiding": {
+            "heading": "When the tooltip is full",
+            "inactive": "Rows only hide when this item or its layout is set to hide rows.",
+            "weight": "Hiding",
+            "modes": {
+                "default": "After ranked rows",
+                "ranked": "By rank",
+                "never": "Never hide"
+            },
+            "rank": "Rank",
+            "rankRange": "Use a whole number from 0 to {{maximum}}.",
+            "order": "Lower ranks hide first; equal ranks hide from the bottom.",
+            "summary": "Leave a summary in",
+            "noSlots": "Add a summary slot to a row or the name first.",
+            "leaves": "Summary",
+            "leavePiece": "A fixed piece",
+            "leaveValue": "Each hidden entry's value",
+            "valuePath": "Entry value",
+            "valuePathRequired": "Enter the entry field to show.",
+            "piece": "Piece",
+            "itemOverflow": "When the tooltip is full",
+            "layoutOverflow": "Default for items",
+            "overflowInherit": "Layout default ({{strategy}})",
+            "strategies": {
+                "FALLBACK": "Use the next theme",
+                "HIDE": "Hide rows"
+            },
+            "overflowHint": "Hiding removes rows by their rank until the tooltip fits.",
+            "hiddenNow_one": "Hidden in this preview to fit the tooltip.",
+            "hiddenNow_other": "{{count}} entries hidden in this preview to fit the tooltip.",
+            "hiddenSummary_one": "1 row is hidden to fit the tooltip:",
+            "hiddenSummary_other": "{{count}} rows are hidden to fit the tooltip:"
         }
     },
     "fidelity": {
@@ -923,7 +1016,9 @@
         "referenced": "Used by content; cannot delete.",
         "referenced_one": "Used by {{count}} content block; cannot delete.",
         "referenced_other": "Used by {{count}} content blocks; cannot delete.",
-        "implicitDefault": "This change would replace the default policy used by repeat or nested content. Keep its default policy or update that content first."
+        "implicitDefault": "This change would replace the default policy used by repeat or nested content. Keep its default policy or update that content first.",
+        "fieldIconSlotPixels": "Icon slot width",
+        "fieldIconSlotPixelsHint": "Empty keeps each icon its own width."
     },
     "locales": {
         "heading": "Locale matrix",
@@ -1291,6 +1386,8 @@
             "RESOURCE_PACK_DELIVERY_UNSUPPORTED": "Upgrade the connected plugin to choose how a resource pack is delivered. The document has been preserved.",
             "SHOWN_FLAGS_UNSUPPORTED": "Upgrade the connected plugin to show vanilla tooltip components. The document has been preserved.",
             "GROUPS_UNSUPPORTED": "Upgrade the connected plugin to use groups, markers, or field separators. The document has been preserved.",
+            "COMPOSITION_UNSUPPORTED": "Upgrade the connected plugin to use rows, rules, name decorations, part styles, or theme rule art. The document has been preserved.",
+            "HIDING_UNSUPPORTED": "Upgrade the connected plugin to hide rows when a tooltip is full. The document has been preserved.",
             "EXTENDED_BASE_COMPONENTS_UNSUPPORTED": "Upgrade the connected plugin to use attribute and enchantment components. The document has been preserved.",
             "DRAFT_CONFLICT": "The server draft changed. The editor draft has been preserved.",
             "TOKEN_REQUIRED": "This server requires a valid API token.",

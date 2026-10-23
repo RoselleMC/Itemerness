@@ -5,6 +5,10 @@ import {
     type ProjectDocument,
 } from "@itemerness/protocol";
 import {
+    remapBlockFragments,
+    remapNameFragments,
+} from "../../state/composition.js";
+import {
     collectDocumentMessageKeys,
     collectReferencedMessageKeys,
 } from "../common/messages.js";
@@ -183,7 +187,8 @@ export function renameMessage(
     const blocks = (
         entries: readonly PresentationBlock[],
     ): PresentationBlock[] =>
-        entries.map((block) => {
+        entries.map((source) => {
+            const block = remapBlockFragments(source, rename, (id) => id);
             switch (block.type) {
                 case "field":
                     return {
@@ -224,7 +229,7 @@ export function renameMessage(
         items: document.items.map((item) => ({
             ...item,
             presentation: {
-                ...item.presentation,
+                ...remapNameFragments(item.presentation, rename),
                 nameMessage: rename(item.presentation.nameMessage),
                 blocks: blocks(item.presentation.blocks),
             },

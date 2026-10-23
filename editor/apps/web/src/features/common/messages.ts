@@ -1,4 +1,8 @@
-import type { PresentationBlock, ProjectDocument } from "@itemerness/protocol";
+import type {
+    Fragment,
+    PresentationBlock,
+    ProjectDocument,
+} from "@itemerness/protocol";
 import { childBlocks } from "../../state/blocks.js";
 
 /** Declared messages plus every static message reference checked by the production compiler. */
@@ -19,8 +23,23 @@ export function collectReferencedMessageKeys(
     document: ProjectDocument,
 ): string[] {
     const keys = new Set<string>();
+    const collectFragments = (fragments: readonly (Fragment | undefined)[]) => {
+        for (const fragment of fragments) {
+            if (fragment?.kind === "message") keys.add(fragment.message);
+            if (fragment?.kind === "slot") {
+                if (fragment.overflowCountMessage)
+                    keys.add(fragment.overflowCountMessage);
+                collectFragments([
+                    fragment.prefix,
+                    fragment.separator,
+                    fragment.suffix,
+                ]);
+            }
+        }
+    };
     const collectBlocks = (blocks: readonly PresentationBlock[]) => {
         for (const block of blocks) {
+            collectFragments([block.summary?.piece]);
             switch (block.type) {
                 case "field":
                     keys.add(block.labelMessage);
@@ -36,6 +55,12 @@ export function collectReferencedMessageKeys(
                     if (block.template.separator?.kind === "message")
                         keys.add(block.template.separator.message);
                     break;
+                case "row":
+                    collectFragments([...block.left, ...block.right]);
+                    break;
+                case "rule":
+                    collectFragments(block.title);
+                    break;
                 case "conditional":
                 case "group":
                     collectBlocks(childBlocks(block));
@@ -45,6 +70,10 @@ export function collectReferencedMessageKeys(
     };
     for (const item of document.items) {
         keys.add(item.presentation.nameMessage);
+        collectFragments([
+            ...(item.presentation.nameBefore ?? []),
+            ...(item.presentation.nameAfter ?? []),
+        ]);
         collectBlocks(item.presentation.blocks);
     }
     for (const layout of document.layouts)
@@ -152,4 +181,43 @@ export function humanizePath(path: string): string {
         .filter(Boolean)
         .join(" ");
     return words.length === 0 ? path : words[0]!.toUpperCase() + words.slice(1);
+}
+
+/** The i18n key naming a content block's kind, shared by outlines and nested row lists. */
+export function blockKindLabelKey(type: PresentationBlock["type"]): string {
+    switch (type) {
+        case "description":
+            return "inspector.content.text";
+        case "text":
+            return "inspector.content.value";
+        case "nestedItemList":
+            return "inspector.content.nested";
+        default:
+            return `inspector.content.${type}`;
+    }
+}
+
+/** A readable label for a content block: its own text where it has one, else its kind. */
+export function blockLabel(
+    document: ProjectDocument,
+    locale: string,
+    block: PresentationBlock,
+    t: (key: string) => string,
+): string {
+    const message =
+        block.type === "field"
+            ? block.labelMessage
+            : block.type === "description"
+              ? block.message
+              : block.type === "row"
+                ? [...block.left, ...block.right].find(
+                      (fragment) => fragment.kind === "message",
+                  )?.message
+                : block.type === "rule"
+                  ? block.title.find((fragment) => fragment.kind === "message")
+                        ?.message
+                  : undefined;
+    return message
+        ? resolveMessage(document, locale, message).text
+        : t(blockKindLabelKey(block.type));
 }

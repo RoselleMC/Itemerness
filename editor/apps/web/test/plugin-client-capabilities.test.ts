@@ -8,6 +8,8 @@ import {
     RESOURCE_PACK_DELIVERY_CAPABILITY,
     SHOWN_FLAGS_CAPABILITY,
     GROUPS_CAPABILITY,
+    COMPOSITION_CAPABILITY,
+    HIDING_CAPABILITY,
     type ProjectDocument,
     type PreviewRequest,
 } from "@itemerness/protocol";
@@ -379,6 +381,87 @@ describe.each(operations)("%s document capability gate", (operation) => {
                 document,
             );
             expect(contentHash(document)).toBe(hash);
+        },
+    );
+
+    it.each([
+        ["row", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["rule", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["nameAffix", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["partStyles", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["iconSlot", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["themeRules", COMPOSITION_CAPABILITY, "COMPOSITION_UNSUPPORTED"],
+        ["weight", HIDING_CAPABILITY, "HIDING_UNSUPPORTED"],
+        ["summary", HIDING_CAPABILITY, "HIDING_UNSUPPORTED"],
+        ["itemOverflow", HIDING_CAPABILITY, "HIDING_UNSUPPORTED"],
+        ["layoutOverflow", HIDING_CAPABILITY, "HIDING_UNSUPPORTED"],
+    ] as const)(
+        "gates %s by its capability",
+        async (feature, capability, code) => {
+            const document = structuredClone(baselineDocument);
+            const item = document.items[0]!;
+            const field = item.presentation.blocks.find(
+                (block) => block.type === "field",
+            )!;
+            const layout = document.layouts.find(
+                (entry) => entry.kind === "flow",
+            )!;
+            if (feature === "row")
+                item.presentation.blocks.push({
+                    uuid: "00000000-0000-4000-8000-0000000000ab",
+                    type: "row",
+                    left: [{ kind: "literal", text: "x" }],
+                    right: [],
+                    wrapping: null,
+                    style: null,
+                    anchor: null,
+                });
+            if (feature === "rule")
+                item.presentation.blocks.push({
+                    uuid: "00000000-0000-4000-8000-0000000000ac",
+                    type: "rule",
+                    title: [],
+                    style: null,
+                    anchor: null,
+                });
+            if (feature === "nameAffix")
+                item.presentation.nameBefore = [
+                    { kind: "literal", text: "* " },
+                ];
+            if (feature === "partStyles" && field.type === "field")
+                field.partStyles = { value: "label" };
+            if (feature === "iconSlot" && layout.kind === "flow")
+                layout.fieldIconSlotPixels = 12;
+            if (feature === "themeRules") document.themes[0]!.rules = {};
+            if (feature === "weight") field.weight = 2;
+            if (feature === "summary")
+                field.summary = {
+                    slot: "more",
+                    piece: { kind: "literal", text: "C" },
+                };
+            if (feature === "itemOverflow") item.presentation.overflow = "HIDE";
+            if (feature === "layoutOverflow" && layout.kind === "flow")
+                layout.overflow = "HIDE";
+            const fetch = vi.fn().mockResolvedValueOnce(response(handshake));
+            vi.stubGlobal("fetch", fetch);
+            const old = new PluginClient("http://example.test", "");
+            await old.handshake();
+            await expect(send(old, "save", document)).rejects.toThrow(code);
+            expect(fetch).toHaveBeenCalledTimes(1);
+            fetch
+                .mockResolvedValueOnce(
+                    response({
+                        ...handshake,
+                        capabilities: [...handshake.capabilities, capability],
+                    }),
+                )
+                .mockResolvedValueOnce(response(reply("save", document)));
+            const current = new PluginClient("http://example.test", "");
+            await current.handshake();
+            await send(current, "save", document);
+            expect(JSON.parse(fetch.mock.calls[2]![1].body).document).toEqual(
+                document,
+            );
         },
     );
 

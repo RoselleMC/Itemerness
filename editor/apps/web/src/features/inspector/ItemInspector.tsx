@@ -12,7 +12,11 @@ import type {
 } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { locateBlock, editBlockTree } from "../../state/blocks.js";
-import { humanizePath, resolveMessage } from "../common/messages.js";
+import {
+    blockLabel,
+    humanizePath,
+    resolveMessage,
+} from "../common/messages.js";
 import { ItemIcon } from "../common/ItemIcon.js";
 import type { PreviewBundle } from "../preview/usePreview.js";
 import { SelectField } from "../common/SelectField.js";
@@ -26,6 +30,15 @@ import { BufferedInput } from "../common/BufferedInput.js";
 import { ItemDefinitionEditor } from "./ItemDefinitionEditor.js";
 import { ShownFlagsEditor } from "./ShownFlagsEditor.js";
 import { GroupFields, RootGroupFields, SeparatorField } from "./GroupFields.js";
+import {
+    HidingFields,
+    ItemOverflowField,
+    NameDecorationFields,
+    PartStylesFields,
+    RowFields,
+    RuleFields,
+} from "./CompositionFields.js";
+import { hiddenBlockUuids } from "../../state/composition.js";
 import { itemIdIssue, renameItem } from "../../state/itemIdentity.js";
 import {
     representativeTheme,
@@ -90,8 +103,13 @@ export function ItemInspector({
     const selected = store.selectedBlockUuid
         ? locateBlock(item.presentation.blocks, store.selectedBlockUuid)
         : null;
+    const hidden = hiddenBlockUuids(
+        item.presentation.blocks,
+        preview.display?.hiddenElements ?? [],
+    );
     if (selected) {
         const block = selected.block;
+        const hiddenCount = hidden.get(block.uuid) ?? 0;
         const replace = (next: PresentationBlock) =>
             store.updateItem(item.uuid, (current) => ({
                 ...current,
@@ -253,6 +271,22 @@ export function ItemInspector({
                             />
                         </label>
                     )}
+                    {hiddenCount > 0 && (
+                        <p
+                            className="fallback-note"
+                            data-testid="content-hidden-note"
+                        >
+                            {t("inspector.hiding.hiddenNow", {
+                                count: hiddenCount,
+                            })}
+                        </p>
+                    )}
+                    <HidingFields
+                        key={block.uuid}
+                        item={item}
+                        block={block}
+                        onReplace={replace}
+                    />
                 </section>
             </aside>
         );
@@ -357,7 +391,42 @@ export function ItemInspector({
                     />
                     {t("inspector.enabled")}
                 </label>
+                <NameDecorationFields key={item.uuid} item={item} />
             </section>
+            {hidden.size > 0 && (
+                <div className="fallback-note" data-testid="hidden-elements">
+                    {t("inspector.hiding.hiddenSummary", {
+                        count: preview.display?.hiddenElements.length ?? 0,
+                    })}
+                    <ul>
+                        {[...hidden.keys()].map((uuid) => {
+                            const located = locateBlock(
+                                item.presentation.blocks,
+                                uuid,
+                            );
+                            return located ? (
+                                <li key={uuid}>
+                                    <button
+                                        type="button"
+                                        className="text-command"
+                                        onClick={() => {
+                                            if (commitInlineEditor())
+                                                store.selectBlock(uuid);
+                                        }}
+                                    >
+                                        {blockLabel(
+                                            doc,
+                                            viewerLocale,
+                                            located.block,
+                                            t,
+                                        )}
+                                    </button>
+                                </li>
+                            ) : null;
+                        })}
+                    </ul>
+                </div>
+            )}
 
             {/* --- Appearance -------------------------------------------------------------- */}
             <section>
@@ -678,7 +747,7 @@ export function ItemInspector({
             {previewSettings}
             <ItemDefinitionEditor key={item.uuid} document={doc} item={item} />
             {/* --- Advanced ---------------------------------------------------------------- */}
-            <details className="advanced">
+            <details className="advanced" data-testid="item-advanced">
                 <summary>{t("inspector.advanced.heading")}</summary>
                 <label className="field">
                     <span>{t("inspector.advanced.id")}</span>
@@ -737,6 +806,7 @@ export function ItemInspector({
                     </label>
                 )}
                 <RootGroupFields item={item} />
+                <ItemOverflowField item={item} />
                 <dl>
                     <dt>{t("inspector.advanced.material")}</dt>
                     <dd>
@@ -1037,6 +1107,20 @@ function BlockRow({
                                         : rest;
                                 })}
                             />
+                            <PartStylesFields
+                                item={item}
+                                value={block.partStyles}
+                                testId="field-part-styles"
+                                onChange={(partStyles) => {
+                                    const { partStyles: _previous, ...rest } =
+                                        block;
+                                    onReplace(
+                                        partStyles
+                                            ? { ...rest, partStyles }
+                                            : rest,
+                                    );
+                                }}
+                            />
                         </details>
                     </div>
                 </li>
@@ -1164,6 +1248,23 @@ function BlockRow({
                                     };
                                 })}
                             />
+                            <PartStylesFields
+                                item={item}
+                                value={block.template.partStyles}
+                                testId="repeat-part-styles"
+                                onChange={(partStyles) => {
+                                    const {
+                                        partStyles: _previous,
+                                        ...template
+                                    } = block.template;
+                                    onReplace({
+                                        ...block,
+                                        template: partStyles
+                                            ? { ...template, partStyles }
+                                            : template,
+                                    });
+                                }}
+                            />
                         </details>
                     </div>
                 </li>
@@ -1205,6 +1306,36 @@ function BlockRow({
                     </div>
                 </li>
             );
+        case "row":
+            return (
+                <li className={rowClass()} {...rowProps} {...itemProps}>
+                    {handle}
+                    <span className="block-kind">
+                        {t("inspector.content.row")}
+                    </span>
+                    {controls}
+                    <RowFields
+                        item={item}
+                        block={block}
+                        onReplace={onReplace}
+                    />
+                </li>
+            );
+        case "rule":
+            return (
+                <li className={rowClass()} {...rowProps} {...itemProps}>
+                    {handle}
+                    <span className="block-kind">
+                        {t("inspector.content.rule")}
+                    </span>
+                    {controls}
+                    <RuleFields
+                        item={item}
+                        block={block}
+                        onReplace={onReplace}
+                    />
+                </li>
+            );
         case "nestedItemList":
             return (
                 <li className={rowClass()} {...rowProps} {...itemProps}>
@@ -1237,17 +1368,7 @@ function NestedRows({
     return (
         <ol className="branch-list">
             {blocks.map((nested) => {
-                const key =
-                    nested.type === "field"
-                        ? nested.labelMessage
-                        : nested.type === "description"
-                          ? nested.message
-                          : null;
-                const label = key
-                    ? resolveMessage(doc, locale, key).text
-                    : t(
-                          `inspector.content.${nested.type === "conditional" ? "conditional" : nested.type === "repeat" ? "repeat" : nested.type === "text" ? "value" : nested.type === "group" ? "group" : "nested"}`,
-                      );
+                const label = blockLabel(doc, locale, nested, t);
                 return (
                     <li key={nested.uuid}>
                         <button

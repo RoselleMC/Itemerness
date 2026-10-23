@@ -6,6 +6,11 @@ import type {
     ProjectDocument,
 } from "@itemerness/protocol";
 import { useEditorStore } from "./store.js";
+import {
+    freshSlotId,
+    itemSlotIds,
+    remapBlockFragments,
+} from "./composition.js";
 import { representativeTheme } from "./themeSelectorLibrary.js";
 import { humanizePath } from "../features/common/messages.js";
 import {
@@ -66,8 +71,7 @@ export function canInsertContent(
 function selection() {
     const state = useEditorStore.getState();
     const item = state.document.items.find(
-        (entry) =>
-            itemKey(state.document, entry) === state.selectedItemId,
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
     );
     const location =
         item && state.selectedBlockUuid
@@ -83,8 +87,7 @@ export function insertContent(
 ) {
     const state = useEditorStore.getState();
     const item = state.document.items.find(
-        (entry) =>
-            itemKey(state.document, entry) === state.selectedItemId,
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
     );
     if (!item || !canInsertContent(state.document, item, kind)) return;
     const target =
@@ -92,7 +95,8 @@ export function insertContent(
             ? anchor === "__name" ||
               locateBlock(item.presentation.blocks, anchor)
             : locateBlock(item.presentation.blocks, anchor.parentUuid)?.block
-                  .type === (anchor.branch === "children" ? "group" : "conditional");
+                  .type ===
+              (anchor.branch === "children" ? "group" : "conditional");
     if (!target) return;
     const uuid = crypto.randomUUID(),
         message = `item.text.${uuid}`;
@@ -172,58 +176,87 @@ export function insertContent(
                         style: null,
                         anchor: null,
                     }
-                : kind === "field"
-                  ? {
-                        uuid,
-                        type: "field",
-                        labelMessage: message,
-                        data: dataKey!,
-                        format: null,
-                        icon: null,
-                        style: null,
-                        anchor: null,
-                        wrapping,
-                        missingPolicy: "OMIT",
-                    }
-                  : kind === "conditional"
+                  : kind === "field"
                     ? {
                           uuid,
-                          type: "conditional",
-                          condition: {
-                              operator: numeric
-                                  ? "GREATER_THAN_OR_EQUAL"
-                                  : fact
-                                    ? "EXISTS"
-                                    : "EQUALS",
-                              left: fact
-                                  ? { kind: "fact", key: fact.id }
-                                  : {
-                                        kind: "literal",
-                                        value: { kind: "boolean", value: true },
-                                    },
-                              right: !fact
-                                  ? {
-                                        kind: "literal",
-                                        value: { kind: "boolean", value: true },
-                                    }
-                                  : numeric
-                                    ? {
-                                          kind: "literal",
-                                          value: {
-                                              kind: "integer",
-                                              value: "1",
-                                          },
-                                      }
-                                    : null,
-                          },
-                          thenBlocks: [{ ...text, uuid: crypto.randomUUID() }],
-                          otherwiseBlocks: [],
+                          type: "field",
+                          labelMessage: message,
+                          data: dataKey!,
+                          format: null,
+                          icon: null,
                           style: null,
                           anchor: null,
+                          wrapping,
+                          missingPolicy: "OMIT",
                       }
-                    : text;
+                    : kind === "row"
+                      ? {
+                            uuid,
+                            type: "row",
+                            left: [{ kind: "message", message }],
+                            right: [],
+                            wrapping,
+                            style: null,
+                            anchor: null,
+                        }
+                      : kind === "rule"
+                        ? {
+                              uuid,
+                              type: "rule",
+                              title: [],
+                              style: null,
+                              anchor: null,
+                          }
+                        : kind === "conditional"
+                          ? {
+                                uuid,
+                                type: "conditional",
+                                condition: {
+                                    operator: numeric
+                                        ? "GREATER_THAN_OR_EQUAL"
+                                        : fact
+                                          ? "EXISTS"
+                                          : "EQUALS",
+                                    left: fact
+                                        ? { kind: "fact", key: fact.id }
+                                        : {
+                                              kind: "literal",
+                                              value: {
+                                                  kind: "boolean",
+                                                  value: true,
+                                              },
+                                          },
+                                    right: !fact
+                                        ? {
+                                              kind: "literal",
+                                              value: {
+                                                  kind: "boolean",
+                                                  value: true,
+                                              },
+                                          }
+                                        : numeric
+                                          ? {
+                                                kind: "literal",
+                                                value: {
+                                                    kind: "integer",
+                                                    value: "1",
+                                                },
+                                            }
+                                          : null,
+                                },
+                                thenBlocks: [
+                                    { ...text, uuid: crypto.randomUUID() },
+                                ],
+                                otherwiseBlocks: [],
+                                style: null,
+                                anchor: null,
+                            }
+                          : text;
     const messages: Record<string, string> =
-        kind === "text" || kind === "nestedItemList" || kind === "group"
+        kind === "text" ||
+        kind === "nestedItemList" ||
+        kind === "group" ||
+        kind === "rule"
             ? {}
             : kind === "repeat"
               ? {
@@ -311,14 +344,22 @@ export function duplicateSelectedContent() {
     const messages = new Map<string, string>();
     const key = (original: string) => {
         if (!messages.has(original))
-            messages.set(
-                original,
-                `item.copy.${crypto.randomUUID()}`,
-            );
+            messages.set(original, `item.copy.${crypto.randomUUID()}`);
         return messages.get(original)!;
     };
+    // A duplicated slot gets its own id; the summaries stay with the original.
+    const takenSlots = new Set(itemSlotIds(item));
+    const slots = new Map<string, string>();
+    const slot = (id: string) => {
+        if (!slots.has(id)) slots.set(id, freshSlotId(id, takenSlots));
+        return slots.get(id)!;
+    };
     const clone = (source: PresentationBlock): PresentationBlock => {
-        const block = { ...structuredClone(source), uuid: crypto.randomUUID() };
+        const block = remapBlockFragments(
+            { ...structuredClone(source), uuid: crypto.randomUUID() },
+            key,
+            slot,
+        );
         if (block.type === "description") block.message = key(block.message);
         if (block.type === "field")
             block.labelMessage = key(block.labelMessage);

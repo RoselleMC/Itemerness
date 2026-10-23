@@ -21,7 +21,7 @@ import type {
     ContentBranch,
     ContentInsertionTarget,
 } from "../../state/blocks.js";
-import { resolveMessage } from "../common/messages.js";
+import { blockLabel, resolveMessage } from "../common/messages.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
 import { describeContext, runMenuAction } from "../../state/interface.js";
 import { contentActions, insertActions } from "../common/contextActions.js";
@@ -78,8 +78,7 @@ export function ContentMenu({
         };
     }, [open, branchTarget]);
     const item = state.document.items.find(
-        (entry) =>
-            itemKey(state.document, entry) === state.selectedItemId,
+        (entry) => itemKey(state.document, entry) === state.selectedItemId,
     );
     const close = () => {
         setOpen(false);
@@ -126,17 +125,12 @@ export function ContentMenu({
         depth = 0,
     ): ReactNode =>
         blocks.map((block) => {
-            const key =
-                block.type === "field"
-                    ? block.labelMessage
-                    : block.type === "description"
-                      ? block.message
-                      : null;
-            const label = key
-                ? resolveMessage(state.document, state.viewerLocale, key).text
-                : t(
-                      `inspector.content.${block.type === "conditional" ? "conditional" : block.type === "repeat" ? "repeat" : block.type === "text" ? "value" : block.type === "group" ? "group" : "nested"}`,
-                  );
+            const label = blockLabel(
+                state.document,
+                state.viewerLocale,
+                block,
+                t,
+            );
             return (
                 <div key={block.uuid}>
                     <button
@@ -166,8 +160,7 @@ export function ContentMenu({
                     </button>
                     {block.type === "group" && (
                         <div>
-                            {block.header &&
-                                outline([block.header], depth + 1)}
+                            {block.header && outline([block.header], depth + 1)}
                             <button
                                 type="button"
                                 role="menuitem"
@@ -176,10 +169,9 @@ export function ContentMenu({
                                     paddingLeft:
                                         10 + Math.min(depth + 1, 4) * 12,
                                 }}
-                                aria-label={t(
-                                    "inspector.content.addToBranch",
-                                    { branch: branchName("children") },
-                                )}
+                                aria-label={t("inspector.content.addToBranch", {
+                                    branch: branchName("children"),
+                                })}
                                 data-testid={`add-branch-${block.uuid}-children`}
                                 onClick={() =>
                                     setBranchTarget({

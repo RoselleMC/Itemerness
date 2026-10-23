@@ -2183,6 +2183,64 @@ button.line-hit.selected:hover:not(:disabled) {
     width: 100%;
     text-align: left;
 }
+/* ---- composed rows and name decorations ------------------------------------------------ */
+.fragment-list,
+.part-styles {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+.fragment-row {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+.fragment-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+.content-inspector .fragment-main > .ui-select,
+.fragment-main > .ui-select {
+    flex: none;
+    width: 118px;
+}
+.fragment-main > :nth-child(2) {
+    flex: 1;
+    min-width: 0;
+}
+.fragment-main > .ui-select:nth-child(2) {
+    width: auto;
+    max-width: none;
+}
+.fragment-value {
+    width: 100%;
+    min-width: 0;
+    padding: 4px 8px;
+}
+.fragment-commands {
+    display: flex;
+    flex: none;
+}
+.fragment-commands .icon-button {
+    width: 22px;
+    height: 28px;
+}
+.fragment-options summary {
+    font-size: 11px;
+}
+.fragment-piece {
+    flex-wrap: wrap;
+}
+.fragment-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 .content-ancestors {
     display: flex;
     flex-wrap: wrap;

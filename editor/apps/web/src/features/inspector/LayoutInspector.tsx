@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { itemLayout } from "@itemerness/protocol";
+import { itemLayout, MAXIMUM_DECORATION_PIXELS } from "@itemerness/protocol";
 import type { ReactNode } from "react";
 import { AlignLeft, AlignRight } from "lucide-react";
 import { useEditorStore } from "../../state/store.js";
 import { describeContext } from "../../state/interface.js";
 import { themeLayoutActions } from "../common/themeLayoutActions.js";
 import { ThemeLayoutAdd, ThemeLayoutHeader } from "./ThemeLayoutHeader.js";
-import { LayoutNumber } from "./LayoutFields.js";
+import { LayoutNumber, LayoutOptionalNumber } from "./LayoutFields.js";
+import { SelectField } from "../common/SelectField.js";
 import { LayoutWrapping } from "./LayoutWrapping.js";
 import { LayoutCanvas } from "./LayoutCanvas.js";
 import { SeparatorField } from "./GroupFields.js";
@@ -65,6 +66,20 @@ export function LayoutInspector({
                                 ? { ...current, ...changes }
                                 : current,
                         );
+                    // Optional settings are removed rather than stored as their default.
+                    const setOptional = <
+                        K extends "fieldIconSlotPixels" | "overflow",
+                    >(
+                        key: K,
+                        value: (typeof layout)[K] | undefined,
+                    ) =>
+                        store.updateLayout(layout.uuid, (current) => {
+                            if (current.kind !== "flow") return current;
+                            const next = { ...current };
+                            if (value === undefined) delete next[key];
+                            else next[key] = value as (typeof next)[K];
+                            return next;
+                        });
                     return (
                         <>
                             <section>
@@ -202,6 +217,19 @@ export function LayoutInspector({
                                     <summary>
                                         {t("inspector.layout.fieldOptions")}
                                     </summary>
+                                    <LayoutOptionalNumber
+                                        name="fieldIconSlotPixels"
+                                        value={layout.fieldIconSlotPixels}
+                                        minimum={1}
+                                        maximum={MAXIMUM_DECORATION_PIXELS}
+                                        owner={layout.uuid}
+                                        onChange={(value) =>
+                                            setOptional(
+                                                "fieldIconSlotPixels",
+                                                value,
+                                            )
+                                        }
+                                    />
                                     <SeparatorField
                                         value={layout.fieldSeparator}
                                         inheritable={false}
@@ -272,6 +300,45 @@ export function LayoutInspector({
                                     }
                                 />
                             </section>
+                            <details
+                                className="advanced"
+                                data-testid="layout-overflow"
+                            >
+                                <summary>
+                                    {t("inspector.hiding.heading")}
+                                </summary>
+                                <label className="field-inline">
+                                    <span>
+                                        {t("inspector.hiding.layoutOverflow")}
+                                    </span>
+                                    <SelectField
+                                        label={t(
+                                            "inspector.hiding.layoutOverflow",
+                                        )}
+                                        value={layout.overflow ?? "FALLBACK"}
+                                        data-testid="layout-overflow-strategy"
+                                        onValueChange={(value) =>
+                                            setOptional(
+                                                "overflow",
+                                                value === "HIDE"
+                                                    ? "HIDE"
+                                                    : undefined,
+                                            )
+                                        }
+                                        options={(
+                                            ["FALLBACK", "HIDE"] as const
+                                        ).map((strategy) => ({
+                                            value: strategy,
+                                            label: t(
+                                                `inspector.hiding.strategies.${strategy}`,
+                                            ),
+                                        }))}
+                                    />
+                                </label>
+                                <p className="muted small">
+                                    {t("inspector.hiding.overflowHint")}
+                                </p>
+                            </details>
                         </>
                     );
                 })()

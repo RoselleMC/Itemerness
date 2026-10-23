@@ -20,8 +20,12 @@ import {
     usesResourcePackDelivery,
     supportsShownFlags,
     usesShownFlags,
+    supportsComposition,
     supportsGroups,
+    supportsHiding,
+    usesComposition,
     usesGroups,
+    usesHiding,
     usesSegmentedFrameDecorations,
     supportsExtendedBaseComponents,
     usesExtendedBaseComponents,
@@ -354,6 +358,13 @@ export class PluginClient {
             throw new Error("SHOWN_FLAGS_UNSUPPORTED");
         if (usesGroups(document) && !supportsGroups(this.capabilities))
             throw new Error("GROUPS_UNSUPPORTED");
+        if (
+            usesComposition(document) &&
+            !supportsComposition(this.capabilities)
+        )
+            throw new Error("COMPOSITION_UNSUPPORTED");
+        if (usesHiding(document) && !supportsHiding(this.capabilities))
+            throw new Error("HIDING_UNSUPPORTED");
     }
 
     private async json(
