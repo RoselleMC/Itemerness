@@ -108,6 +108,8 @@ export const previewDisplaySchema = z.object({
     requestedTheme: namespacedIdSchema,
     catalogRevision: z.number().int().min(0),
     fallbackReasons: z.array(themeFallbackReasonSchema).max(64).default([]),
+    /** Block paths hidden to fit the display budget, in hiding order. */
+    hiddenElements: z.array(z.string().max(1_024)).max(256).default([]),
 });
 export type PreviewDisplay = z.infer<typeof previewDisplaySchema>;
 

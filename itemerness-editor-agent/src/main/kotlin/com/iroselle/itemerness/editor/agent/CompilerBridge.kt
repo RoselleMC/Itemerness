@@ -319,6 +319,7 @@ class CompilerBridge(
                     )
                 },
             ),
+            "hiddenElements" to JsonValue.Arr(display.hiddenElements.map(::text)),
         )
 
     private fun lineJson(line: com.iroselle.itemerness.core.presentation.PresentationLine): JsonValue =

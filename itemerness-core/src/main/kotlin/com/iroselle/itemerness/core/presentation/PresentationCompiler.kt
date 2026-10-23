@@ -21,6 +21,21 @@ const val MAXIMUM_GROUP_GAP_LINES: Int = 16
 /** Upper bound on the code points of one theme marker piece. */
 const val MAXIMUM_MARKER_PIECE_CODE_POINTS: Int = 32
 
+/** Upper bound on the fragments of one row region, rule title or name affix. */
+const val MAXIMUM_FRAGMENTS_PER_REGION: Int = 32
+
+/** Upper bound on the code points of one literal fragment; literals are punctuation, not prose. */
+const val MAXIMUM_LITERAL_CODE_POINTS: Int = 64
+
+/** Upper bound on name insets, marker gaps, rule title gaps and icon slots. */
+const val MAXIMUM_DECORATION_PIXELS: Int = 64
+
+/** Upper bound on a ranked hiding weight. */
+const val MAXIMUM_HIDING_WEIGHT: Int = 1_000_000
+
+/** Upper bound on the entries a summary slot lists before counting the rest. */
+const val MAXIMUM_SLOT_ENTRIES: Int = 64
+
 class PresentationCompiler(
     private val defaultLocale: String = "en_us",
     private val budgets: PresentationBudgets = PresentationBudgets(),
@@ -439,6 +454,11 @@ class PresentationCompiler(
                         diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.description-padding", "Description padding consumes the layout width")
                     }
                     validateSeparator(source.fieldSeparator, "$path.sections.field.separator", diagnostics)
+                    source.fieldIconSlotPixels?.let {
+                        if (it !in 1..MAXIMUM_DECORATION_PIXELS) {
+                            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.sections.field.icon-slot-pixels", "Icon slot must be within 1..$MAXIMUM_DECORATION_PIXELS pixels")
+                        }
+                    }
                     validateWrapping(source.wrapping, "$path.wrapping", diagnostics)
                     CompiledLayout.Flow(id, source)
                 }
@@ -556,6 +576,10 @@ class PresentationCompiler(
                 ThemeRenderer.BITMAP_CANVAS -> validateCanvasTheme(source, path, glyphs, bitmaps, spacing, diagnostics)
             }
             source.markers?.let { validateMarkers(it, source.requiresResourcePack, "$path.markers", glyphs, diagnostics) }
+            source.rules?.let { validateRules(it, source.requiresResourcePack, "$path.rules", glyphs, diagnostics) }
+            if (source.nameInsetPixels !in 0..MAXIMUM_DECORATION_PIXELS) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.name-inset-pixels", "Name inset must be within 0..$MAXIMUM_DECORATION_PIXELS pixels")
+            }
             if (source.renderer in setOf(ThemeRenderer.SEGMENTED_FRAME, ThemeRenderer.BITMAP_CANVAS) &&
                 source.vanillaTooltipLines != VanillaTooltipLinePolicy.REQUIRE_MANAGED
             ) {
@@ -584,36 +608,62 @@ class PresentationCompiler(
         diagnostics: Diagnostics,
     ) {
         markers.style?.let { validateSemantic(it, "$path.style", diagnostics) }
+        if (markers.gapPixels !in 0..MAXIMUM_DECORATION_PIXELS) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.gap-pixels", "Marker gap must be within 0..$MAXIMUM_DECORATION_PIXELS pixels")
+        }
         listOf(
             "bullet" to markers.bullet,
             "tree.branch" to markers.tree?.branch,
             "tree.last" to markers.tree?.last,
             "tree.vertical" to markers.tree?.vertical,
-        ).forEach { (name, piece) ->
-            val piecePath = "$path.$name"
-            when (piece) {
-                null -> Unit
-                is MarkerPieceSource.Text -> {
-                    val length = piece.text.codePointCount(0, piece.text.length)
-                    if (length !in 1..MAXIMUM_MARKER_PIECE_CODE_POINTS) {
-                        diagnostics.add(
-                            PresentationDiagnosticCode.INVALID_VALUE,
-                            piecePath,
-                            "Marker text must contain 1..$MAXIMUM_MARKER_PIECE_CODE_POINTS code points",
-                        )
-                    }
-                    if (piece.text.codePoints().anyMatch(Character::isISOControl)) {
-                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "Marker text contains a control character")
-                    }
+        ).forEach { (name, piece) -> piece?.let { validatePiece(it, requiresResourcePack, "$path.$name", "Marker", glyphs, diagnostics) } }
+    }
+
+    private fun validateRules(
+        rules: RuleThemeSource,
+        requiresResourcePack: Boolean,
+        path: String,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ) {
+        rules.style?.let { validateSemantic(it, "$path.style", diagnostics) }
+        if (rules.titleGapPixels !in 0..MAXIMUM_DECORATION_PIXELS) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.title-gap-pixels", "Rule title gap must be within 0..$MAXIMUM_DECORATION_PIXELS pixels")
+        }
+        listOf("fill" to rules.fill, "left" to rules.left, "right" to rules.right).forEach { (name, piece) ->
+            piece?.let { validatePiece(it, requiresResourcePack, "$path.$name", "Rule", glyphs, diagnostics) }
+        }
+    }
+
+    /** Marker and rule pieces share the field icon rules: glyphs need the resource pack that defines them. */
+    private fun validatePiece(
+        piece: MarkerPieceSource,
+        requiresResourcePack: Boolean,
+        piecePath: String,
+        label: String,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ) {
+        when (piece) {
+            is MarkerPieceSource.Text -> {
+                val length = piece.text.codePointCount(0, piece.text.length)
+                if (length !in 1..MAXIMUM_MARKER_PIECE_CODE_POINTS) {
+                    diagnostics.add(
+                        PresentationDiagnosticCode.INVALID_VALUE,
+                        piecePath,
+                        "$label text must contain 1..$MAXIMUM_MARKER_PIECE_CODE_POINTS code points",
+                    )
                 }
-                // Glyph markers follow the field icon rules: they need the resource pack that defines them.
-                is MarkerPieceSource.Glyph -> {
-                    if (!requiresResourcePack) {
-                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "Glyph markers require requires-resource-pack: true")
-                    }
-                    if (piece.glyph !in glyphs) {
-                        diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, piecePath, "Unknown glyph ${piece.glyph}")
-                    }
+                if (piece.text.codePoints().anyMatch(Character::isISOControl)) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "$label text contains a control character")
+                }
+            }
+            is MarkerPieceSource.Glyph -> {
+                if (!requiresResourcePack) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, piecePath, "Glyph ${if (label == "Marker") "markers" else "${label.lowercase()} pieces"} require requires-resource-pack: true")
+                }
+                if (piece.glyph !in glyphs) {
+                    diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, piecePath, "Unknown glyph ${piece.glyph}")
                 }
             }
         }
@@ -687,7 +737,19 @@ class PresentationCompiler(
             }
             validateMessageKey(source.nameMessage, "$path.name-message", diagnostics)
             val counter = BlockCounter()
+            val nameBefore = compileFragments(source.nameBefore, "$path.name.before", counter, formats, glyphs, diagnostics)
+            val nameAfter = compileFragments(source.nameAfter, "$path.name.after", counter, formats, glyphs, diagnostics)
             val blocks = compileBlocks(source.blocks, "$path.blocks", 1, counter, formats, glyphs, diagnostics)
+            counter.summaryTargets.forEach { (slot, targetPath) ->
+                if (slot !in counter.slots) {
+                    diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, targetPath, "Unknown summary slot $slot")
+                }
+            }
+            val layoutStrategy = (layouts[layout] as? CompiledLayout.Flow)?.source?.overflow ?: OverflowStrategy.FALLBACK
+            val overflow = source.overflow ?: layoutStrategy
+            if (overflow == OverflowStrategy.HIDE && layouts[layout] is CompiledLayout.Canvas) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.overflow", "Hiding on overflow requires a flow layout")
+            }
             if (counter.count > budgets.maximumBlocksPerItem) {
                 diagnostics.add(
                     PresentationDiagnosticCode.BUDGET_EXCEEDED,
@@ -706,6 +768,9 @@ class PresentationCompiler(
                 shownFlags,
                 source.marker,
                 source.dividers,
+                nameBefore,
+                nameAfter,
+                overflow,
             )
             if (result.putIfAbsent(key, item) != null) {
                 diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, path, "Duplicate item presentation $key")
@@ -776,6 +841,12 @@ class PresentationCompiler(
         counter.count++
         source.style?.let { validateSemantic(it, "$blockPath.style", diagnostics) }
         source.anchor?.let { validateSemantic(it, "$blockPath.anchor", diagnostics) }
+        (source.weight as? HidingWeight.Ranked)?.let {
+            if (it.value !in 0..MAXIMUM_HIDING_WEIGHT) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$blockPath.weight", "Weight must be within 0..$MAXIMUM_HIDING_WEIGHT or never")
+            }
+        }
+        val summary = source.summary?.let { compileSummary(it, source, "$blockPath.summary", counter, formats, glyphs, diagnostics) }
         return when (source) {
             is PresentationBlockSource.Text -> {
                 val data = parseDataKey(source.data, "$blockPath.data", diagnostics) ?: return null
@@ -786,6 +857,8 @@ class PresentationCompiler(
                     source.wrapping,
                     source.unbreakable,
                     source.missingPolicy,
+                    source.weight,
+                    summary,
                 )
             }
 
@@ -796,6 +869,7 @@ class PresentationCompiler(
                 val format = source.format?.let { parseKey(it, "$blockPath.format", diagnostics) }
                 if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.format", "Unknown format $format")
                 if (source.icon != null && source.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.icon", "Unknown glyph ${source.icon}")
+                validatePartStyles(source.partStyles, "$blockPath.styles", diagnostics)
                 CompiledPresentationBlock.Field(
                     source.labelMessage,
                     data,
@@ -806,12 +880,15 @@ class PresentationCompiler(
                     source.wrapping,
                     source.missingPolicy,
                     source.separator,
+                    source.partStyles,
+                    source.weight,
+                    summary,
                 )
             }
 
             is PresentationBlockSource.Description -> {
                 validateMessageKey(source.message, "$blockPath.message", diagnostics)
-                CompiledPresentationBlock.Description(source.message, source.style, source.anchor, source.wrapping)
+                CompiledPresentationBlock.Description(source.message, source.style, source.anchor, source.wrapping, source.weight, summary)
             }
 
             is PresentationBlockSource.Conditional -> {
@@ -824,6 +901,7 @@ class PresentationCompiler(
                     otherwiseBlocks,
                     source.style,
                     source.anchor,
+                    source.weight,
                 )
             }
 
@@ -846,6 +924,7 @@ class PresentationCompiler(
                 val format = template.format?.let { parseKey(it, "$blockPath.template.format", diagnostics) }
                 if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.format", "Unknown format $format")
                 if (template.icon != null && template.icon !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$blockPath.template.icon", "Unknown glyph ${template.icon}")
+                validatePartStyles(template.partStyles, "$blockPath.template.styles", diagnostics)
                 CompiledPresentationBlock.Repeat(
                     data,
                     source.maximumElements,
@@ -856,14 +935,17 @@ class PresentationCompiler(
                         template.icon,
                         format,
                         template.separator,
+                        template.partStyles,
                     ),
                     source.style,
                     source.anchor,
                     source.missingPolicy,
+                    source.weight,
+                    summary,
                 )
             }
 
-            is PresentationBlockSource.NestedItemList -> CompiledPresentationBlock.NestedItemList(source.style, source.anchor)
+            is PresentationBlockSource.NestedItemList -> CompiledPresentationBlock.NestedItemList(source.style, source.anchor, source.weight, summary)
 
             is PresentationBlockSource.Group -> {
                 if (source.gapBeforeLines !in 0..MAXIMUM_GROUP_GAP_LINES) {
@@ -876,8 +958,10 @@ class PresentationCompiler(
                 // A header is one row: anything that can expand into several rows or containers
                 // would make the parent's marker ambiguous.
                 val header = source.header?.let { header ->
-                    if (header !is PresentationBlockSource.Field && header !is PresentationBlockSource.Text) {
-                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$blockPath.header", "A group header must be a field or text block")
+                    if (header !is PresentationBlockSource.Field && header !is PresentationBlockSource.Text &&
+                        header !is PresentationBlockSource.Row && header !is PresentationBlockSource.Rule
+                    ) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$blockPath.header", "A group header must be a field, text, row or rule block")
                         null
                     } else if (depth + 1 > budgets.maximumBlockDepth) {
                         diagnostics.add(PresentationDiagnosticCode.BUDGET_EXCEEDED, "$blockPath.header", "Block nesting exceeds ${budgets.maximumBlockDepth}")
@@ -897,9 +981,176 @@ class PresentationCompiler(
                     source.gapBeforeLines,
                     source.style,
                     source.anchor,
+                    source.weight,
+                )
+            }
+
+            is PresentationBlockSource.Row -> {
+                if (source.left.isEmpty() && source.right.isEmpty()) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, blockPath, "A row needs at least one fragment")
+                }
+                CompiledPresentationBlock.Row(
+                    compileFragments(source.left, "$blockPath.left", counter, formats, glyphs, diagnostics),
+                    compileFragments(source.right, "$blockPath.right", counter, formats, glyphs, diagnostics),
+                    source.style,
+                    source.anchor,
+                    source.wrapping,
+                    source.weight,
+                    summary,
+                )
+            }
+
+            is PresentationBlockSource.Rule -> CompiledPresentationBlock.Rule(
+                compileFragments(source.title, "$blockPath.title", counter, formats, glyphs, diagnostics),
+                source.style,
+                source.anchor,
+                source.weight,
+                summary,
+            )
+        }
+    }
+
+    private fun validatePartStyles(styles: FieldPartStyles?, path: String, diagnostics: Diagnostics) {
+        if (styles == null) return
+        listOf("icon" to styles.icon, "label" to styles.label, "separator" to styles.separator, "value" to styles.value).forEach { (part, role) ->
+            role?.let { validateSemantic(it, "$path.$part", diagnostics) }
+        }
+    }
+
+    private fun compileFragments(
+        sources: List<FragmentSource>,
+        path: String,
+        counter: BlockCounter,
+        formats: Map<ItemKey, FormatSource>,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ): List<CompiledFragment> {
+        if (sources.size > MAXIMUM_FRAGMENTS_PER_REGION) {
+            diagnostics.add(PresentationDiagnosticCode.BUDGET_EXCEEDED, path, "At most $MAXIMUM_FRAGMENTS_PER_REGION fragments are allowed")
+        }
+        return sources.mapIndexedNotNull { index, source ->
+            compileFragment(source, "$path[$index]", counter, formats, glyphs, diagnostics, allowDynamic = true)
+        }
+    }
+
+    /**
+     * Compiles one fragment. Slot decorations and summary pieces are [allowDynamic] = false: they
+     * are static text or glyphs, so a summary can never depend on another slot's contents.
+     */
+    private fun compileFragment(
+        source: FragmentSource,
+        path: String,
+        counter: BlockCounter,
+        formats: Map<ItemKey, FormatSource>,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+        allowDynamic: Boolean,
+    ): CompiledFragment? {
+        source.style?.let { validateSemantic(it, "$path.style", diagnostics) }
+        val condition = source.condition?.let {
+            if (!allowDynamic) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.when", "Slot decorations and summaries cannot be conditional")
+                return null
+            }
+            compileCondition(it, "$path.when", diagnostics) ?: return null
+        }
+        return when (source) {
+            is FragmentSource.Message -> {
+                validateMessageKey(source.message, "$path.message", diagnostics)
+                CompiledFragment.Message(source.message, source.style, condition)
+            }
+            is FragmentSource.Data -> {
+                if (!allowDynamic) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, path, "Slot decorations and summaries cannot read item data")
+                    return null
+                }
+                val data = parseDataKey(source.data, "$path.data", diagnostics) ?: return null
+                val format = source.format?.let { parseKey(it, "$path.format", diagnostics) }
+                if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.format", "Unknown format $format")
+                CompiledFragment.Data(data, format, source.style, condition)
+            }
+            is FragmentSource.Glyph -> {
+                if (source.glyph !in glyphs) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.glyph", "Unknown glyph ${source.glyph}")
+                CompiledFragment.Glyph(source.glyph, source.style, condition)
+            }
+            is FragmentSource.Literal -> {
+                val length = source.text.codePointCount(0, source.text.length)
+                if (length !in 1..MAXIMUM_LITERAL_CODE_POINTS) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.literal", "Literal text must contain 1..$MAXIMUM_LITERAL_CODE_POINTS code points")
+                }
+                if (source.text.codePoints().anyMatch(Character::isISOControl)) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.literal", "Literal text contains a control character")
+                }
+                CompiledFragment.Literal(source.text, source.style, condition)
+            }
+            is FragmentSource.Slot -> {
+                if (!allowDynamic) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, path, "Slot decorations and summaries cannot contain a slot")
+                    return null
+                }
+                validateSemantic(source.id, "$path.slot", diagnostics)
+                if (counter.slots.putIfAbsent(source.id, path) != null) {
+                    diagnostics.add(PresentationDiagnosticCode.DUPLICATE_ID, "$path.slot", "Duplicate summary slot ${source.id}")
+                }
+                source.maximumEntries?.let {
+                    if (it !in 1..MAXIMUM_SLOT_ENTRIES) {
+                        diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.maximum-entries", "Slot entries must be within 1..$MAXIMUM_SLOT_ENTRIES")
+                    }
+                }
+                source.overflowCountMessage?.let { validateMessageKey(it, "$path.overflow-count", diagnostics) }
+                if (source.overflowCountMessage != null && source.maximumEntries == null) {
+                    diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.overflow-count", "An overflow count requires maximum-entries")
+                }
+                fun decoration(piece: FragmentSource?, name: String) =
+                    piece?.let { compileFragment(it, "$path.$name", counter, formats, glyphs, diagnostics, allowDynamic = false) }
+                CompiledFragment.Slot(
+                    source.id,
+                    decoration(source.prefix, "prefix"),
+                    decoration(source.suffix, "suffix"),
+                    decoration(source.separator, "separator"),
+                    source.maximumEntries,
+                    source.overflowCountMessage,
+                    source.style,
+                    condition,
                 )
             }
         }
+    }
+
+    private fun compileSummary(
+        source: SummarySource,
+        block: PresentationBlockSource,
+        path: String,
+        counter: BlockCounter,
+        formats: Map<ItemKey, FormatSource>,
+        glyphs: Map<String, CompiledGlyph>,
+        diagnostics: Diagnostics,
+    ): CompiledSummary? {
+        validateSemantic(source.slot, "$path.slot", diagnostics)
+        source.style?.let { validateSemantic(it, "$path.style", diagnostics) }
+        if (block.weight == HidingWeight.Never) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, path, "A block that is never hidden cannot leave a summary")
+        }
+        if ((source.piece == null) == (source.valuePath == null)) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, path, "A summary needs exactly one of a piece or a value path")
+            return null
+        }
+        if (source.valuePath != null) {
+            if (block !is PresentationBlockSource.Repeat) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.value-path", "Only repeat elements can summarize an element value")
+            }
+            if (!COMPOUND_PATH_PATTERN.matches(source.valuePath)) {
+                diagnostics.add(PresentationDiagnosticCode.INVALID_ID, "$path.value-path", "Invalid compound value path")
+            }
+        }
+        val format = source.format?.let { parseKey(it, "$path.format", diagnostics) }
+        if (format != null && format !in formats) diagnostics.add(PresentationDiagnosticCode.MISSING_REFERENCE, "$path.format", "Unknown format $format")
+        if (format != null && source.valuePath == null) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, "$path.format", "A format applies only to a summarized element value")
+        }
+        val piece = source.piece?.let { compileFragment(it, "$path.piece", counter, formats, glyphs, diagnostics, allowDynamic = false) }
+        counter.summaryTargets += source.slot to "$path.slot"
+        return CompiledSummary(source.slot, piece, source.valuePath, format, source.style)
     }
 
     private fun validateSeparator(separator: FieldSeparatorSource?, path: String, diagnostics: Diagnostics) {
@@ -1143,7 +1394,20 @@ class PresentationCompiler(
         diagnostics: Diagnostics,
     ) {
         items.values.forEach { item ->
+            validateFragmentFactReferences(item.nameBefore, facts, "items.${item.key}.name.before", diagnostics)
+            validateFragmentFactReferences(item.nameAfter, facts, "items.${item.key}.name.after", diagnostics)
             validateBlockFactReferences(item.blocks, facts, "items.${item.key}.blocks", diagnostics)
+        }
+    }
+
+    private fun validateFragmentFactReferences(
+        fragments: List<CompiledFragment>,
+        facts: Map<ItemKey, ViewerFactDefinition>,
+        path: String,
+        diagnostics: Diagnostics,
+    ) {
+        fragments.forEachIndexed { index, fragment ->
+            fragment.condition?.let { validateConditionFactReferences(it, facts, "$path[$index].when", diagnostics) }
         }
     }
 
@@ -1161,7 +1425,15 @@ class PresentationCompiler(
                     validateBlockFactReferences(block.thenBlocks, facts, "$blockPath.then", diagnostics)
                     validateBlockFactReferences(block.otherwiseBlocks, facts, "$blockPath.otherwise", diagnostics)
                 }
-                is CompiledPresentationBlock.Group -> validateBlockFactReferences(block.children, facts, "$blockPath.children", diagnostics)
+                is CompiledPresentationBlock.Group -> {
+                    block.header?.let { validateBlockFactReferences(listOf(it), facts, "$blockPath.header", diagnostics) }
+                    validateBlockFactReferences(block.children, facts, "$blockPath.children", diagnostics)
+                }
+                is CompiledPresentationBlock.Row -> {
+                    validateFragmentFactReferences(block.left, facts, "$blockPath.left", diagnostics)
+                    validateFragmentFactReferences(block.right, facts, "$blockPath.right", diagnostics)
+                }
+                is CompiledPresentationBlock.Rule -> validateFragmentFactReferences(block.title, facts, "$blockPath.title", diagnostics)
                 else -> Unit
             }
         }
@@ -1224,7 +1496,11 @@ class PresentationCompiler(
             is CompiledPresentationBlock.Text -> block.wrapping
             is CompiledPresentationBlock.Field -> block.wrapping
             is CompiledPresentationBlock.Description -> block.wrapping
+            is CompiledPresentationBlock.Row -> block.wrapping
             else -> null
+        }
+        if ((block is CompiledPresentationBlock.Row || block is CompiledPresentationBlock.Rule) && layout is CompiledLayout.Canvas) {
+            diagnostics.add(PresentationDiagnosticCode.INVALID_VALUE, blockPath, "Rows and rules require a flow layout")
         }
         if (wrapping != null) {
             val known = when (layout) {
@@ -1273,6 +1549,8 @@ class PresentationCompiler(
         }
         items.values.forEach { item ->
             required[item.nameMessage] = "items.${item.key}.name"
+            collectFragmentMessages(item.nameBefore, "items.${item.key}.name.before", required)
+            collectFragmentMessages(item.nameAfter, "items.${item.key}.name.after", required)
             collectBlockMessages(item.blocks, "items.${item.key}.blocks", required)
         }
         required.forEach { (message, path) ->
@@ -1316,7 +1594,29 @@ class PresentationCompiler(
                 block.header?.let { collectBlockMessage(it, "$blockPath.header", result) }
                 collectBlockMessages(block.children, "$blockPath.children", result)
             }
+            is CompiledPresentationBlock.Row -> {
+                collectFragmentMessages(block.left, "$blockPath.left", result)
+                collectFragmentMessages(block.right, "$blockPath.right", result)
+            }
+            is CompiledPresentationBlock.Rule -> collectFragmentMessages(block.title, "$blockPath.title", result)
             else -> Unit
+        }
+        block.summary?.piece?.let { collectFragmentMessages(listOf(it), "$blockPath.summary.piece", result) }
+    }
+
+    private fun collectFragmentMessages(fragments: List<CompiledFragment>, path: String, result: MutableMap<String, String>) {
+        fragments.forEachIndexed { index, fragment ->
+            val fragmentPath = "$path[$index]"
+            when (fragment) {
+                is CompiledFragment.Message -> result[fragment.message] = "$fragmentPath.message"
+                is CompiledFragment.Slot -> {
+                    fragment.overflowCountMessage?.let { result[it] = "$fragmentPath.overflow-count" }
+                    listOfNotNull(fragment.prefix, fragment.suffix, fragment.separator).forEach { piece ->
+                        collectFragmentMessages(listOf(piece), "$fragmentPath.decoration", result)
+                    }
+                }
+                else -> Unit
+            }
         }
     }
 
@@ -1511,7 +1811,11 @@ class PresentationCompiler(
     private fun compileKeySet(values: Set<String>, path: String, diagnostics: Diagnostics): Set<ItemKey> =
         values.mapNotNullTo(sortedSetOf()) { parseKey(it, path, diagnostics) }
 
-    private class BlockCounter(var count: Int = 0)
+    /** Per-item compilation state: the block count and the summary slots declared and targeted. */
+    private class BlockCounter(var count: Int = 0) {
+        val slots = LinkedHashMap<String, String>()
+        val summaryTargets = ArrayList<Pair<String, String>>()
+    }
 
     private class Diagnostics {
         private val values = ArrayList<PresentationDiagnostic>()

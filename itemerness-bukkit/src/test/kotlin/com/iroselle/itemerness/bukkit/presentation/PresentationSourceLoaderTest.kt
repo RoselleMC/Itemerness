@@ -7,7 +7,9 @@ import com.iroselle.itemerness.bukkit.catalog.CatalogSourceLoader
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.core.catalog.CatalogCompiler
 import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
+import com.iroselle.itemerness.core.presentation.FragmentSource
 import com.iroselle.itemerness.core.presentation.GroupMarker
+import com.iroselle.itemerness.core.presentation.HidingWeight
 import com.iroselle.itemerness.core.presentation.NestedItemPresentation
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.MissingDataPolicy
@@ -527,6 +529,45 @@ class PresentationSourceLoaderTest {
     }
 
     @Test
+    fun `row rule fragment and hiding YAML loads and renders through the real loader`() {
+        enableTravelToken()
+        replace("items/examples.yml", TRAVEL_DESCRIPTION, COMPOSITION_YAML)
+        val loaded = load()
+        assertTrue(loaded.compilation.successful, loaded.compilation.diagnostics.joinToString())
+        val blocks = loaded.source.items.single { it.id == "itemerness:travel-token" }.blocks
+        val row = blocks.last() as PresentationBlockSource.Row
+        assertEquals(HidingWeight.Ranked(2), row.weight)
+        assertEquals(FragmentSource.Literal(" · "), row.left[1])
+        assertEquals(HidingWeight.Never, (blocks[blocks.size - 2] as PresentationBlockSource.Rule).weight)
+        val lines = renderTravelToken(PresentationEngine(requireNotNull(loaded.compilation.catalog))).lore.map { it.plainText.replace("\u200C", "") }
+        assertTrue(lines.any { it.trimEnd().endsWith("Charges") && it.startsWith("3 · ") }, lines.toString())
+    }
+
+    @Test
+    fun `row rule fragment and hiding YAML is strict`() {
+        enableTravelToken()
+        val invalid = listOf(
+            COMPOSITION_YAML.replace("- literal: \" · \"", "- literal: \" · \"\n              message: data.charges.label"),
+            COMPOSITION_YAML.replace("- literal: \" · \"", "- text: \" · \""),
+            COMPOSITION_YAML.replace("weight: 2", "weight: low"),
+            COMPOSITION_YAML.replace("weight: 2", "weight: 2\n          collapse: true"),
+            COMPOSITION_YAML.replace("weight: never", "weight: never\n          summary:\n            slot: more\n            glyph: icon.region"),
+        )
+        invalid.forEach { yaml ->
+            copyBundledResources()
+            enableTravelToken()
+            replace("items/examples.yml", TRAVEL_DESCRIPTION, yaml)
+            assertThrows(StrictYamlException::class.java, { load() }, yaml)
+        }
+        copyBundledResources()
+        replace("layouts/plain.yml", "        gap-after-pixels: 0\n", "        gap-after-pixels: 0\n    overflow: drop\n")
+        assertThrows(StrictYamlException::class.java) { load() }
+        copyBundledResources()
+        replace("themes/default.yml", "    icons:\n", "    rules:\n      thickness: 2\n    icons:\n")
+        assertThrows(StrictYamlException::class.java) { load() }
+    }
+
+    @Test
     fun `theme fallback cycle rejects the candidate`() {
         replace(
             "themes/vanilla-frame.yml",
@@ -664,6 +705,20 @@ class PresentationSourceLoaderTest {
               label: data.charges.label
               data: example:charges
               format: itemerness:integer
+""".trimStart('\n')
+        val COMPOSITION_YAML = """
+        - type: rule
+          weight: never
+          title:
+            - message: data.charges.label
+        - type: row
+          weight: 2
+          left:
+            - data: example:charges
+              format: itemerness:integer
+            - literal: " · "
+          right:
+            - message: data.charges.label
 """.trimStart('\n')
         val SELECTOR_YAML = """
             schema-version: 1

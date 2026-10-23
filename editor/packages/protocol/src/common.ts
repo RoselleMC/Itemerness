@@ -302,6 +302,17 @@ export type GroupEmptyPolicy = z.infer<typeof groupEmptyPolicySchema>;
 /** Mirrors the compiler's MAXIMUM_GROUP_GAP_LINES. */
 export const MAXIMUM_GROUP_GAP_LINES = 16;
 
+/** What an overfull flow item does: fall back to a safer theme, or hide weighted rows first. */
+export const overflowStrategySchema = z.enum(["FALLBACK", "HIDE"]);
+export type OverflowStrategy = z.infer<typeof overflowStrategySchema>;
+
+/** Mirrors the compiler's composition and hiding bounds. */
+export const MAXIMUM_FRAGMENTS_PER_REGION = 32;
+export const MAXIMUM_LITERAL_CODE_POINTS = 64;
+export const MAXIMUM_DECORATION_PIXELS = 64;
+export const MAXIMUM_HIDING_WEIGHT = 1_000_000;
+export const MAXIMUM_SLOT_ENTRIES = 64;
+
 export const characterFramePresetSchema = z.enum([
     "UNICODE_SINGLE",
     "UNICODE_DOUBLE",

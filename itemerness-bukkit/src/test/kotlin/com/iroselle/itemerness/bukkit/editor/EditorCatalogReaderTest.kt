@@ -267,6 +267,116 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `rows rules fragments weights and summaries import export and verify losslessly through the YAML loaders`() {
+        fixture()
+        val items = directory.resolve("items/examples.yml")
+        val composed = """
+            - type: row
+              weight: 3
+              summary:
+                slot: more
+                piece:
+                  literal: "T"
+              left:
+                - data: example:charges
+                  format: itemerness:integer
+                  style: value
+                  when:
+                    operator: exists
+                    left:
+                      data: example:charges
+                - literal: " · "
+              right:
+                - message: data.charges.label
+                  style: label
+            - type: rule
+              weight: never
+              title:
+                - message: data.charges.label
+            - type: field
+              label: data.charges.label
+              data: example:charges
+              format: itemerness:integer
+              styles:
+                label: label
+                value: value
+              weight: 1
+              summary:
+                slot: more
+                piece:
+                  literal: "C"
+            - type: row
+              left:
+                - slot: more
+                  prefix:
+                    literal: "["
+                  separator:
+                    literal: ","
+                  maximum-entries: 2
+                  overflow-count-message: data.charges.label
+                  suffix:
+                    literal: "]"
+        """.trimIndent().prependIndent("        ") + "\n"
+        Files.writeString(items, Files.readString(items)
+            .replace("        - type: description\n          message: item.travel-token.description\n", composed)
+            .replace(
+                "      name:\n        message: item.travel-token.name\n",
+                "      overflow: hide\n      name:\n        message: item.travel-token.name\n        before:\n          - literal: \"* \"\n        after:\n          - data: example:charges\n            format: itemerness:integer\n",
+            ))
+        val layout = directory.resolve("layouts/plain.yml")
+        Files.writeString(layout, Files.readString(layout).replace(
+            "        gap-after-pixels: 0\n",
+            "        gap-after-pixels: 0\n    overflow: hide\n    sections:\n      field:\n        icon-slot-pixels: 12\n",
+        ))
+        val theme = directory.resolve("themes/default.yml")
+        Files.writeString(theme, Files.readString(theme).replace(
+            "    icons:\n",
+            "    name-inset-pixels: 2\n    markers:\n      gap-pixels: 1\n    rules:\n      style: label\n      fill: \"=\"\n      title-gap-pixels: 6\n    icons:\n",
+        ))
+
+        val document = requireNotNull(read().raw("document"))
+        val root = JsonObject.of(document, "document")
+        val token = root.requiredObjects("items").single { it.requiredString("id") == "itemerness:travel-token" }.requiredObject("presentation")
+        assertEquals("HIDE", token.requiredString("overflow"))
+        assertEquals("* ", token.requiredObjects("nameBefore").single().requiredString("text"))
+        val blocks = token.requiredObjects("blocks")
+        val row = blocks.single { it.requiredString("type") == "row" && it.requiredObjects("right").isNotEmpty() }
+        assertEquals(3, row.requiredInt("weight"))
+        assertEquals("more", row.requiredObject("summary").requiredString("slot"))
+        assertEquals("EXISTS", row.requiredObjects("left").first().requiredObject("condition").requiredString("operator"))
+        assertEquals(JsonValue.Text("never"), blocks.single { it.requiredString("type") == "rule" }.raw("weight"))
+        assertEquals("label", blocks.single { it.requiredString("type") == "field" && it.contains("partStyles") }.requiredObject("partStyles").requiredString("label"))
+        assertEquals(2, blocks.last().requiredObjects("left").single().requiredInt("maximumEntries"))
+        val plain = root.requiredObjects("layouts").single { it.requiredString("id") == "itemerness:plain" }
+        assertEquals(12, plain.requiredInt("fieldIconSlotPixels"))
+        assertEquals("HIDE", plain.requiredString("overflow"))
+        val defaultTheme = root.requiredObjects("themes").single { it.requiredString("id") == "itemerness:default" }
+        assertEquals(2, defaultTheme.requiredInt("nameInsetPixels"))
+        assertEquals(1, defaultTheme.requiredObject("markers").requiredInt("gapPixels"))
+        assertEquals(6, defaultTheme.requiredObject("rules").requiredInt("titleGapPixels"))
+
+        // Export re-reads the written YAML through the real loaders and refuses any difference.
+        val files = export(document).requiredObjects("files").associate { it.requiredString("path") to it.requiredString("content") }
+        val exported = files.entries.single { it.key.startsWith("items/") && it.value.contains("travel-token:") }.value
+        listOf("type: row", "type: rule", "weight: never", "weight: 3", "slot: more", "maximum-entries: 2", "overflow: hide",
+            "literal: '* '", "styles:", "when:").forEach { assertTrue(exported.contains(it), "$it\n$exported") }
+        assertTrue(files.any { it.key.startsWith("layouts/") && it.value.contains("icon-slot-pixels: 12") })
+        assertTrue(files.any { it.key.startsWith("themes/") && it.value.contains("name-inset-pixels: 2") })
+    }
+
+    @Test
+    fun `documents without composition keep its fields out of documents and exports`() {
+        fixture()
+        val document = requireNotNull(read().raw("document"))
+        val text = Json.canonicalize(document)
+        listOf("\"weight\"", "\"summary\"", "\"partStyles\"", "\"nameBefore\"", "\"nameAfter\"", "\"overflow\":\"HIDE\"", "\"overflow\":\"FALLBACK\"", "\"rules\"",
+            "\"nameInsetPixels\"", "\"fieldIconSlotPixels\"", "\"gapPixels\"").forEach { assertFalse(text.contains(it), it) }
+        val files = export(document).requiredObjects("files").map { it.requiredString("content") }
+        val keys = Regex("(?m)^\\s+(weight|summary|rules|name-inset-pixels|icon-slot-pixels|gap-pixels):")
+        assertTrue(files.none { keys.containsMatchIn(it) || it.contains("type: row") || it.contains("type: rule") })
+    }
+
+    @Test
     fun `documents without groups keep group fields out of documents and exports`() {
         fixture()
         val document = requireNotNull(read().raw("document"))

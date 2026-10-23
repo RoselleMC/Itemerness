@@ -219,8 +219,17 @@ class CompiledItemPresentation internal constructor(
     val marker: GroupMarker = GroupMarker.NONE,
     /** The implicit root group's dividers; BETWEEN_CHILDREN is the pre-group behaviour. */
     val dividers: GroupDividers = GroupDividers.BETWEEN_CHILDREN,
+    nameBefore: Collection<CompiledFragment> = emptyList(),
+    nameAfter: Collection<CompiledFragment> = emptyList(),
+    /** The effective strategy: the item's own, otherwise its layout's. */
+    val overflow: OverflowStrategy = OverflowStrategy.FALLBACK,
 ) {
     val blocks: List<CompiledPresentationBlock> = java.util.List.copyOf(blocks)
+    val nameBefore: List<CompiledFragment> = java.util.List.copyOf(nameBefore)
+    val nameAfter: List<CompiledFragment> = java.util.List.copyOf(nameAfter)
+
+    /** Whether any block declares a summary, so rendering needs a summary-collecting pass. */
+    val hasSummaries: Boolean = blocks.any(CompiledPresentationBlock::declaresSummary)
 
     /** Data component ids whose vanilla tooltip lines this item keeps visible. */
     val shownFlags: Set<ItemKey> = java.util.Collections.unmodifiableSet(java.util.TreeSet(shownFlags))
@@ -229,6 +238,8 @@ class CompiledItemPresentation internal constructor(
 sealed interface CompiledPresentationBlock {
     val style: String?
     val anchor: String?
+    val weight: HidingWeight? get() = null
+    val summary: CompiledSummary? get() = null
 
     data class Text(
         val data: DataKey,
@@ -237,6 +248,8 @@ sealed interface CompiledPresentationBlock {
         val wrapping: String?,
         val unbreakable: Boolean,
         val missingPolicy: MissingDataPolicy,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
     ) : CompiledPresentationBlock
 
     data class Field(
@@ -249,6 +262,9 @@ sealed interface CompiledPresentationBlock {
         val wrapping: String?,
         val missingPolicy: MissingDataPolicy,
         val separator: FieldSeparatorSource? = null,
+        val partStyles: FieldPartStyles? = null,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
     ) : CompiledPresentationBlock
 
     data class Description(
@@ -256,6 +272,8 @@ sealed interface CompiledPresentationBlock {
         override val style: String?,
         override val anchor: String?,
         val wrapping: String?,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
     ) : CompiledPresentationBlock
 
     class Conditional(
@@ -264,6 +282,7 @@ sealed interface CompiledPresentationBlock {
         otherwiseBlocks: Collection<CompiledPresentationBlock>,
         override val style: String?,
         override val anchor: String?,
+        override val weight: HidingWeight? = null,
     ) : CompiledPresentationBlock {
         val thenBlocks: List<CompiledPresentationBlock> = java.util.List.copyOf(thenBlocks)
         val otherwiseBlocks: List<CompiledPresentationBlock> = java.util.List.copyOf(otherwiseBlocks)
@@ -276,11 +295,15 @@ sealed interface CompiledPresentationBlock {
         override val style: String?,
         override val anchor: String?,
         val missingPolicy: MissingDataPolicy,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
     ) : CompiledPresentationBlock
 
     data class NestedItemList(
         override val style: String?,
         override val anchor: String?,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
     ) : CompiledPresentationBlock
 
     class Group(
@@ -293,10 +316,73 @@ sealed interface CompiledPresentationBlock {
         val gapBeforeLines: Int,
         override val style: String?,
         override val anchor: String?,
+        override val weight: HidingWeight? = null,
     ) : CompiledPresentationBlock {
         val children: List<CompiledPresentationBlock> = java.util.List.copyOf(children)
     }
+
+    class Row(
+        left: Collection<CompiledFragment>,
+        right: Collection<CompiledFragment>,
+        override val style: String?,
+        override val anchor: String?,
+        val wrapping: String?,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
+    ) : CompiledPresentationBlock {
+        val left: List<CompiledFragment> = java.util.List.copyOf(left)
+        val right: List<CompiledFragment> = java.util.List.copyOf(right)
+    }
+
+    class Rule(
+        title: Collection<CompiledFragment>,
+        override val style: String?,
+        override val anchor: String?,
+        override val weight: HidingWeight? = null,
+        override val summary: CompiledSummary? = null,
+    ) : CompiledPresentationBlock {
+        val title: List<CompiledFragment> = java.util.List.copyOf(title)
+    }
 }
+
+internal fun CompiledPresentationBlock.declaresSummary(): Boolean = summary != null || when (this) {
+    is CompiledPresentationBlock.Conditional -> thenBlocks.any { it.declaresSummary() } || otherwiseBlocks.any { it.declaresSummary() }
+    is CompiledPresentationBlock.Group -> header?.declaresSummary() == true || children.any { it.declaresSummary() }
+    else -> false
+}
+
+sealed interface CompiledFragment {
+    val style: String?
+    val condition: CompiledCondition?
+
+    data class Message(val message: String, override val style: String?, override val condition: CompiledCondition?) : CompiledFragment
+
+    data class Data(val data: DataKey, val format: ItemKey?, override val style: String?, override val condition: CompiledCondition?) : CompiledFragment
+
+    data class Glyph(val glyph: String, override val style: String?, override val condition: CompiledCondition?) : CompiledFragment
+
+    data class Literal(val text: String, override val style: String?, override val condition: CompiledCondition?) : CompiledFragment
+
+    data class Slot(
+        val id: String,
+        val prefix: CompiledFragment?,
+        val suffix: CompiledFragment?,
+        val separator: CompiledFragment?,
+        val maximumEntries: Int?,
+        val overflowCountMessage: String?,
+        override val style: String?,
+        override val condition: CompiledCondition?,
+    ) : CompiledFragment
+}
+
+/** A compiled summary: a static [piece], or the repeat element value at [valuePath]. */
+data class CompiledSummary(
+    val slot: String,
+    val piece: CompiledFragment?,
+    val valuePath: String?,
+    val format: ItemKey?,
+    val style: String?,
+)
 
 data class CompiledCompoundFieldTemplate(
     val labelMessage: String,
@@ -305,6 +391,7 @@ data class CompiledCompoundFieldTemplate(
     val icon: String?,
     val format: ItemKey?,
     val separator: FieldSeparatorSource? = null,
+    val partStyles: FieldPartStyles? = null,
 )
 
 data class CompiledCondition(

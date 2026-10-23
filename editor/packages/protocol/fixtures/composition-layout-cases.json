@@ -1,0 +1,4744 @@
+[
+    {
+        "name": "composition-default",
+        "theme": "itemerness:default",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameBefore"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": "» "
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameAfter"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": " "
+                    },
+                    {
+                        "kind": "data",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "style": "label"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000301",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000302",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000303",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000304",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000305",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000306",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000307",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-000000000308",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000309",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000030a",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000030b",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000030c",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconSlotPixels"
+                ],
+                "value": 14
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconGapPixels"
+                ],
+                "value": 2
+            }
+        ]
+    },
+    {
+        "name": "composition-vanilla-frame",
+        "theme": "itemerness:vanilla-frame",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameBefore"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": "» "
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameAfter"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": " "
+                    },
+                    {
+                        "kind": "data",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "style": "label"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000030d",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000030e",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000030f",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000310",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000311",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000312",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000313",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-000000000314",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000315",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000316",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000317",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000318",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconSlotPixels"
+                ],
+                "value": 14
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconGapPixels"
+                ],
+                "value": 2
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "dividers"
+                ],
+                "value": "NONE"
+            }
+        ]
+    },
+    {
+        "name": "composition-ember",
+        "theme": "itemerness:ember",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameBefore"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": "» "
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameAfter"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": " "
+                    },
+                    {
+                        "kind": "data",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "style": "label"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000319",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031a",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031b",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031c",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031d",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031e",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000031f",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-000000000320",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000321",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000322",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000323",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000324",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconSlotPixels"
+                ],
+                "value": 14
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconGapPixels"
+                ],
+                "value": 2
+            }
+        ]
+    },
+    {
+        "name": "composition-segmented",
+        "theme": "itemerness:segmented",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameBefore"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": "» "
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "nameAfter"
+                ],
+                "value": [
+                    {
+                        "kind": "literal",
+                        "text": " "
+                    },
+                    {
+                        "kind": "data",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "style": "label"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000325",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000326",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000327",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000328",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000329",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000032a",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000032b",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-00000000032c",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000032d",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000032e",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000032f",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000330",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconSlotPixels"
+                ],
+                "value": 14
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "fieldIconGapPixels"
+                ],
+                "value": 2
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "dividers"
+                ],
+                "value": "NONE"
+            }
+        ]
+    },
+    {
+        "name": "theme-art-default",
+        "theme": "itemerness:default",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000331",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000332",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000333",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000334",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000335",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000336",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000337",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-000000000338",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000339",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-00000000033a",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000033b",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000033c",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "themes",
+                    0,
+                    "rules"
+                ],
+                "value": {
+                    "style": "label",
+                    "fill": {
+                        "kind": "text",
+                        "text": "="
+                    },
+                    "left": {
+                        "kind": "text",
+                        "text": "<"
+                    },
+                    "right": {
+                        "kind": "text",
+                        "text": ">"
+                    },
+                    "titleGapPixels": 6
+                }
+            },
+            {
+                "path": [
+                    "themes",
+                    0,
+                    "nameInsetPixels"
+                ],
+                "value": 3
+            },
+            {
+                "path": [
+                    "themes",
+                    0,
+                    "markers"
+                ],
+                "value": {
+                    "gapPixels": 2
+                }
+            }
+        ]
+    },
+    {
+        "name": "theme-art-ember",
+        "theme": "itemerness:ember",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000033d",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000033e",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "glyph",
+                                "glyph": "icon.quality"
+                            },
+                            {
+                                "kind": "message",
+                                "message": "data.quality.label"
+                            },
+                            {
+                                "kind": "literal",
+                                "text": " "
+                            },
+                            {
+                                "kind": "data",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "style": "value"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.type",
+                                "style": "description"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000033f",
+                        "type": "rule",
+                        "title": [],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000340",
+                        "type": "rule",
+                        "title": [
+                            {
+                                "kind": "message",
+                                "message": "rule.stats"
+                            }
+                        ],
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000341",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "partStyles": {
+                            "label": "value",
+                            "separator": "description",
+                            "value": "label"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000342",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": "icon.charges",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000343",
+                        "type": "group",
+                        "header": {
+                            "uuid": "00000000-0000-4000-8000-000000000344",
+                            "type": "rule",
+                            "title": [
+                                {
+                                    "kind": "literal",
+                                    "text": "Group"
+                                }
+                            ],
+                            "style": null,
+                            "anchor": null
+                        },
+                        "children": [
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000345",
+                                "type": "field",
+                                "labelMessage": "data.quality.label",
+                                "data": "example:quality",
+                                "format": "itemerness:key-message",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            },
+                            {
+                                "uuid": "00000000-0000-4000-8000-000000000346",
+                                "type": "field",
+                                "labelMessage": "data.charges.label",
+                                "data": "example:charges",
+                                "format": "itemerness:integer",
+                                "icon": null,
+                                "style": null,
+                                "anchor": null,
+                                "wrapping": null,
+                                "missingPolicy": "OMIT"
+                            }
+                        ],
+                        "marker": "TREE",
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000347",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "message",
+                                "message": "row.long"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "message",
+                                "message": "row.hint"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000348",
+                        "type": "row",
+                        "left": [],
+                        "right": [
+                            {
+                                "kind": "literal",
+                                "text": "right only",
+                                "condition": {
+                                    "operator": "EXISTS",
+                                    "left": {
+                                        "kind": "data",
+                                        "key": "example:charges"
+                                    },
+                                    "right": null
+                                }
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "themes",
+                    2,
+                    "rules"
+                ],
+                "value": {
+                    "fill": {
+                        "kind": "glyph",
+                        "glyph": "icon.socket"
+                    }
+                }
+            },
+            {
+                "path": [
+                    "themes",
+                    2,
+                    "nameInsetPixels"
+                ],
+                "value": 3
+            },
+            {
+                "path": [
+                    "themes",
+                    2,
+                    "markers"
+                ],
+                "value": {
+                    "gapPixels": 2
+                }
+            }
+        ]
+    },
+    {
+        "name": "width-cap-default",
+        "theme": "itemerness:default",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000349",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034a",
+                        "type": "description",
+                        "message": "item.nested-satchel.description",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": "narrow"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "wrapping",
+                    "narrow"
+                ],
+                "value": {
+                    "widthPixels": 100,
+                    "maximumLines": 16,
+                    "overflow": "ELLIPSIS",
+                    "preserveExplicitLines": true,
+                    "continuationIndentPixels": 0,
+                    "lineHeightPixels": 10
+                }
+            }
+        ]
+    },
+    {
+        "name": "width-cap-ember",
+        "theme": "itemerness:ember",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034b",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034c",
+                        "type": "description",
+                        "message": "item.nested-satchel.description",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": "narrow"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "wrapping",
+                    "narrow"
+                ],
+                "value": {
+                    "widthPixels": 100,
+                    "maximumLines": 16,
+                    "overflow": "ELLIPSIS",
+                    "preserveExplicitLines": true,
+                    "continuationIndentPixels": 0,
+                    "lineHeightPixels": 10
+                }
+            }
+        ]
+    },
+    {
+        "name": "hiding-default",
+        "theme": "itemerness:default",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034d",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "slot",
+                                "id": "more",
+                                "prefix": {
+                                    "kind": "literal",
+                                    "text": "["
+                                },
+                                "suffix": {
+                                    "kind": "literal",
+                                    "text": "]"
+                                },
+                                "separator": {
+                                    "kind": "literal",
+                                    "text": ","
+                                },
+                                "maximumEntries": 2,
+                                "overflowCountMessage": "slot.more"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034e",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 1,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "C"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000034f",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 2,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "Q"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000350",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": null,
+                            "format": "itemerness:key-message"
+                        },
+                        "style": null,
+                        "anchor": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 0,
+                        "summary": {
+                            "slot": "more",
+                            "valuePath": "type",
+                            "style": "value"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000351",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000352",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000353",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000354",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000355",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000356",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000357",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000358",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000359",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035a",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035b",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035c",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035d",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035e",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000035f",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "overflow"
+                ],
+                "value": "HIDE"
+            }
+        ]
+    },
+    {
+        "name": "hiding-vanilla-frame",
+        "theme": "itemerness:vanilla-frame",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000360",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "slot",
+                                "id": "more",
+                                "prefix": {
+                                    "kind": "literal",
+                                    "text": "["
+                                },
+                                "suffix": {
+                                    "kind": "literal",
+                                    "text": "]"
+                                },
+                                "separator": {
+                                    "kind": "literal",
+                                    "text": ","
+                                },
+                                "maximumEntries": 2,
+                                "overflowCountMessage": "slot.more"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000361",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 1,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "C"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000362",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 2,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "Q"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000363",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": null,
+                            "format": "itemerness:key-message"
+                        },
+                        "style": null,
+                        "anchor": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 0,
+                        "summary": {
+                            "slot": "more",
+                            "valuePath": "type",
+                            "style": "value"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000364",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000365",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000366",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000367",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000368",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000369",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036a",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036b",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036c",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036d",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036e",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000036f",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000370",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "overflow"
+                ],
+                "value": "HIDE"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "dividers"
+                ],
+                "value": "NONE"
+            }
+        ]
+    },
+    {
+        "name": "hiding-ember",
+        "theme": "itemerness:ember",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000371",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "slot",
+                                "id": "more",
+                                "prefix": {
+                                    "kind": "literal",
+                                    "text": "["
+                                },
+                                "suffix": {
+                                    "kind": "literal",
+                                    "text": "]"
+                                },
+                                "separator": {
+                                    "kind": "literal",
+                                    "text": ","
+                                },
+                                "maximumEntries": 2,
+                                "overflowCountMessage": "slot.more"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000372",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 1,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "C"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000373",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 2,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "Q"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000374",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": null,
+                            "format": "itemerness:key-message"
+                        },
+                        "style": null,
+                        "anchor": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 0,
+                        "summary": {
+                            "slot": "more",
+                            "valuePath": "type",
+                            "style": "value"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000375",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000376",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000377",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000378",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000379",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037a",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037b",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037c",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037d",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037e",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000037f",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000380",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000381",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000382",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000383",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "overflow"
+                ],
+                "value": "HIDE"
+            }
+        ]
+    },
+    {
+        "name": "hiding-layout-default",
+        "theme": "itemerness:default",
+        "changes": [
+            {
+                "path": [
+                    "items",
+                    3,
+                    "previewData"
+                ],
+                "value": [
+                    {
+                        "key": "example:charges",
+                        "value": {
+                            "kind": "integer",
+                            "value": "3"
+                        }
+                    },
+                    {
+                        "key": "example:custom-label",
+                        "value": {
+                            "kind": "string",
+                            "value": "Satchel"
+                        }
+                    },
+                    {
+                        "key": "example:quality",
+                        "value": {
+                            "kind": "string",
+                            "value": "example:uncommon"
+                        }
+                    },
+                    {
+                        "key": "example:sockets",
+                        "value": {
+                            "kind": "list",
+                            "values": [
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "null"
+                                        }
+                                    }
+                                },
+                                {
+                                    "kind": "compound",
+                                    "entries": {
+                                        "type": {
+                                            "kind": "string",
+                                            "value": "example:gem"
+                                        },
+                                        "accepted": {
+                                            "kind": "list",
+                                            "values": []
+                                        },
+                                        "inserted": {
+                                            "kind": "string",
+                                            "value": "example:rare"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "key": "itemerness:created-at",
+                        "value": {
+                            "kind": "integer",
+                            "value": "1785000000000"
+                        }
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    0,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.type"
+                ],
+                "value": "Two-handed greatsword"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.hint"
+                ],
+                "value": "[Hold RMB]"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "row.long"
+                ],
+                "value": "A long carried line that cannot share its row"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "rule.stats"
+                ],
+                "value": "Equipment stats"
+            },
+            {
+                "path": [
+                    "locales",
+                    1,
+                    "messages",
+                    "slot.more"
+                ],
+                "value": "+{count}"
+            },
+            {
+                "path": [
+                    "items",
+                    3,
+                    "presentation",
+                    "blocks"
+                ],
+                "value": [
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000384",
+                        "type": "row",
+                        "left": [
+                            {
+                                "kind": "data",
+                                "data": "example:custom-label"
+                            }
+                        ],
+                        "right": [
+                            {
+                                "kind": "slot",
+                                "id": "more",
+                                "prefix": {
+                                    "kind": "literal",
+                                    "text": "["
+                                },
+                                "suffix": {
+                                    "kind": "literal",
+                                    "text": "]"
+                                },
+                                "separator": {
+                                    "kind": "literal",
+                                    "text": ","
+                                },
+                                "maximumEntries": 2,
+                                "overflowCountMessage": "slot.more"
+                            }
+                        ],
+                        "wrapping": null,
+                        "style": null,
+                        "anchor": null
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000385",
+                        "type": "field",
+                        "labelMessage": "data.charges.label",
+                        "data": "example:charges",
+                        "format": "itemerness:integer",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 1,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "C"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000386",
+                        "type": "field",
+                        "labelMessage": "data.quality.label",
+                        "data": "example:quality",
+                        "format": "itemerness:key-message",
+                        "icon": null,
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 2,
+                        "summary": {
+                            "slot": "more",
+                            "piece": {
+                                "kind": "literal",
+                                "text": "Q"
+                            }
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000387",
+                        "type": "repeat",
+                        "data": "example:sockets",
+                        "maximumElements": 8,
+                        "template": {
+                            "labelMessage": "data.socket.label",
+                            "valuePath": "inserted",
+                            "missingMessage": "data.socket.empty",
+                            "icon": null,
+                            "format": "itemerness:key-message"
+                        },
+                        "style": null,
+                        "anchor": null,
+                        "missingPolicy": "OMIT",
+                        "weight": 0,
+                        "summary": {
+                            "slot": "more",
+                            "valuePath": "type",
+                            "style": "value"
+                        }
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000388",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000389",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038a",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038b",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038c",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038d",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038e",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-00000000038f",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000390",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000391",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000392",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000393",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000394",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT",
+                        "weight": "never"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000395",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    },
+                    {
+                        "uuid": "00000000-0000-4000-8000-000000000396",
+                        "type": "text",
+                        "data": "example:custom-label",
+                        "style": null,
+                        "anchor": null,
+                        "wrapping": null,
+                        "unbreakable": false,
+                        "missingPolicy": "OMIT"
+                    }
+                ]
+            },
+            {
+                "path": [
+                    "layouts",
+                    0,
+                    "overflow"
+                ],
+                "value": "HIDE"
+            }
+        ]
+    }
+]

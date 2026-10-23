@@ -91,15 +91,20 @@ class PresentationDisplay(
     val requestedTheme: ItemKey,
     val catalogRevision: Long,
     fallbackReasons: Collection<ThemeFallbackReason> = emptyList(),
+    hiddenElements: Collection<String> = emptyList(),
 ) {
     val lore: List<PresentationLine> = java.util.List.copyOf(lore)
     val fallbackReasons: List<ThemeFallbackReason> = java.util.List.copyOf(fallbackReasons)
+
+    /** Authored paths of the rows hidden to fit the budgets, in hiding order. */
+    val hiddenElements: List<String> = java.util.List.copyOf(hiddenElements)
 
     override fun equals(other: Any?): Boolean =
         this === other || other is PresentationDisplay &&
             displayName == other.displayName && lore == other.lore && tooltipStyle == other.tooltipStyle &&
             renderer == other.renderer && selectedTheme == other.selectedTheme && requestedTheme == other.requestedTheme &&
-            catalogRevision == other.catalogRevision && fallbackReasons == other.fallbackReasons
+            catalogRevision == other.catalogRevision && fallbackReasons == other.fallbackReasons &&
+            hiddenElements == other.hiddenElements
 
     override fun hashCode(): Int {
         var result = displayName.hashCode()
@@ -110,6 +115,7 @@ class PresentationDisplay(
         result = 31 * result + requestedTheme.hashCode()
         result = 31 * result + catalogRevision.hashCode()
         result = 31 * result + fallbackReasons.hashCode()
+        result = 31 * result + hiddenElements.hashCode()
         return result
     }
 }

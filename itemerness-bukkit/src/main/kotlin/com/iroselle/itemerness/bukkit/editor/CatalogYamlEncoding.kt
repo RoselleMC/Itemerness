@@ -52,26 +52,30 @@ internal object CatalogYamlEncoding {
                 is DataGeneratorSource.RandomDecimal -> map("generator" to "random-decimal", "minimum" to YamlEncoding.exactNumber(generator.minimum), "maximum" to YamlEncoding.exactNumber(generator.maximum), "scale" to generator.scale)
             } }),
         "contents" to item.contents.map { map("item" to it.item, "amount" to it.amount) },
-        "presentation" to map("layout" to layout, "theme" to theme, "name" to map("message" to presentation.nameMessage), "blocks" to presentation.blocks.map(::block),
+        "presentation" to map("layout" to layout, "theme" to theme, "name" to map("message" to presentation.nameMessage,
+                "before" to presentation.nameBefore.takeIf { it.isNotEmpty() }?.map(::fragment),
+                "after" to presentation.nameAfter.takeIf { it.isNotEmpty() }?.map(::fragment)), "blocks" to presentation.blocks.map(::block),
             "shown-flags" to presentation.shownFlags.takeIf { it.isNotEmpty() },
             // The root group's defaults are the pre-group behaviour and stay implicit.
             "marker" to presentation.marker.takeIf { it != GroupMarker.NONE }?.let(YamlEncoding::enum),
-            "dividers" to presentation.dividers.takeIf { it != GroupDividers.BETWEEN_CHILDREN }?.let(YamlEncoding::enum)),
+            "dividers" to presentation.dividers.takeIf { it != GroupDividers.BETWEEN_CHILDREN }?.let(YamlEncoding::enum),
+            "overflow" to presentation.overflow?.let(YamlEncoding::enum)),
     )
 
     private fun assignments(assignments: List<DataAssignmentSource>): Map<String, Any?> = assignments.associate { it.key to YamlEncoding.source(it.value) }
 
-    private fun block(block: PresentationBlockSource): Map<String, Any?> = map("style" to block.style, "anchor" to block.anchor) + when (block) {
+    private fun block(block: PresentationBlockSource): Map<String, Any?> = map("style" to block.style, "anchor" to block.anchor,
+        "weight" to block.weight?.let(::weight), "summary" to block.summary?.let(::summary)) + when (block) {
         is PresentationBlockSource.Text -> map("type" to "text", "data" to block.data, "wrapping" to block.wrapping, "unbreakable" to block.unbreakable, "missing-policy" to YamlEncoding.enum(block.missingPolicy))
         is PresentationBlockSource.Field -> map("type" to "field", "data" to block.data, "label" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missing-policy" to YamlEncoding.enum(block.missingPolicy),
-            "separator" to block.separator?.let(::separator))
+            "separator" to block.separator?.let(::separator), "styles" to block.partStyles?.let(::partStyles))
         is PresentationBlockSource.Description -> map("type" to "description", "message" to block.message, "wrapping" to block.wrapping)
         is PresentationBlockSource.Conditional -> map("type" to "conditional", "condition" to condition(block.condition),
             "then" to block.thenBlocks.map(::block), "otherwise" to block.otherwiseBlocks.map(::block))
         is PresentationBlockSource.Repeat -> map("type" to "repeat", "data" to block.data, "maximum-elements" to block.maximumElements,
             "missing-policy" to YamlEncoding.enum(block.missingPolicy), "template" to map("type" to "compound-field", "label" to block.template.labelMessage,
                 "value-path" to block.template.valuePath, "missing-message" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format,
-                "separator" to block.template.separator?.let(::separator)))
+                "separator" to block.template.separator?.let(::separator), "styles" to block.template.partStyles?.let(::partStyles)))
         is PresentationBlockSource.NestedItemList -> map("type" to "nested-item-list")
         is PresentationBlockSource.Group -> map("type" to "group", "header" to block.header?.let(::block), "children" to block.children.map(::block),
             "marker" to block.marker.takeIf { it != GroupMarker.NONE }?.let(YamlEncoding::enum),
@@ -79,7 +83,31 @@ internal object CatalogYamlEncoding {
             "when-header-missing" to block.whenHeaderMissing.takeIf { it != GroupHeaderMissingPolicy.HIDE }?.let(YamlEncoding::enum),
             "when-empty" to block.whenEmpty.takeIf { it != GroupEmptyPolicy.SHOW_HEADER }?.let(YamlEncoding::enum),
             "gap-before-lines" to block.gapBeforeLines.takeIf { it != 0 })
+        is PresentationBlockSource.Row -> map("type" to "row", "left" to block.left.takeIf { it.isNotEmpty() }?.map(::fragment),
+            "right" to block.right.takeIf { it.isNotEmpty() }?.map(::fragment), "wrapping" to block.wrapping)
+        is PresentationBlockSource.Rule -> map("type" to "rule", "title" to block.title.takeIf { it.isNotEmpty() }?.map(::fragment))
     }
+
+    private fun weight(weight: HidingWeight): Any = when (weight) {
+        HidingWeight.Never -> "never"
+        is HidingWeight.Ranked -> weight.value
+    }
+
+    private fun summary(summary: SummarySource): Map<String, Any?> = map("slot" to summary.slot, "piece" to summary.piece?.let(::fragment),
+        "value-path" to summary.valuePath, "format" to summary.format, "style" to summary.style)
+
+    private fun partStyles(styles: FieldPartStyles): Map<String, Any?> =
+        map("icon" to styles.icon, "label" to styles.label, "separator" to styles.separator, "value" to styles.value)
+
+    private fun fragment(fragment: FragmentSource): Map<String, Any?> = when (fragment) {
+        is FragmentSource.Message -> map("message" to fragment.message)
+        is FragmentSource.Data -> map("data" to fragment.data, "format" to fragment.format)
+        is FragmentSource.Glyph -> map("glyph" to fragment.glyph)
+        is FragmentSource.Literal -> map("literal" to fragment.text)
+        is FragmentSource.Slot -> map("slot" to fragment.id, "prefix" to fragment.prefix?.let(::fragment), "suffix" to fragment.suffix?.let(::fragment),
+            "separator" to fragment.separator?.let(::fragment), "maximum-entries" to fragment.maximumEntries,
+            "overflow-count-message" to fragment.overflowCountMessage)
+    } + map("style" to fragment.style, "when" to fragment.condition?.let(::condition))
 
     /** Shared by fields, repeat templates and flow layouts. */
     fun separator(separator: FieldSeparatorSource): Any = when (separator) {

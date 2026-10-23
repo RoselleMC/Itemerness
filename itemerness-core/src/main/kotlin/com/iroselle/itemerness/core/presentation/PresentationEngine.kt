@@ -37,6 +37,11 @@ internal object VanillaTooltipGeometry {
 
 /** Pure renderer. It never retains Bukkit objects or invokes external callbacks. */
 class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
+    private companion object {
+        /** Each hiding step re-resolves and re-renders, so the search stays bounded. */
+        const val MAXIMUM_HIDING_STEPS = 64
+    }
+
     /** Formats one schema-approved value with the same locale and formatter rules as rendering. */
     fun formatValue(
         value: ItemDataValue,
@@ -61,7 +66,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         val messages = MessageResolver(catalog, request.viewer.locale)
         val formatter = ValueFormatter(catalog, messages)
         val semantic = try {
-            resolveSemantic(item, request, messages, formatter)
+            resolveSemantic(item, request, messages, formatter, emptySet())
         } catch (exception: RuntimePresentationException) {
             return rejected(exception.code, exception.message)
         }
@@ -87,14 +92,17 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 theme = current.fallback?.let(catalog.themes::get)
                 continue
             }
+            val engine = ThemeRendererEngine(catalog, current)
             try {
-                val display = ThemeRendererEngine(catalog, current).render(
-                    item = item,
-                    semantic = semantic,
-                    requestedTheme = requestedTheme,
-                    fallbackReasons = fallbacks,
-                )
+                val display = try {
+                    engine.render(item, semantic, requestedTheme, fallbacks)
+                } catch (exception: TextLayoutException) {
+                    if (!exception.capacity || item.overflow != OverflowStrategy.HIDE) throw exception
+                    renderHiding(engine, item, request, messages, formatter, semantic, requestedTheme, fallbacks, exception)
+                }
                 return PresentationRenderResult.Rendered(display)
+            } catch (exception: RuntimePresentationException) {
+                return rejected(exception.code, exception.message)
             } catch (exception: TextLayoutException) {
                 fallbacks += ThemeFallbackReason(current.id, exception.fallbackCode, exception.message)
                 theme = current.fallback?.let(catalog.themes::get)
@@ -109,8 +117,59 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         }
         return rejected(
             PresentationRenderFailureCode.NO_SAFE_THEME,
-            "No safe theme could render ${request.itemKey}: ${fallbacks.joinToString { "${it.theme}:${it.code}" }}",
+            // Each theme's detail names the authored blocks behind a layout failure.
+            "No safe theme could render ${request.itemKey}: ${fallbacks.joinToString { "${it.theme}:${it.code} (${it.detail})" }}",
         )
+    }
+
+    /**
+     * Hides rows one at a time in the item's fixed hiding order until the content fits this theme.
+     *
+     * The order depends only on the complete presentation, never on what a summary slot shows, so
+     * the search always ends and every viewer with the same data gets the same result. Each step
+     * re-resolves the presentation, because hiding a row changes its siblings' connectors and the
+     * contents of summary slots.
+     */
+    private fun renderHiding(
+        engine: ThemeRendererEngine,
+        item: CompiledItemPresentation,
+        request: PresentationRenderRequest,
+        messages: MessageResolver,
+        formatter: ValueFormatter,
+        complete: ResolvedPresentation,
+        requestedTheme: ItemKey,
+        fallbacks: List<ThemeFallbackReason>,
+        overflow: TextLayoutException,
+    ): PresentationDisplay {
+        val order = complete.rows.withIndex()
+            .filter { it.value.weight != HidingWeight.Never }
+            .sortedWith(
+                compareBy<IndexedValue<RowRecord>>(
+                    { it.value.hostsSlot },
+                    { if (it.value.weight == null) 1 else 0 },
+                    { (it.value.weight as? HidingWeight.Ranked)?.value ?: 0 },
+                ).thenByDescending { it.index },
+            )
+            .map { it.value.id }
+        var last = overflow
+        val steps = minOf(order.size, MAXIMUM_HIDING_STEPS)
+        for (count in 1..steps) {
+            val hidden = order.subList(0, count)
+            val excluded = hidden.toHashSet()
+            val semantic = resolveSemantic(item, request, messages, formatter, excluded)
+            try {
+                return engine.render(item, semantic, requestedTheme, fallbacks, hidden)
+            } catch (exception: TextLayoutException) {
+                if (!exception.capacity) throw exception
+                last = exception
+            }
+        }
+        val reason = if (order.size > MAXIMUM_HIDING_STEPS) {
+            "hiding stopped after $MAXIMUM_HIDING_STEPS rows"
+        } else {
+            "hiding all ${order.size} hideable rows did not fit"
+        }
+        throw TextLayoutException(last.fallbackCode, "${last.message}; $reason", capacity = true)
     }
 
     private fun resolveRequestedTheme(id: ItemKey, request: PresentationRenderRequest): ItemKey {
@@ -151,18 +210,53 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         return null
     }
 
+    /**
+     * Resolves data, messages and conditions into rows. [excluded] lists the rows hidden to fit
+     * the budgets; their summaries fill the slots they name. Summary pieces are static, so one
+     * collecting pass followed by the real pass is always enough.
+     */
     private fun resolveSemantic(
         item: CompiledItemPresentation,
         request: PresentationRenderRequest,
         messages: MessageResolver,
         formatter: ValueFormatter,
+        excluded: Set<String>,
     ): ResolvedPresentation {
-        val name = messages.resolve(item.nameMessage)
+        val summaries = if (excluded.isNotEmpty() && item.hasSummaries) {
+            resolvePass(item, request, messages, formatter, excluded, emptyMap()).summaries
+                .groupBy(SummaryRecord::slot)
+                .mapValues { (_, records) -> records.sortedBy(SummaryRecord::order).map(SummaryRecord::runs) }
+        } else {
+            emptyMap()
+        }
+        return resolvePass(item, request, messages, formatter, excluded, summaries)
+    }
+
+    private fun resolvePass(
+        item: CompiledItemPresentation,
+        request: PresentationRenderRequest,
+        messages: MessageResolver,
+        formatter: ValueFormatter,
+        excluded: Set<String>,
+        slotEntries: Map<String, List<List<SemanticRun>>>,
+    ): ResolvedPresentation {
+        val base = messages.resolve(item.nameMessage)
             ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${item.nameMessage}")
-        val layoutSeparator = (catalog.layouts[item.layout]?.source as? LayoutSource.Flow)?.fieldSeparator
-        val resolution = Resolution(request, messages, formatter, layoutSeparator, catalog.budgets.maximumBlocksPerItem)
-        val blocks = resolveContainer(item.blocks, item.marker, item.dividers, resolution, depth = 1)
-        val codePoints = name.codePointCount(0, name.length) + blocks.sumOf { block ->
+        val layoutSource = catalog.layouts[item.layout]?.source as? LayoutSource.Flow
+        val resolution = Resolution(
+            request,
+            messages,
+            formatter,
+            layoutSource?.fieldSeparator,
+            catalog.budgets.maximumBlocksPerItem,
+            excluded,
+            slotEntries,
+        )
+        val name = resolveFragments(item.nameBefore, "item-name", resolution) +
+            SemanticRun(base, "item-name", unbreakable = true) +
+            resolveFragments(item.nameAfter, "item-name", resolution)
+        val blocks = resolveContainer(item.blocks, item.marker, item.dividers, resolution, depth = 1, path = "blocks", inherited = null)
+        val codePoints = name.sumOf { run -> run.text.codePointCount(0, run.text.length) } + blocks.sumOf { block ->
             block.runs.sumOf { run -> run.text.codePointCount(0, run.text.length) }
         }
         if (codePoints > catalog.budgets.maximumTextCodePoints) {
@@ -171,7 +265,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 "Resolved presentation exceeds ${catalog.budgets.maximumTextCodePoints} code points",
             )
         }
-        return ResolvedPresentation(name, blocks)
+        return ResolvedPresentation(name, blocks, resolution.rows, resolution.summaries)
     }
 
     /**
@@ -187,9 +281,11 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         dividers: GroupDividers,
         resolution: Resolution,
         depth: Int,
+        path: String,
+        inherited: HidingWeight?,
     ): List<SemanticBlock> {
         val units = ArrayList<ResolvedUnit>()
-        collectUnits(sources, marker, resolution, depth, units)
+        collectUnits(sources, marker, resolution, depth, units, path, inherited)
         return decorate(units, marker, dividers)
     }
 
@@ -199,6 +295,8 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         resolution: Resolution,
         depth: Int,
         units: MutableList<ResolvedUnit>,
+        path: String,
+        inherited: HidingWeight?,
     ) {
         if (depth > catalog.budgets.maximumBlockDepth) {
             throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Runtime block nesting exceeded")
@@ -206,24 +304,28 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         val request = resolution.request
         val messages = resolution.messages
         val formatter = resolution.formatter
-        sources.forEach { block ->
+        sources.forEachIndexed { index, block ->
             resolution.requireRowCapacity()
+            val blockPath = "$path[$index]"
+            val weight = block.weight ?: inherited
             when (block) {
                 is CompiledPresentationBlock.Text,
                 is CompiledPresentationBlock.Field,
                 is CompiledPresentationBlock.Description,
-                -> resolveLeaf(block, resolution)?.let { units += ResolvedUnit(listOf(it)) }
+                is CompiledPresentationBlock.Row,
+                is CompiledPresentationBlock.Rule,
+                -> resolveRow(block, blockPath, weight, resolution)?.let { units += ResolvedUnit(listOf(it)) }
 
                 // Conditionals are transparent: the selected branch's blocks are units of this container.
                 is CompiledPresentationBlock.Conditional -> {
-                    val selected = if (evaluate(block.condition, request)) block.thenBlocks else block.otherwiseBlocks
-                    collectUnits(selected, containerMarker, resolution, depth + 1, units)
+                    val (selected, branch) = if (evaluate(block.condition, request)) block.thenBlocks to "then" else block.otherwiseBlocks to "otherwise"
+                    collectUnits(selected, containerMarker, resolution, depth + 1, units, "$blockPath.$branch", weight)
                 }
 
                 is CompiledPresentationBlock.Repeat -> {
                     val value = request.data[block.data]
                     if (value == null) {
-                        if (block.missingPolicy == MissingDataPolicy.OMIT) return@forEach
+                        if (block.missingPolicy == MissingDataPolicy.OMIT) return@forEachIndexed
                         throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_DATA, "Missing data ${block.data}")
                     }
                     val list = (value as? ListDataValue)?.values
@@ -231,9 +333,13 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                     if (list.size > block.maximumElements || list.size > catalog.budgets.maximumRepeatElements) {
                         throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Repeat data ${block.data} exceeds its maximum")
                     }
-                    list.forEach { value ->
+                    list.forEachIndexed { elementIndex, value ->
                         val compound = value as? CompoundDataValue
                             ?: throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, "Repeat element is not a compound")
+                        val elementPath = "$blockPath[#$elementIndex]"
+                        if (resolution.hide(elementPath, block.summary) { summary -> repeatSummaryRuns(summary, compound, resolution) }) {
+                            return@forEachIndexed
+                        }
                         val nested = lookupCompound(compound, block.template.valuePath)
                         val formatted = if (nested == null) {
                             messages.resolve(block.template.missingMessage)
@@ -245,14 +351,24 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                         }
                         val label = messages.resolve(block.template.labelMessage)
                             ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${block.template.labelMessage}")
+                        resolution.record(elementPath, weight, hostsSlot = false)
                         units += ResolvedUnit(
                             listOf(
                                 resolution.row(
                                     SemanticBlock(
-                                        fieldRuns(block.template.icon, label, block.template.separator, formatted, block.style, resolution),
+                                        fieldRuns(
+                                            block.template.icon,
+                                            label,
+                                            block.template.separator,
+                                            formatted,
+                                            block.style,
+                                            block.template.partStyles,
+                                            resolution,
+                                        ),
                                         block.anchor,
                                         null,
                                         kind = SemanticBlockKind.FIELD,
+                                        source = elementPath,
                                     ),
                                 ),
                             ),
@@ -267,7 +383,12 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                             "Nested item list exceeds ${catalog.budgets.maximumRepeatElements} elements",
                         )
                     }
-                    request.nestedItems.forEach { nested ->
+                    request.nestedItems.forEachIndexed { elementIndex, nested ->
+                        val elementPath = "$blockPath[#$elementIndex]"
+                        if (resolution.hide(elementPath, block.summary) { summary -> staticSummaryRuns(summary, resolution) }) {
+                            return@forEachIndexed
+                        }
+                        resolution.record(elementPath, weight, hostsSlot = false)
                         units += ResolvedUnit(
                             listOf(
                                 resolution.row(
@@ -282,6 +403,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                                         },
                                         block.anchor,
                                         null,
+                                        source = elementPath,
                                     ),
                                 ),
                             ),
@@ -289,7 +411,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                     }
                 }
 
-                is CompiledPresentationBlock.Group -> resolveGroup(block, resolution, depth + 1)?.let { rows ->
+                is CompiledPresentationBlock.Group -> resolveGroup(block, resolution, depth + 1, blockPath, weight)?.let { rows ->
                     units += ResolvedUnit(rows, block.gapBeforeLines)
                 }
             }
@@ -300,19 +422,40 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         group: CompiledPresentationBlock.Group,
         resolution: Resolution,
         depth: Int,
+        path: String,
+        weight: HidingWeight?,
     ): List<SemanticBlock>? {
         val header = group.header?.let { source ->
             resolution.requireRowCapacity()
-            resolveLeaf(source, resolution)
+            resolveRow(source, "$path.header", source.weight ?: weight, resolution)
         }
         if (group.header != null && header == null && group.whenHeaderMissing == GroupHeaderMissingPolicy.HIDE) return null
-        val children = resolveContainer(group.children, group.marker, group.dividers, resolution, depth)
+        val children = resolveContainer(group.children, group.marker, group.dividers, resolution, depth, "$path.children", weight)
         if (children.isNotEmpty()) return listOfNotNull(header) + children
         if (header == null || group.whenEmpty == GroupEmptyPolicy.HIDE) {
             if (header != null) resolution.discardRow()
             return null
         }
         return listOf(header)
+    }
+
+    /** Resolves a single-row block unless it is hidden, recording it as a hiding candidate. */
+    private fun resolveRow(
+        block: CompiledPresentationBlock,
+        path: String,
+        weight: HidingWeight?,
+        resolution: Resolution,
+    ): SemanticBlock? {
+        if (resolution.hide(path, block.summary) { summary -> staticSummaryRuns(summary, resolution) }) return null
+        val row = resolveLeaf(block, resolution)?.copy(source = path) ?: return null
+        resolution.record(path, weight, hostsSlot = row.runs.any(SemanticRun::fromSlot) || block.hostsSlot())
+        return row
+    }
+
+    private fun CompiledPresentationBlock.hostsSlot(): Boolean = when (this) {
+        is CompiledPresentationBlock.Row -> (left + right).any { it is CompiledFragment.Slot }
+        is CompiledPresentationBlock.Rule -> title.any { it is CompiledFragment.Slot }
+        else -> false
     }
 
     /** Resolves a single-row block, or null when its data is absent and the block may be omitted. */
@@ -353,7 +496,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 }
                 resolution.row(
                     SemanticBlock(
-                        fieldRuns(block.icon, label, block.separator, formatted, block.style, resolution),
+                        fieldRuns(block.icon, label, block.separator, formatted, block.style, block.partStyles, resolution),
                         block.anchor,
                         block.wrapping,
                         kind = SemanticBlockKind.FIELD,
@@ -374,8 +517,93 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 )
             }
 
+            is CompiledPresentationBlock.Row -> {
+                val left = resolveFragments(block.left, block.style, resolution).let { runs ->
+                    // A leading glyph is the row's icon: it takes the layout's icon slot and gap like a field icon.
+                    val first = runs.firstOrNull()
+                    if (first?.assetId != null) listOf(first.copy(kind = PresentationRunKind.ICON)) + runs.drop(1) else runs
+                }
+                val right = resolveFragments(block.right, block.style, resolution).map { it.copy(rightRegion = true) }
+                if (left.isEmpty() && right.isEmpty()) return null
+                resolution.row(SemanticBlock(left + right, block.anchor, block.wrapping, kind = SemanticBlockKind.ROW))
+            }
+
+            is CompiledPresentationBlock.Rule -> resolution.row(
+                SemanticBlock(resolveFragments(block.title, block.style, resolution), block.anchor, null, kind = SemanticBlockKind.RULE),
+            )
+
             else -> error("Block ${block::class.simpleName} is not a single row")
         }
+    }
+
+    /**
+     * Resolves inline fragments in order. A fragment whose condition is false or whose data is
+     * absent is omitted; [role] is the enclosing block's style, used when a fragment has none.
+     */
+    private fun resolveFragments(fragments: List<CompiledFragment>, role: String?, resolution: Resolution): List<SemanticRun> {
+        val output = ArrayList<SemanticRun>()
+        fragments.forEach { fragment ->
+            if (fragment.condition?.let { evaluate(it, resolution.request) } == false) return@forEach
+            when (fragment) {
+                is CompiledFragment.Message -> output += SemanticRun(
+                    resolution.messages.resolve(fragment.message)
+                        ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${fragment.message}"),
+                    fragment.style ?: role ?: "label",
+                )
+                is CompiledFragment.Data -> {
+                    val value = resolution.request.data[fragment.data] ?: return@forEach
+                    output += SemanticRun(
+                        resolution.formatter.format(value, fragment.format).getOrElse {
+                            throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
+                        },
+                        fragment.style ?: role ?: "value",
+                    )
+                }
+                is CompiledFragment.Glyph -> output += SemanticRun("", fragment.style ?: role ?: "value", unbreakable = true, assetId = fragment.glyph)
+                is CompiledFragment.Literal -> output += SemanticRun(fragment.text, fragment.style ?: role ?: "label", unbreakable = true)
+                is CompiledFragment.Slot -> output += slotRuns(fragment, role, resolution)
+            }
+        }
+        return output
+    }
+
+    /** A slot's entries with its decorations, or nothing when no hidden block named it. */
+    private fun slotRuns(slot: CompiledFragment.Slot, role: String?, resolution: Resolution): List<SemanticRun> {
+        val entries = resolution.slotEntries[slot.id].orEmpty()
+        if (entries.isEmpty()) return emptyList()
+        val slotRole = slot.style ?: role ?: "label"
+        fun decoration(piece: CompiledFragment?): List<SemanticRun> =
+            piece?.let { resolveFragments(listOf(it), slotRole, resolution) }.orEmpty()
+        val shown = slot.maximumEntries?.let { entries.take(it) } ?: entries
+        val remaining = entries.size - shown.size
+        val separator = decoration(slot.separator)
+        val runs = buildList {
+            addAll(decoration(slot.prefix))
+            shown.forEachIndexed { index, entry ->
+                if (index > 0) addAll(separator)
+                addAll(entry)
+            }
+            if (remaining > 0 && slot.overflowCountMessage != null) {
+                if (shown.isNotEmpty()) addAll(separator)
+                val text = resolution.messages.resolve(slot.overflowCountMessage, mapOf("count" to remaining.toString()))
+                    ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${slot.overflowCountMessage}")
+                add(SemanticRun(text, slotRole, unbreakable = true))
+            }
+            addAll(decoration(slot.suffix))
+        }
+        return runs.map { it.copy(fromSlot = true) }
+    }
+
+    private fun staticSummaryRuns(summary: CompiledSummary, resolution: Resolution): List<SemanticRun> =
+        resolveFragments(listOfNotNull(summary.piece), summary.style, resolution)
+
+    private fun repeatSummaryRuns(summary: CompiledSummary, element: CompoundDataValue, resolution: Resolution): List<SemanticRun> {
+        val path = summary.valuePath ?: return staticSummaryRuns(summary, resolution)
+        val value = lookupCompound(element, path) ?: return emptyList()
+        val text = resolution.formatter.format(value, summary.format).getOrElse {
+            throw RuntimePresentationException(PresentationRenderFailureCode.INVALID_RUNTIME_VALUE, it.message ?: "Formatting failed")
+        }
+        return listOf(SemanticRun(text, summary.style ?: "label", unbreakable = true))
     }
 
     /** Label, separator and value runs shared by fields and repeat templates. */
@@ -385,6 +613,7 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
         separator: FieldSeparatorSource?,
         formatted: String,
         role: String?,
+        parts: FieldPartStyles?,
         resolution: Resolution,
     ): List<SemanticRun> {
         // Precedence: the block's own separator, the layout default, then the original colon.
@@ -395,10 +624,10 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
                 ?: throw RuntimePresentationException(PresentationRenderFailureCode.MISSING_MESSAGE, "Missing message ${effective.message}")
         }
         return buildList {
-            icon?.let { add(SemanticRun("", role ?: "value", PresentationRunKind.ICON, true, it)) }
-            add(SemanticRun(label, role ?: "label", unbreakable = true))
-            separatorText?.let { add(SemanticRun(it, role ?: "label", unbreakable = true)) }
-            add(SemanticRun(formatted, role ?: "value", fieldValue = true))
+            icon?.let { add(SemanticRun("", parts?.icon ?: role ?: "value", PresentationRunKind.ICON, true, it)) }
+            add(SemanticRun(label, parts?.label ?: role ?: "label", unbreakable = true))
+            separatorText?.let { add(SemanticRun(it, parts?.separator ?: role ?: "label", unbreakable = true)) }
+            add(SemanticRun(formatted, parts?.value ?: role ?: "value", fieldValue = true))
         }
     }
 
@@ -504,8 +733,25 @@ class PresentationEngine(private val catalog: PresentationCatalogSnapshot) {
 }
 
 private data class ResolvedPresentation(
-    val name: String,
+    val name: List<SemanticRun>,
     val blocks: List<SemanticBlock>,
+    /** Every rendered row in document order: the candidates for hiding. */
+    val rows: List<RowRecord>,
+    val summaries: List<SummaryRecord>,
+)
+
+/** A rendered row that hiding may remove; [hostsSlot] rows go last so their slots stay visible. */
+private data class RowRecord(
+    val id: String,
+    val weight: HidingWeight?,
+    val hostsSlot: Boolean,
+)
+
+/** What a hidden row left for [slot]; [order] is its document position. */
+private data class SummaryRecord(
+    val slot: String,
+    val order: Int,
+    val runs: List<SemanticRun>,
 )
 
 /** One child unit of a container: a leaf row, a repeat element, a nested item or a whole group. */
@@ -514,29 +760,52 @@ private class ResolvedUnit(
     val gapBeforeLines: Int = 0,
 )
 
-/** Per-render resolution state; [rows] counts every emitted row against the block budget. */
+/** Per-render resolution state; [count] tracks every emitted row against the block budget. */
 private class Resolution(
     val request: PresentationRenderRequest,
     val messages: MessageResolver,
     val formatter: ValueFormatter,
     val layoutSeparator: FieldSeparatorSource?,
     private val maximumRows: Int,
+    private val excluded: Set<String> = emptySet(),
+    val slotEntries: Map<String, List<List<SemanticRun>>> = emptyMap(),
 ) {
-    private var rows = 0
+    private var count = 0
+    private var order = 0
+    val rows = ArrayList<RowRecord>()
+    val summaries = ArrayList<SummaryRecord>()
+
+    fun record(id: String, weight: HidingWeight?, hostsSlot: Boolean) {
+        rows += RowRecord(id, weight, hostsSlot)
+    }
+
+    /**
+     * Whether the row at [id] is hidden. A hidden row leaves its summary, positioned by document
+     * order among every row met in this pass.
+     */
+    fun hide(id: String, summary: CompiledSummary?, runs: (CompiledSummary) -> List<SemanticRun>): Boolean {
+        val position = order++
+        if (id !in excluded) return false
+        summary?.let { declared ->
+            val pieces = runs(declared)
+            if (pieces.isNotEmpty()) summaries += SummaryRecord(declared.slot, position, pieces)
+        }
+        return true
+    }
 
     fun requireRowCapacity() {
-        if (rows >= maximumRows) {
+        if (count >= maximumRows) {
             throw RuntimePresentationException(PresentationRenderFailureCode.OUTPUT_BUDGET_EXCEEDED, "Runtime block count exceeded")
         }
     }
 
     fun row(block: SemanticBlock): SemanticBlock {
-        rows++
+        count++
         return block
     }
 
     fun discardRow() {
-        rows--
+        count--
     }
 }
 
@@ -557,14 +826,20 @@ private class ThemeRendererEngine(
         semantic: ResolvedPresentation,
         requestedTheme: ItemKey,
         fallbackReasons: List<ThemeFallbackReason>,
+        hidden: List<String> = emptyList(),
     ): PresentationDisplay {
         val layout = requireNotNull(catalog.layouts[item.layout])
         val nameStyle = style("item-name", theme.fonts.getValue("text"))
         val maximumWidth = effectiveMaximumWidth(layout)
-        var name = layouter.ellipsizeLine(
-            listOf(PresentationTextRun(semantic.name, nameStyle, unbreakable = true)),
-            maximumWidth,
-        )
+        lineContributors = emptyList()
+        val inset = theme.source.nameInsetPixels
+        if (maximumWidth - 2 * inset <= 0) {
+            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "The name inset consumes the maximum width")
+        }
+        var name = layouter.ellipsizeLine(semantic.name.flatMap(::styleRuns).map(StyledRun::run), maximumWidth - 2 * inset)
+        if (inset > 0) {
+            name = measurer.measure(exactPadding(inset, nameStyle) + name.runs + exactPadding(inset, nameStyle))
+        }
         val styledBlocks = semantic.blocks.map(::styleBlock)
         val lore = when (theme.source.renderer) {
             ThemeRenderer.PLAIN, ThemeRenderer.NATIVE_TOOLTIP_STYLE -> {
@@ -591,7 +866,18 @@ private class ThemeRendererEngine(
             requestedTheme = requestedTheme,
             catalogRevision = catalog.revision,
             fallbackReasons = fallbackReasons,
+            hiddenElements = hidden,
         )
+    }
+
+    /** Lines per authored block in the last flow, largest first, named by capacity diagnostics. */
+    private var lineContributors: List<Pair<String, Int>> = emptyList()
+
+    private fun contributorSuffix(): String {
+        if (lineContributors.isEmpty()) return ""
+        return "; largest: " + lineContributors.take(3).joinToString { (source, lines) ->
+            "$source (${lines} line${if (lines == 1) "" else "s"})"
+        }
     }
 
     private fun effectiveMaximumWidth(layout: CompiledLayout): Int {
@@ -618,6 +904,7 @@ private class ThemeRendererEngine(
             continuationPrefix = block.continuationPrefix,
             gapPrefix = block.gapPrefix,
             gapBeforeLines = block.gapBeforeLines,
+            source = block.source,
         )
     }
 
@@ -636,6 +923,7 @@ private class ThemeRendererEngine(
                     role = run.role,
                     assetId = run.assetId,
                     fieldValue = run.fieldValue,
+                    rightRegion = run.rightRegion,
                 ),
             )
         }
@@ -645,6 +933,7 @@ private class ThemeRendererEngine(
                 PresentationTextRun(chunk, textStyle, run.kind, run.unbreakable),
                 role = run.role,
                 fieldValue = run.fieldValue,
+                rightRegion = run.rightRegion,
             )
         }
     }
@@ -671,26 +960,22 @@ private class ThemeRendererEngine(
         val themeLeft = content?.leftPaddingPixels ?: 0
         val themeRight = content?.rightPaddingPixels ?: 0
         val targetWidth = blocks.maxOfOrNull { block ->
-            val sectionLeft = when {
-                flow == null -> 0
-                block.lines.firstOrNull()?.runs?.any { it.kind == PresentationRunKind.ICON } == true -> flow.fieldLeftPaddingPixels
-                block.kind == SemanticBlockKind.DESCRIPTION -> flow.descriptionLeftPaddingPixels
-                else -> flow.fieldLeftPaddingPixels
-            }
-            val sectionRight = if (flow != null && block.kind == SemanticBlockKind.DESCRIPTION) {
-                flow.descriptionRightPaddingPixels
-            } else {
-                0
-            }
+            val (sectionLeft, sectionRight) = sectionPadding(flow, block)
             val prefix = prefixWidth(block)
-            block.lines.maxOfOrNull { line ->
-                val withIconGap = addIconGap(line.values, flow)
-                measurer.measure(withIconGap.map(StyledRun::run)).logicalWidthPixels +
-                    themeLeft + themeRight + sectionLeft + sectionRight + prefix
-            } ?: 0
+            val natural = when (block.kind) {
+                SemanticBlockKind.ROW -> rowWidth(block, flow)
+                SemanticBlockKind.RULE -> ruleWidth(block)
+                else -> block.lines.maxOfOrNull { line ->
+                    measurer.measure(addIconGap(line.values, flow).map(StyledRun::run)).logicalWidthPixels
+                }
+            } ?: return@maxOfOrNull 0
+            val contribution = natural + themeLeft + themeRight + sectionLeft + sectionRight + prefix
+            // A wrapping width bounds the block's own lines, so it must not widen the tooltip past it.
+            wrappingPolicy(layout, block.wrapping).widthPixels?.let { minOf(contribution, it) } ?: contribution
         }?.coerceIn(minimumWidth, maximumWidth) ?: minimumWidth.coerceAtMost(maximumWidth)
         val rendered = ArrayList<PresentationLine>()
         val boundaries = LinkedHashSet<Int>()
+        val contributors = LinkedHashMap<String, Int>()
         blocks.forEachIndexed { blockIndex, block ->
             if (block.sectionBoundaryBefore && rendered.isNotEmpty()) boundaries += rendered.size
             repeat(block.gapBeforeLines) { rendered += gapLine(block.gapPrefix) }
@@ -698,45 +983,17 @@ private class ThemeRendererEngine(
                 appendVerticalGap(rendered, flow.descriptionGapBeforePixels, block.gapPrefix)
             }
             val policy = wrappingPolicy(layout, block.wrapping)
-            val sectionLeft = when {
-                flow == null -> 0
-                block.lines.firstOrNull()?.runs?.any { it.kind == PresentationRunKind.ICON } == true -> flow.fieldLeftPaddingPixels
-                block.kind == SemanticBlockKind.DESCRIPTION -> flow.descriptionLeftPaddingPixels
-                else -> flow.fieldLeftPaddingPixels
-            }
-            val sectionRight = if (flow != null && block.kind == SemanticBlockKind.DESCRIPTION) {
-                flow.descriptionRightPaddingPixels
-            } else {
-                0
-            }
+            val (sectionLeft, sectionRight) = sectionPadding(flow, block)
             val left = themeLeft + sectionLeft
             val right = themeRight + sectionRight
+            val name = block.source?.let { "Block $it" } ?: "Block"
             // Marker prefixes are measured runs, so the text beside them wraps in what remains.
             val available = minOf(policy.widthPixels ?: targetWidth, targetWidth) - left - right - prefixWidth(block)
-            if (available <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Section padding consumes its width")
-            val logicalLines = if (policy.preserveExplicitLines) block.lines else listOf(joinExplicitLines(block.lines))
+            if (available <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "${block.source?.let { "$it: " }.orEmpty()}Section padding consumes its width")
             var emittedForBlock = 0
-            logicalLines.forEach { explicitLine ->
-                val withIconGap = addIconGap(explicitLine.values, flow)
-                val aligned = if (flow?.fieldValueAlignment == FieldValueAlignment.RIGHT && block.kind == SemanticBlockKind.FIELD) {
-                    alignFieldValue(withIconGap, available)
-                } else {
-                    withIconGap.map(StyledRun::run)
-                }
-                val remainingLines = policy.maximumLines - emittedForBlock
-                if (remainingLines <= 0) {
-                    throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Block exceeds ${policy.maximumLines} lines")
-                }
-                val wrapped = layouter.wrap(
-                    aligned,
-                    available,
-                    remainingLines,
-                    policy.overflow,
-                    preserveExplicitLines = false,
-                    continuationIndentPixels = policy.continuationIndentPixels,
-                )
-                rendered += wrapped.mapIndexed { index, line ->
-                    val continuation = if (index > 0) policy.continuationIndentPixels else 0
+            fun emit(lines: List<PresentationLine>, continuationIndent: Int) {
+                rendered += lines.mapIndexed { index, line ->
+                    val continuation = if (index > 0) continuationIndent else 0
                     val prefix = if (emittedForBlock == 0 && index == 0) block.firstPrefix else block.continuationPrefix
                     if (prefix.isEmpty()) {
                         appendRightPadding(indentLine(line, left + continuation), right)
@@ -744,17 +1001,196 @@ private class ThemeRendererEngine(
                         appendRightPadding(decorateLine(line, themeLeft, prefix, sectionLeft + continuation), right)
                     }
                 }
-                emittedForBlock += wrapped.size
+                emittedForBlock += lines.size
             }
+            fun wrap(runs: List<PresentationTextRun>): List<PresentationLine> {
+                val remainingLines = policy.maximumLines - emittedForBlock
+                if (remainingLines <= 0) {
+                    throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "$name exceeds ${policy.maximumLines} lines")
+                }
+                return try {
+                    layouter.wrap(
+                        runs,
+                        available,
+                        remainingLines,
+                        policy.overflow,
+                        preserveExplicitLines = false,
+                        continuationIndentPixels = policy.continuationIndentPixels,
+                    )
+                } catch (exception: TextLayoutException) {
+                    val source = block.source ?: throw exception
+                    throw TextLayoutException(exception.fallbackCode, "$source: ${exception.message}", exception.capacity)
+                }
+            }
+            when (block.kind) {
+                SemanticBlockKind.RULE -> emit(listOf(renderRule(block, available)), 0)
+                SemanticBlockKind.ROW -> renderRow(block, available, policy, flow, ::wrap, ::emit)
+                else -> {
+                    val logicalLines = if (policy.preserveExplicitLines) block.lines else listOf(joinExplicitLines(block.lines))
+                    logicalLines.forEach { explicitLine ->
+                        val withIconGap = addIconGap(explicitLine.values, flow)
+                        val aligned = if (flow?.fieldValueAlignment == FieldValueAlignment.RIGHT && block.kind == SemanticBlockKind.FIELD) {
+                            alignFieldValue(withIconGap, available)
+                        } else {
+                            withIconGap.map(StyledRun::run)
+                        }
+                        emit(wrap(aligned), policy.continuationIndentPixels)
+                    }
+                }
+            }
+            block.source?.let { contributors.merge(it, emittedForBlock + block.gapBeforeLines, Int::plus) }
             if (flow != null && blockIndex < blocks.lastIndex) {
                 appendVerticalGap(rendered, flow.blockGapAfterPixels, blocks[blockIndex + 1].gapPrefix)
             }
         }
+        lineContributors = contributors.entries.sortedByDescending { it.value }.map { it.key to it.value }
         if (rendered.size > catalog.budgets.maximumLines) {
-            throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Lore exceeds ${catalog.budgets.maximumLines} lines")
+            throw TextLayoutException(
+                ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED,
+                "Lore exceeds ${catalog.budgets.maximumLines} lines${contributorSuffix()}",
+                capacity = true,
+            )
         }
         val natural = rendered.maxOfOrNull(PresentationLine::logicalWidthPixels) ?: 0
         return FlowResult(rendered, boundaries, max(targetWidth, natural).coerceIn(minimumWidth, maximumWidth))
+    }
+
+    /** Section padding: rules span the whole content width, descriptions use their own padding. */
+    private fun sectionPadding(flow: LayoutSource.Flow?, block: StyledBlock): Pair<Int, Int> = when {
+        flow == null || block.kind == SemanticBlockKind.RULE -> 0 to 0
+        block.lines.firstOrNull()?.runs?.any { it.kind == PresentationRunKind.ICON } == true -> flow.fieldLeftPaddingPixels to 0
+        block.kind == SemanticBlockKind.DESCRIPTION -> flow.descriptionLeftPaddingPixels to flow.descriptionRightPaddingPixels
+        else -> flow.fieldLeftPaddingPixels to 0
+    }
+
+    private fun rowRegions(block: StyledBlock): Pair<List<StyledLine>, List<StyledRun>> {
+        val left = block.lines.map { line -> StyledLine(line.values.filterNot(StyledRun::rightRegion)) }
+            .filter { it.values.isNotEmpty() }
+        return left to block.lines.flatMap { line -> line.values.filter(StyledRun::rightRegion) }
+    }
+
+    /** Both regions on one line with the minimum gap, or the wider region when they cannot share one. */
+    private fun rowWidth(block: StyledBlock, flow: LayoutSource.Flow?): Int? {
+        val (left, right) = rowRegions(block)
+        if (left.isEmpty() && right.isEmpty()) return null
+        val leftWidth = left.maxOfOrNull { measurer.measure(addIconGap(it.values, flow).map(StyledRun::run)).logicalWidthPixels } ?: 0
+        if (right.isEmpty()) return leftWidth
+        val rightRuns = right.map(StyledRun::run)
+        val rightWidth = measurer.measure(rightRuns).logicalWidthPixels
+        if (left.isEmpty()) return rightWidth
+        return leftWidth + rowGap(rightRuns) + rightWidth
+    }
+
+    private fun rowGap(right: List<PresentationTextRun>): Int {
+        val style = right.first().style.copy(bold = false, italic = false)
+        return measurer.measure(listOf(PresentationTextRun(" ", style, unbreakable = true))).logicalWidthPixels
+    }
+
+    /**
+     * A row's right region ends exactly at the content edge. When both regions cannot share one
+     * line, the left region wraps and the right region takes its own line, still right-aligned.
+     */
+    private fun renderRow(
+        block: StyledBlock,
+        available: Int,
+        policy: WrappingSource,
+        flow: LayoutSource.Flow?,
+        wrap: (List<PresentationTextRun>) -> List<PresentationLine>,
+        emit: (List<PresentationLine>, Int) -> Unit,
+    ) {
+        val (leftLines, right) = rowRegions(block)
+        val logical = if (policy.preserveExplicitLines) leftLines else listOfNotNull(leftLines.takeIf { it.isNotEmpty() }?.let(::joinExplicitLines))
+        val leftRuns = logical.map { addIconGap(it.values, flow).map(StyledRun::run) }
+        val rightRuns = right.map(StyledRun::run)
+        val rightWidth = measurer.measure(rightRuns).logicalWidthPixels
+        val single = leftRuns.singleOrNull()
+        if (logical.size <= 1) {
+            val leftWidth = single?.let { measurer.measure(it).logicalWidthPixels } ?: 0
+            val gap = if (single != null && rightRuns.isNotEmpty()) rowGap(rightRuns) else 0
+            if (leftWidth + gap + rightWidth <= available) {
+                val runs = single.orEmpty() + if (rightRuns.isEmpty()) {
+                    emptyList()
+                } else {
+                    exactPadding(available - leftWidth - rightWidth, rightRuns.first().style) + rightRuns
+                }
+                emit(wrap(runs), 0)
+                return
+            }
+        }
+        leftRuns.forEach { runs -> emit(wrap(runs), policy.continuationIndentPixels) }
+        if (rightRuns.isEmpty()) return
+        val aligned = if (rightWidth <= available) exactPadding(available - rightWidth, rightRuns.first().style) + rightRuns else rightRuns
+        emit(wrap(aligned), policy.continuationIndentPixels)
+    }
+
+    private val ruleRole: String = theme.source.rules?.style ?: "rule"
+
+    private fun ruleFill(): List<PresentationTextRun> = pieceRuns(theme.source.rules?.fill ?: DEFAULT_RULE_FILL, ruleRole)
+
+    private fun ruleCaps(): List<PresentationTextRun> =
+        listOfNotNull(theme.source.rules?.left, theme.source.rules?.right).flatMap { pieceRuns(it, ruleRole) }
+
+    /** A titled rule needs room for its title and one fill unit on each side; a bare rule stretches. */
+    private fun ruleWidth(block: StyledBlock): Int? {
+        val title = block.lines.flatMap(StyledLine::runs)
+        if (title.isEmpty()) return null
+        val gap = theme.source.rules?.titleGapPixels ?: DEFAULT_RULE_TITLE_GAP_PIXELS
+        return measurer.measure(ruleCaps()).logicalWidthPixels + measurer.measure(title).logicalWidthPixels +
+            2 * gap + 2 * measurer.measure(ruleFill()).logicalWidthPixels
+    }
+
+    /**
+     * A horizontal rule across [available] pixels. Fill units repeat whole; the remainder becomes
+     * exact padding beside the title, or at the end of an untitled rule, so the line ends exactly
+     * at the content edge without stretching any glyph.
+     */
+    private fun renderRule(block: StyledBlock, available: Int): PresentationLine {
+        val rules = theme.source.rules
+        val fill = ruleFill().single()
+        val fillWidth = measurer.measure(listOf(fill)).logicalWidthPixels
+        val subject = block.source?.let { "Rule $it" } ?: "Rule"
+        if (fillWidth <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "$subject fill must have a positive advance")
+        val leftCap = rules?.left?.let { pieceRuns(it, ruleRole) }.orEmpty()
+        val rightCap = rules?.right?.let { pieceRuns(it, ruleRole) }.orEmpty()
+        val caps = measurer.measure(leftCap + rightCap).logicalWidthPixels
+        val paddingStyle = style(ruleRole, theme.fonts.getValue("text"))
+        fun fillRuns(count: Int) = if (count <= 0) emptyList() else listOf(fill.copy(text = fill.text.repeat(count)))
+        val title = block.lines.flatMap(StyledLine::runs)
+        if (title.isEmpty()) {
+            val space = available - caps
+            if (space < fillWidth) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "$subject has no room for its fill")
+            val count = space / fillWidth
+            return measurer.measure(leftCap + fillRuns(count) + rightCap + exactPadding(space - count * fillWidth, paddingStyle))
+        }
+        val gap = rules?.titleGapPixels ?: DEFAULT_RULE_TITLE_GAP_PIXELS
+        val titleRoom = available - caps - 2 * gap - 2 * fillWidth
+        if (titleRoom <= 0) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "$subject has no room for its title")
+        val fitted = layouter.ellipsizeLine(title, titleRoom)
+        val space = available - caps - 2 * gap - fitted.logicalWidthPixels
+        val leading = (space / 2) / fillWidth
+        val trailing = (space - leading * fillWidth) / fillWidth
+        val remainder = space - (leading + trailing) * fillWidth
+        val before = remainder / 2
+        return measurer.measure(
+            leftCap + fillRuns(leading) + exactPadding(gap + before, paddingStyle) + fitted.runs +
+                exactPadding(gap + remainder - before, paddingStyle) + fillRuns(trailing) + rightCap,
+        )
+    }
+
+    /** One authored text or glyph piece in [role]'s style. */
+    private fun pieceRuns(source: MarkerPieceSource, role: String): List<PresentationTextRun> = when (source) {
+        is MarkerPieceSource.Text -> listOf(PresentationTextRun(source.text, style(role, theme.fonts.getValue("text")), PresentationRunKind.TEXT, unbreakable = true))
+        is MarkerPieceSource.Glyph -> {
+            val glyph = requireNotNull(catalog.glyphs[source.glyph]) { "Unknown glyph ${source.glyph}" }
+            listOf(
+                PresentationTextRun(
+                    String(Character.toChars(glyph.codePoint)),
+                    style(role, glyph.font).copy(bold = false, italic = false),
+                    PresentationRunKind.TEXT,
+                    unbreakable = true,
+                ),
+            )
+        }
     }
 
     private fun anchorFlowWidth(
@@ -806,7 +1242,11 @@ private class ThemeRendererEngine(
     private fun addIconGap(values: List<StyledRun>, flow: LayoutSource.Flow?): List<StyledRun> {
         if (flow == null || values.firstOrNull()?.run?.kind != PresentationRunKind.ICON) return values
         val first = values.first()
-        val gap = paddingRuns(flow.fieldIconGapPixels, first.run.style).map { run ->
+        // A fixed icon slot pads narrower icons so every label starts in the same column.
+        val slot = flow.fieldIconSlotPixels?.let { slot ->
+            exactPadding(slot - measurer.measure(listOf(first.run)).logicalWidthPixels, style(first.role, theme.fonts.getValue("text")))
+        }.orEmpty()
+        val gap = (slot + paddingRuns(flow.fieldIconGapPixels, first.run.style)).map { run ->
             StyledRun(run, first.role)
         }
         return listOf(first) + gap + values.drop(1)
@@ -875,7 +1315,7 @@ private class ThemeRendererEngine(
         art + markerPadding(slotWidth(piece) - measurer.measure(art).logicalWidthPixels)
     }
 
-    private fun slotWidth(piece: MarkerPiece): Int = when (piece) {
+    private fun slotWidth(piece: MarkerPiece): Int = (theme.source.markers?.gapPixels ?: 0) + when (piece) {
         MarkerPiece.BULLET, MarkerPiece.BULLET_BLANK -> measurer.measure(markerArt(MarkerPiece.BULLET)).logicalWidthPixels
         MarkerPiece.TREE_BRANCH, MarkerPiece.TREE_LAST, MarkerPiece.TREE_VERTICAL, MarkerPiece.TREE_BLANK ->
             listOf(MarkerPiece.TREE_BRANCH, MarkerPiece.TREE_LAST, MarkerPiece.TREE_VERTICAL)
@@ -911,12 +1351,18 @@ private class ThemeRendererEngine(
      * Exact-width marker padding. Resource-pack themes use signed spacing; otherwise whole spaces
      * are completed with the one-pixel width anchor so continuation lines align to the pixel.
      */
-    private fun markerPadding(pixels: Int): List<PresentationTextRun> {
+    private fun markerPadding(pixels: Int): List<PresentationTextRun> = exactPadding(pixels, markerStyle)
+
+    /**
+     * Exact-width padding. Resource-pack themes use signed spacing; otherwise whole spaces are
+     * completed with the one-pixel width anchor.
+     */
+    private fun exactPadding(pixels: Int, textStyle: PresentationTextStyle): List<PresentationTextRun> {
         if (pixels <= 0) return emptyList()
         if (theme.source.requiresResourcePack && catalog.spacing != null) {
             return spacingRuns(pixels, PresentationRunKind.SPACING)
         }
-        val plain = markerStyle.copy(bold = false, italic = false, underlined = false, strikethrough = false)
+        val plain = textStyle.copy(bold = false, italic = false, underlined = false, strikethrough = false)
         val spaces = boundedPaddingRuns(pixels, plain)
         return spaces + exactWidthAnchorRuns(pixels - measurer.measure(spaces).logicalWidthPixels, plain)
     }
@@ -942,7 +1388,9 @@ private class ThemeRendererEngine(
         val frame = requireNotNull(theme.source.characterFrame)
         val contentMaximum = frame.maximumWidthPixels - frame.leftPaddingPixels - frame.rightPaddingPixels - 8
         val flow = renderFlow(layout, blocks, contentMaximum)
-        if (flow.lines.size > frame.maximumLines) throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Character frame line count exceeded")
+        if (flow.lines.size > frame.maximumLines) {
+            throw TextLayoutException(ThemeFallbackCode.LAYOUT_OVERFLOW, "Character frame line count exceeded${contributorSuffix()}", capacity = true)
+        }
         val chars = FrameCharacters.forPreset(frame.preset)
         val frameFont = theme.fonts["frame"] ?: theme.fonts.getValue("text")
         val frameStyle = style("frame", frameFont).copy(bold = false, italic = false)
@@ -1399,7 +1847,9 @@ private class ThemeRendererEngine(
     }
 
     private fun validateOutput(name: PresentationLine, lore: List<PresentationLine>) {
-        if (lore.size > catalog.budgets.maximumLines) throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Lore line budget exceeded")
+        if (lore.size > catalog.budgets.maximumLines) {
+            throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Lore line budget exceeded${contributorSuffix()}", capacity = true)
+        }
         val all = listOf(name) + lore
         if (all.any { it.logicalWidthPixels > catalog.budgets.maximumWidthPixels }) {
             throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Line width budget exceeded")
@@ -1439,7 +1889,7 @@ private class ThemeRendererEngine(
         }
         val visualHeight = if (minimumY.isFinite()) ceil(maximumY - minimumY).toInt() else 0
         if (max(structuralHeight, visualHeight) > catalog.budgets.maximumHeightPixels) {
-            throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Display height budget exceeded")
+            throw TextLayoutException(ThemeFallbackCode.OUTPUT_BUDGET_EXCEEDED, "Display height budget exceeded${contributorSuffix()}", capacity = true)
         }
     }
 
@@ -1453,6 +1903,7 @@ private class ThemeRendererEngine(
         val continuationPrefix: List<MarkerPiece>,
         val gapPrefix: List<MarkerPiece>,
         val gapBeforeLines: Int,
+        val source: String?,
     )
 
     private data class StyledLine(val values: List<StyledRun>) {
@@ -1514,6 +1965,8 @@ private class ThemeRendererEngine(
         val DEFAULT_TREE_BRANCH = MarkerPieceSource.Text("├─ ")
         val DEFAULT_TREE_LAST = MarkerPieceSource.Text("└─ ")
         val DEFAULT_TREE_VERTICAL = MarkerPieceSource.Text("│  ")
+        val DEFAULT_RULE_FILL = MarkerPieceSource.Text("─")
+        const val DEFAULT_RULE_TITLE_GAP_PIXELS = 4
         val NAMED_COLORS = mapOf(
             "black" to 0x000000,
             "dark_blue" to 0x0000AA,
@@ -1536,6 +1989,7 @@ private class ThemeRendererEngine(
         fun defaultColor(role: String): String = when (role) {
             "label" -> "gray"
             "description" -> "dark_gray"
+            "rule" -> "dark_gray"
             "requirement-met" -> "green"
             "requirement-unmet" -> "red"
             else -> "white"

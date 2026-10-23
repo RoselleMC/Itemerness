@@ -215,6 +215,10 @@ sealed interface LayoutSource {
         wrapping: Map<String, WrappingSource> = mapOf("body" to WrappingSource()),
         /** Default separator between field labels and values; null keeps the built-in colon. */
         val fieldSeparator: FieldSeparatorSource? = null,
+        /** Width every leading row icon is padded to, so labels share one column; null keeps natural advances. */
+        val fieldIconSlotPixels: Int? = null,
+        /** What happens when content exceeds the display budgets; items may override it. */
+        val overflow: OverflowStrategy = OverflowStrategy.FALLBACK,
     ) : LayoutSource {
         val wrapping: Map<String, WrappingSource> = immutableMap(wrapping)
     }
@@ -256,6 +260,17 @@ data class CanvasAnchorSource(
     val overflow: OverflowPolicy,
 )
 
+/**
+ * How an item responds when its rendered content exceeds the line or height budgets.
+ *
+ * [FALLBACK] tries the next theme, the behaviour before hiding existed. [HIDE] first removes rows
+ * in weight order, from the lowest weight, then rows without a weight, until the content fits.
+ */
+enum class OverflowStrategy {
+    FALLBACK,
+    HIDE,
+}
+
 enum class OverflowPolicy {
     ERROR,
     ELLIPSIS,
@@ -293,6 +308,10 @@ class ThemeSource(
     val requireExactFontMetrics: Boolean = false,
     /** Marker art for decorated groups; absent pieces keep the built-in defaults. */
     val markers: MarkerThemeSource? = null,
+    /** Pieces for rule blocks; absent keeps a built-in text rule. */
+    val rules: RuleThemeSource? = null,
+    /** Exact padding on both sides of the item name, for frames drawn over the name row. */
+    val nameInsetPixels: Int = 0,
 ) {
     val requiredCapabilities: Set<String> = immutableSet(requiredCapabilities)
     val fonts: Map<String, String> = immutableMap(fonts)
@@ -308,6 +327,20 @@ data class MarkerThemeSource(
     val style: String? = null,
     val bullet: MarkerPieceSource? = null,
     val tree: TreeMarkerSource? = null,
+    /** Extra exact space after every marker piece, between the connector and the row. */
+    val gapPixels: Int = 0,
+)
+
+/**
+ * Theme art for rule blocks. [fill] repeats across the content width between the optional end
+ * caps; a titled rule centres its title with [titleGapPixels] of space on each side.
+ */
+data class RuleThemeSource(
+    val style: String? = null,
+    val fill: MarkerPieceSource? = null,
+    val left: MarkerPieceSource? = null,
+    val right: MarkerPieceSource? = null,
+    val titleGapPixels: Int = 4,
 )
 
 data class TreeMarkerSource(
@@ -443,14 +476,27 @@ class ItemPresentationSource(
     val marker: GroupMarker = GroupMarker.NONE,
     /** Root dividers default to a section boundary between every rendered block, as before groups. */
     val dividers: GroupDividers = GroupDividers.BETWEEN_CHILDREN,
+    /** Fragments composed before and after the base name message. */
+    nameBefore: Collection<FragmentSource> = emptyList(),
+    nameAfter: Collection<FragmentSource> = emptyList(),
+    /** Null inherits the layout's overflow strategy. */
+    val overflow: OverflowStrategy? = null,
 ) {
     val blocks: List<PresentationBlockSource> = java.util.List.copyOf(blocks)
     val shownFlags: List<String> = java.util.List.copyOf(shownFlags)
+    val nameBefore: List<FragmentSource> = java.util.List.copyOf(nameBefore)
+    val nameAfter: List<FragmentSource> = java.util.List.copyOf(nameAfter)
 }
 
 sealed interface PresentationBlockSource {
     val style: String?
     val anchor: String?
+
+    /** Hiding order when the item overflows; null inherits the enclosing block's weight. */
+    val weight: HidingWeight? get() = null
+
+    /** What this block leaves in a summary slot when hidden; only leaf and repeating blocks have one. */
+    val summary: SummarySource? get() = null
 
     data class Text(
         val data: String,
@@ -459,6 +505,8 @@ sealed interface PresentationBlockSource {
         val wrapping: String? = null,
         val unbreakable: Boolean = false,
         val missingPolicy: MissingDataPolicy = MissingDataPolicy.ERROR,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
     ) : PresentationBlockSource
 
     data class Field(
@@ -472,6 +520,10 @@ sealed interface PresentationBlockSource {
         val missingPolicy: MissingDataPolicy = MissingDataPolicy.ERROR,
         /** Overrides the layout separator; null inherits it. */
         val separator: FieldSeparatorSource? = null,
+        /** Per-part style roles; an absent part uses [style], then the part's default role. */
+        val partStyles: FieldPartStyles? = null,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
     ) : PresentationBlockSource
 
     data class Description(
@@ -479,19 +531,24 @@ sealed interface PresentationBlockSource {
         override val style: String? = "description",
         override val anchor: String? = null,
         val wrapping: String? = "body",
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
     ) : PresentationBlockSource
 
+    /** A conditional's [weight] is inherited by the blocks of its selected branch. */
     class Conditional(
         val condition: ConditionSource,
         thenBlocks: Collection<PresentationBlockSource>,
         otherwiseBlocks: Collection<PresentationBlockSource> = emptyList(),
         override val style: String? = null,
         override val anchor: String? = null,
+        override val weight: HidingWeight? = null,
     ) : PresentationBlockSource {
         val thenBlocks: List<PresentationBlockSource> = java.util.List.copyOf(thenBlocks)
         val otherwiseBlocks: List<PresentationBlockSource> = java.util.List.copyOf(otherwiseBlocks)
     }
 
+    /** Each element is its own hiding unit, hidden from the last element; [summary] applies per element. */
     data class Repeat(
         val data: String,
         val maximumElements: Int,
@@ -499,17 +556,22 @@ sealed interface PresentationBlockSource {
         override val style: String? = null,
         override val anchor: String? = null,
         val missingPolicy: MissingDataPolicy = MissingDataPolicy.ERROR,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
     ) : PresentationBlockSource
 
     data class NestedItemList(
         override val style: String? = null,
         override val anchor: String? = null,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
     ) : PresentationBlockSource
 
     /**
      * A recursive container with an optional single-row [header]. Its children are decorated by
      * [marker] and separated by [dividers]. [style] is accepted for block uniformity and, like a
-     * conditional's, emits nothing because a group has no text of its own.
+     * conditional's, emits nothing because a group has no text of its own. Its [weight] is
+     * inherited by the header and every descendant that declares none.
      */
     class Group(
         val header: PresentationBlockSource?,
@@ -521,9 +583,123 @@ sealed interface PresentationBlockSource {
         val gapBeforeLines: Int = 0,
         override val style: String? = null,
         override val anchor: String? = null,
+        override val weight: HidingWeight? = null,
     ) : PresentationBlockSource {
         val children: List<PresentationBlockSource> = java.util.List.copyOf(children)
     }
+
+    /**
+     * One flow row of independently styled fragments. [left] starts at the content edge; [right]
+     * ends at the opposite content edge and moves to its own line, still right-aligned, when the
+     * two regions do not fit on one line. A row whose fragments all disappear is omitted.
+     */
+    class Row(
+        left: Collection<FragmentSource>,
+        right: Collection<FragmentSource> = emptyList(),
+        override val style: String? = null,
+        override val anchor: String? = null,
+        val wrapping: String? = null,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
+    ) : PresentationBlockSource {
+        val left: List<FragmentSource> = java.util.List.copyOf(left)
+        val right: List<FragmentSource> = java.util.List.copyOf(right)
+    }
+
+    /**
+     * A horizontal rule across the content width, drawn from the theme's rule pieces, with an
+     * optional centred [title]. [style] names the role of the title fragments.
+     */
+    class Rule(
+        title: Collection<FragmentSource> = emptyList(),
+        override val style: String? = null,
+        override val anchor: String? = null,
+        override val weight: HidingWeight? = null,
+        override val summary: SummarySource? = null,
+    ) : PresentationBlockSource {
+        val title: List<FragmentSource> = java.util.List.copyOf(title)
+    }
+}
+
+/** Style roles of a field's parts. */
+data class FieldPartStyles(
+    val icon: String? = null,
+    val label: String? = null,
+    val separator: String? = null,
+    val value: String? = null,
+)
+
+/**
+ * A block's place in the hiding order. Lower [Ranked] values are hidden first; blocks without a
+ * weight follow every ranked block, and [Never] blocks are never hidden.
+ */
+sealed interface HidingWeight {
+    data class Ranked(val value: Int) : HidingWeight
+
+    data object Never : HidingWeight
+}
+
+/**
+ * What a hidden block leaves in the summary [slot] of a visible row or the name. [piece] is static
+ * text or a glyph; a repeat element may instead show the element value at [valuePath].
+ */
+data class SummarySource(
+    val slot: String,
+    val piece: FragmentSource? = null,
+    val valuePath: String? = null,
+    val format: String? = null,
+    val style: String? = null,
+)
+
+/**
+ * One inline piece of a row, a rule title or the item name. A fragment whose [condition] is false,
+ * or whose data is absent, is omitted together with nothing else.
+ */
+sealed interface FragmentSource {
+    val style: String?
+    val condition: ConditionSource?
+
+    data class Message(
+        val message: String,
+        override val style: String? = null,
+        override val condition: ConditionSource? = null,
+    ) : FragmentSource
+
+    data class Data(
+        val data: String,
+        val format: String? = null,
+        override val style: String? = null,
+        override val condition: ConditionSource? = null,
+    ) : FragmentSource
+
+    data class Glyph(
+        val glyph: String,
+        override val style: String? = null,
+        override val condition: ConditionSource? = null,
+    ) : FragmentSource
+
+    /** Untranslated punctuation or symbols. */
+    data class Literal(
+        val text: String,
+        override val style: String? = null,
+        override val condition: ConditionSource? = null,
+    ) : FragmentSource
+
+    /**
+     * Collects the summaries of hidden blocks that name this slot, in document order. An empty
+     * slot, including its [prefix] and [suffix], renders nothing. Entries beyond
+     * [maximumEntries] are replaced by [overflowCountMessage], whose `{count}` is their number.
+     */
+    data class Slot(
+        val id: String,
+        val prefix: FragmentSource? = null,
+        val suffix: FragmentSource? = null,
+        val separator: FragmentSource? = null,
+        val maximumEntries: Int? = null,
+        val overflowCountMessage: String? = null,
+        override val style: String? = null,
+        override val condition: ConditionSource? = null,
+    ) : FragmentSource
 }
 
 enum class GroupMarker {
@@ -567,6 +743,7 @@ data class CompoundFieldTemplateSource(
     val format: String? = null,
     /** Overrides the layout separator; null inherits it. */
     val separator: FieldSeparatorSource? = null,
+    val partStyles: FieldPartStyles? = null,
 )
 
 enum class ConditionOperator {

@@ -1,5 +1,5 @@
 import type { DataTypeNode } from "./common.js";
-import type { PresentationBlock, ProjectDocument } from "./document.js";
+import type { Fragment, PresentationBlock, ProjectDocument } from "./document.js";
 
 export const EXTENDED_BASE_COMPONENTS_CAPABILITY =
     "catalog.base-components.attributes-enchantments";
@@ -213,5 +213,120 @@ export function usesGroups(
                 Object.hasOwn(layout, "fieldSeparator"),
         ) ||
         document.themes.some((theme) => Object.hasOwn(theme, "markers"))
+    );
+}
+
+export const COMPOSITION_CAPABILITY = "presentation.composition";
+export const HIDING_CAPABILITY = "presentation.hiding";
+
+export function supportsComposition(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(COMPOSITION_CAPABILITY) === true;
+}
+
+export function supportsHiding(
+    capabilities: readonly string[] | null | undefined,
+): boolean {
+    return capabilities?.includes(HIDING_CAPABILITY) === true;
+}
+
+/** Every block in a tree, including conditional branches and group headers and children. */
+function everyBlock(blocks: readonly PresentationBlock[]): PresentationBlock[] {
+    return blocks.flatMap((block) => [
+        block,
+        ...(block.type === "conditional"
+            ? everyBlock([...block.thenBlocks, ...block.otherwiseBlocks])
+            : block.type === "group"
+              ? everyBlock([
+                    ...(block.header ? [block.header] : []),
+                    ...block.children,
+                ])
+              : []),
+    ]);
+}
+
+function fragmentsOf(
+    item: ProjectDocument["items"][number],
+): Array<{ kind: string }> {
+    const fragments = (list: readonly Fragment[] | undefined): Fragment[] =>
+        (list ?? []).flatMap((fragment) => [
+            fragment,
+            ...(fragment.kind === "slot"
+                ? fragments(
+                      [fragment.prefix, fragment.suffix, fragment.separator].filter(
+                          (entry): entry is Fragment => entry !== undefined,
+                      ),
+                  )
+                : []),
+        ]);
+    return [
+        ...fragments(item.presentation.nameBefore),
+        ...fragments(item.presentation.nameAfter),
+        ...everyBlock(item.presentation.blocks).flatMap((block) =>
+            block.type === "row"
+                ? fragments([...block.left, ...block.right])
+                : block.type === "rule"
+                  ? fragments(block.title)
+                  : [],
+        ),
+    ];
+}
+
+/**
+ * Old strict decoders reject row and rule blocks, name fragments, field part styles, the layout
+ * icon slot, and theme rules, name inset and marker gap; they ship together.
+ */
+export function usesComposition(
+    document: Pick<ProjectDocument, "items" | "layouts" | "themes">,
+): boolean {
+    return (
+        document.items.some(
+            (item) =>
+                Object.hasOwn(item.presentation, "nameBefore") ||
+                Object.hasOwn(item.presentation, "nameAfter") ||
+                everyBlock(item.presentation.blocks).some(
+                    (block) =>
+                        block.type === "row" ||
+                        block.type === "rule" ||
+                        (block.type === "field" &&
+                            Object.hasOwn(block, "partStyles")) ||
+                        (block.type === "repeat" &&
+                            Object.hasOwn(block.template, "partStyles")),
+                ),
+        ) ||
+        document.layouts.some(
+            (layout) =>
+                layout.kind === "flow" &&
+                Object.hasOwn(layout, "fieldIconSlotPixels"),
+        ) ||
+        document.themes.some(
+            (theme) =>
+                Object.hasOwn(theme, "rules") ||
+                Object.hasOwn(theme, "nameInsetPixels") ||
+                Object.hasOwn(theme.markers ?? {}, "gapPixels"),
+        )
+    );
+}
+
+/** Weights, summaries, summary slots and the overflow strategy ship together. */
+export function usesHiding(
+    document: Pick<ProjectDocument, "items" | "layouts">,
+): boolean {
+    return (
+        document.items.some(
+            (item) =>
+                Object.hasOwn(item.presentation, "overflow") ||
+                everyBlock(item.presentation.blocks).some(
+                    (block) =>
+                        Object.hasOwn(block, "weight") ||
+                        Object.hasOwn(block, "summary"),
+                ) ||
+                fragmentsOf(item).some((fragment) => fragment.kind === "slot"),
+        ) ||
+        document.layouts.some(
+            (layout) =>
+                layout.kind === "flow" && Object.hasOwn(layout, "overflow"),
+        )
     );
 }

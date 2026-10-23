@@ -14,6 +14,10 @@ internal data class SemanticRun(
     val unbreakable: Boolean = false,
     val assetId: String? = null,
     val fieldValue: Boolean = false,
+    /** Part of a row's right region, aligned to the far content edge. */
+    val rightRegion: Boolean = false,
+    /** Produced by a summary slot, so its row is hidden last. */
+    val fromSlot: Boolean = false,
 )
 
 /**
@@ -31,6 +35,8 @@ internal data class SemanticBlock(
     val continuationPrefix: List<MarkerPiece> = emptyList(),
     val gapPrefix: List<MarkerPiece> = emptyList(),
     val gapBeforeLines: Int = 0,
+    /** The authored block path, named in layout diagnostics. */
+    val source: String? = null,
 )
 
 /** One container level's contribution to a line prefix. Blank pieces are padding of equal width. */
@@ -47,6 +53,8 @@ internal enum class SemanticBlockKind {
     GENERIC,
     FIELD,
     DESCRIPTION,
+    ROW,
+    RULE,
 }
 
 internal data class StyledRun(
@@ -54,6 +62,7 @@ internal data class StyledRun(
     val role: String,
     val assetId: String? = null,
     val fieldValue: Boolean = false,
+    val rightRegion: Boolean = false,
 )
 
 internal class PixelMeasurer(private val catalog: PresentationCatalogSnapshot) {
@@ -454,9 +463,14 @@ internal class PixelTextLayouter(
     }
 }
 
+/**
+ * A layout that cannot be produced. [capacity] marks line and height budget failures, the only
+ * failures that hiding rows can resolve.
+ */
 internal class TextLayoutException(
     val fallbackCode: ThemeFallbackCode,
     override val message: String,
+    val capacity: Boolean = false,
 ) : RuntimeException(message)
 
 private fun String.codePointAtOrNull(index: Int): Int? = if (isEmpty()) null else codePointAt(index)

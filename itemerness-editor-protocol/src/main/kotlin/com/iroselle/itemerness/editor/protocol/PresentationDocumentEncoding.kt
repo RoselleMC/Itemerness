@@ -4,6 +4,8 @@ import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FrameRowSource
 import com.iroselle.itemerness.core.presentation.MarkerPieceSource
 import com.iroselle.itemerness.core.presentation.MarkerThemeSource
+import com.iroselle.itemerness.core.presentation.OverflowStrategy
+import com.iroselle.itemerness.core.presentation.RuleThemeSource
 import com.iroselle.itemerness.core.presentation.LayoutSource
 import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
@@ -23,9 +25,12 @@ internal object PresentationDocumentEncoding {
             "descriptionLeftPaddingPixels" to layout.descriptionLeftPaddingPixels, "descriptionRightPaddingPixels" to layout.descriptionRightPaddingPixels,
             "descriptionGapBeforePixels" to layout.descriptionGapBeforePixels, "wrapping" to layout.wrapping.mapValues { wrapping(it.value) },
         ).let { encoded ->
-            // An inherited separator stays absent so existing documents keep their hashes.
-            val separator = layout.fieldSeparator ?: return@let encoded
-            JsonValue.Obj(encoded.entries + ("fieldSeparator" to separator(separator)))
+            // Inherited and default settings stay absent so existing documents keep their hashes.
+            JsonValue.Obj(encoded.entries + buildMap {
+                layout.fieldSeparator?.let { put("fieldSeparator", separator(it)) }
+                layout.fieldIconSlotPixels?.let { put("fieldIconSlotPixels", JsonValue.Num(it.toDouble())) }
+                if (layout.overflow != OverflowStrategy.FALLBACK) put("overflow", JsonValue.Text(layout.overflow.name))
+            })
         }
         is LayoutSource.Canvas -> obj(
             "id" to layout.id, "kind" to "canvas", "widthPixels" to layout.widthPixels, "heightPixels" to layout.heightPixels,
@@ -55,6 +60,15 @@ internal object PresentationDocumentEncoding {
                 tree.vertical?.let { put("vertical", markerPiece(it)) }
             }))
         }
+        if (markers.gapPixels != 0) put("gapPixels", JsonValue.Num(markers.gapPixels.toDouble()))
+    })
+
+    private fun rules(rules: RuleThemeSource): JsonValue = JsonValue.Obj(buildMap {
+        rules.style?.let { put("style", JsonValue.Text(it)) }
+        rules.fill?.let { put("fill", markerPiece(it)) }
+        rules.left?.let { put("left", markerPiece(it)) }
+        rules.right?.let { put("right", markerPiece(it)) }
+        if (rules.titleGapPixels != 4) put("titleGapPixels", JsonValue.Num(rules.titleGapPixels.toDouble()))
     })
 
     private fun markerPiece(piece: MarkerPieceSource): JsonValue = when (piece) {
@@ -91,9 +105,12 @@ internal object PresentationDocumentEncoding {
         ) },
     ))
 
-    /** Absent marker art stays absent so existing theme documents keep their hashes. */
-    private fun withMarkers(theme: ThemeSource, encoded: JsonValue.Obj): JsonValue.Obj =
-        theme.markers?.let { JsonValue.Obj(encoded.entries + ("markers" to markers(it))) } ?: encoded
+    /** Absent marker and rule art and a zero name inset stay absent so existing theme documents keep their hashes. */
+    private fun withMarkers(theme: ThemeSource, encoded: JsonValue.Obj): JsonValue.Obj = JsonValue.Obj(encoded.entries + buildMap {
+        theme.markers?.let { put("markers", markers(it)) }
+        theme.rules?.let { put("rules", rules(it)) }
+        if (theme.nameInsetPixels != 0) put("nameInsetPixels", JsonValue.Num(theme.nameInsetPixels.toDouble()))
+    })
 
     private fun row(row: FrameRowSource): JsonValue = JsonValue.Obj(buildMap {
         putAll(obj("left" to row.left, "fill" to row.fill, "right" to row.right).entries)

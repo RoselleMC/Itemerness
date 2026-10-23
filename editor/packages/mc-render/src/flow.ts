@@ -1,5 +1,6 @@
 import type {
     LayoutNode,
+    MarkerPiece as ThemePiece,
     PreviewLine,
     PreviewRun,
     ProjectDocument,
@@ -8,7 +9,7 @@ import type {
 import type { PresentationFonts } from "./fonts.js";
 import { parseColor } from "./colors.js";
 import { measureLine } from "./measure.js";
-import { LayoutOverflowError, wrapRuns } from "./wrap.js";
+import { LayoutOverflowError, ellipsizeLine, wrapRuns } from "./wrap.js";
 
 /** One container level's contribution to a line prefix; blank pieces are equal-width padding. */
 export type MarkerPiece =
@@ -27,7 +28,9 @@ const BLANK_PIECES: ReadonlySet<MarkerPiece> = new Set([
 export interface FlowBlock {
     runs: PreviewRun[];
     origin: string;
-    kind: "field" | "description" | "generic";
+    kind: "field" | "description" | "generic" | "row" | "rule";
+    /** A row's right region, aligned to the far content edge; `runs` holds its left region. */
+    right?: PreviewRun[];
     wrapping: string | null;
     fieldValueIndex: number | null;
     /** Mirrors the compiler's section boundary: a frame divider precedes this row. */
@@ -57,7 +60,7 @@ export function themeStyle(
     const color =
         role === "label"
             ? "gray"
-            : role === "description"
+            : role === "description" || role === "rule"
               ? "dark_gray"
               : role === "requirement-met"
                 ? "green"
@@ -242,21 +245,28 @@ export class FlowComposer {
         ];
     }
     private slotWidth(piece: MarkerPiece): number {
+        const gap = this.theme.markers?.gapPixels ?? 0;
         if (piece === "BULLET" || piece === "BULLET_BLANK")
-            return this.width(this.markerArt("BULLET"));
-        return Math.max(
-            ...(["TREE_BRANCH", "TREE_LAST", "TREE_VERTICAL"] as const).map(
-                (entry) => this.width(this.markerArt(entry)),
-            ),
+            return gap + this.width(this.markerArt("BULLET"));
+        return (
+            gap +
+            Math.max(
+                ...(["TREE_BRANCH", "TREE_LAST", "TREE_VERTICAL"] as const).map(
+                    (entry) => this.width(this.markerArt(entry)),
+                ),
+            )
         );
     }
-    /** Exact-width padding: signed spacing in pack themes, else spaces plus one-pixel anchors. */
     private markerPadding(pixels: number): PreviewRun[] {
+        return this.exactPadding(pixels, this.markerStyle());
+    }
+    /** Exact-width padding: signed spacing in pack themes, else spaces plus one-pixel anchors. */
+    exactPadding(pixels: number, style: PreviewRun["style"]): PreviewRun[] {
         if (pixels <= 0) return [];
         if (this.theme.requiresResourcePack && this.document.spacing)
             return this.spacing(pixels);
         const plain = {
-            ...this.markerStyle(),
+            ...style,
             bold: false,
             italic: false,
             underlined: false,
@@ -266,6 +276,121 @@ export class FlowComposer {
         const count = Math.floor(pixels / Math.max(1, this.width([space])));
         const spaces = count > 0 ? [{ ...space, text: " ".repeat(count) }] : [];
         return [...spaces, ...this.anchor(pixels - this.width(spaces), plain)];
+    }
+    /** One authored text or glyph piece in a role's style. */
+    private pieceRuns(source: ThemePiece, role: string): PreviewRun[] {
+        if (source.kind === "text")
+            return [this.run(source.text, themeStyle(this.theme, role))];
+        const glyph = this.document.glyphs.find(
+            (entry) => entry.id === source.glyph,
+        );
+        if (!glyph)
+            throw new LayoutOverflowError("Piece glyph is not declared");
+        return [
+            this.run(String.fromCodePoint(glyph.codePoint), {
+                ...themeStyle(this.theme, role),
+                font: glyph.font,
+                bold: false,
+                italic: false,
+            }),
+        ];
+    }
+    private get ruleRole(): string {
+        return this.theme.rules?.style ?? "rule";
+    }
+    private ruleFill(): PreviewRun[] {
+        return this.pieceRuns(
+            this.theme.rules?.fill ?? { kind: "text", text: "─" },
+            this.ruleRole,
+        );
+    }
+    private ruleCaps(): { left: PreviewRun[]; right: PreviewRun[] } {
+        const rules = this.theme.rules;
+        return {
+            left: rules?.left ? this.pieceRuns(rules.left, this.ruleRole) : [],
+            right: rules?.right
+                ? this.pieceRuns(rules.right, this.ruleRole)
+                : [],
+        };
+    }
+    private ruleGap(): number {
+        return this.theme.rules?.titleGapPixels ?? 4;
+    }
+    /** A titled rule needs room for its title and one fill unit on each side; a bare rule stretches. */
+    private ruleWidth(block: FlowBlock): number | null {
+        const title = this.explicit(block.runs).flat();
+        if (!title.length) return null;
+        const caps = this.ruleCaps();
+        return (
+            this.width([...caps.left, ...caps.right]) +
+            this.width(title) +
+            2 * this.ruleGap() +
+            2 * this.width(this.ruleFill())
+        );
+    }
+    /**
+     * A horizontal rule across the available width. Fill units repeat whole; the remainder is
+     * exact padding beside the title, or at the end of an untitled rule.
+     */
+    private renderRule(block: FlowBlock, available: number): PreviewRun[] {
+        const fill = this.ruleFill()[0]!;
+        const fillWidth = this.width([fill]);
+        if (fillWidth <= 0)
+            throw new LayoutOverflowError(
+                "Rule fill must have a positive advance",
+            );
+        const { left, right } = this.ruleCaps();
+        const caps = this.width([...left, ...right]);
+        const paddingStyle = themeStyle(this.theme, this.ruleRole);
+        const fillRuns = (count: number) =>
+            count <= 0 ? [] : [{ ...fill, text: fill.text.repeat(count) }];
+        const title = this.explicit(block.runs).flat();
+        if (!title.length) {
+            const space = available - caps;
+            if (space < fillWidth)
+                throw new LayoutOverflowError("Rule has no room for its fill");
+            const count = Math.floor(space / fillWidth);
+            return [
+                ...left,
+                ...fillRuns(count),
+                ...right,
+                ...this.exactPadding(space - count * fillWidth, paddingStyle),
+            ];
+        }
+        const gap = this.ruleGap();
+        const titleRoom = available - caps - 2 * gap - 2 * fillWidth;
+        if (titleRoom <= 0)
+            throw new LayoutOverflowError("Rule has no room for its title");
+        const fitted = ellipsizeLine(title, this.fonts, titleRoom);
+        const space = available - caps - 2 * gap - fitted.logicalWidthPixels;
+        const leading = Math.floor(Math.floor(space / 2) / fillWidth);
+        const trailing = Math.floor((space - leading * fillWidth) / fillWidth);
+        const remainder = space - (leading + trailing) * fillWidth;
+        const before = Math.floor(remainder / 2);
+        return [
+            ...left,
+            ...fillRuns(leading),
+            ...this.exactPadding(gap + before, paddingStyle),
+            ...fitted.runs,
+            ...this.exactPadding(gap + remainder - before, paddingStyle),
+            ...fillRuns(trailing),
+            ...right,
+        ];
+    }
+    /** A row's left lines and its flattened right region. */
+    private rowRegions(block: FlowBlock): {
+        left: PreviewRun[][];
+        right: PreviewRun[];
+    } {
+        return {
+            left: this.explicit(block.runs).filter((line) => line.length),
+            right: this.explicit(block.right ?? []).flat(),
+        };
+    }
+    private rowGap(right: readonly PreviewRun[]): number {
+        return this.width([
+            this.run(" ", { ...right[0]!.style, bold: false, italic: false }),
+        ]);
     }
     private markerRuns(piece: MarkerPiece): PreviewRun[] {
         let runs = this.markerCache.get(piece);
@@ -331,39 +456,90 @@ export class FlowComposer {
             );
         const minimum = Math.min(maximum, requestedMinimum);
         const themeLeft = this.theme.content?.leftPaddingPixels ?? 0;
-        const sectionLeft = (block: FlowBlock) =>
-            block.kind === "description"
-                ? (layout?.descriptionLeftPaddingPixels ?? 0)
-                : (layout?.fieldLeftPaddingPixels ?? 0);
-        const padding = (block: FlowBlock) => ({
-            left: themeLeft + sectionLeft(block),
-            right:
-                (this.theme.content?.rightPaddingPixels ?? 0) +
-                (block.kind === "description"
-                    ? (layout?.descriptionRightPaddingPixels ?? 0)
-                    : 0),
-        });
-        const iconGap = (runs: readonly PreviewRun[]) =>
-            layout && runs[0]?.kind === "ICON"
-                ? [
-                      runs[0],
-                      ...this.padding(layout.fieldIconGapPixels, runs[0].style),
-                      ...runs.slice(1),
-                  ]
-                : [...runs];
+        const themeRight = this.theme.content?.rightPaddingPixels ?? 0;
+        // Rules span the whole content width; an icon row uses field padding.
+        const sectionPadding = (block: FlowBlock) => {
+            if (!layout || block.kind === "rule") return { left: 0, right: 0 };
+            const icon = this.explicit(block.runs)[0]?.some(
+                (run) => run.kind === "ICON",
+            );
+            return block.kind === "description" && !icon
+                ? {
+                      left: layout.descriptionLeftPaddingPixels,
+                      right: layout.descriptionRightPaddingPixels,
+                  }
+                : { left: layout.fieldLeftPaddingPixels, right: 0 };
+        };
+        const padding = (block: FlowBlock) => {
+            const section = sectionPadding(block);
+            return {
+                left: themeLeft + section.left,
+                right: themeRight + section.right,
+            };
+        };
+        const textFont = this.theme.fonts.text ?? "minecraft:default";
+        const iconGap = (runs: readonly PreviewRun[]) => {
+            if (!layout || runs[0]?.kind !== "ICON") return [...runs];
+            const first = runs[0];
+            // A fixed icon slot pads narrower icons so every label starts in the same column.
+            const slot =
+                layout.fieldIconSlotPixels === undefined
+                    ? []
+                    : this.exactPadding(
+                          layout.fieldIconSlotPixels - this.width([first]),
+                          { ...first.style, font: textFont },
+                      );
+            return [
+                first,
+                ...slot,
+                ...this.padding(layout.fieldIconGapPixels, first.style),
+                ...runs.slice(1),
+            ];
+        };
+        const policyFor = (block: FlowBlock) =>
+            (block.wrapping && this.layout.wrapping[block.wrapping]) ||
+            this.layout.wrapping.body ||
+            Object.values(this.layout.wrapping)[0];
+        const rowWidth = (block: FlowBlock): number | null => {
+            const { left, right } = this.rowRegions(block);
+            if (!left.length && !right.length) return null;
+            const leftWidth = left.length
+                ? Math.max(...left.map((line) => this.width(iconGap(line))))
+                : 0;
+            if (!right.length) return leftWidth;
+            const rightWidth = this.width(right);
+            if (!left.length) return rightWidth;
+            return leftWidth + this.rowGap(right) + rightWidth;
+        };
+        const natural = (block: FlowBlock): number | null =>
+            block.kind === "row"
+                ? rowWidth(block)
+                : block.kind === "rule"
+                  ? this.ruleWidth(block)
+                  : Math.max(
+                        ...this.explicit(block.runs).map((runs) =>
+                            this.width(iconGap(runs)),
+                        ),
+                    );
         const target = Math.min(
             maximum,
             Math.max(
                 minimum,
-                ...blocks.flatMap((block) =>
-                    this.explicit(block.runs).map(
-                        (runs) =>
-                            this.width(iconGap(runs)) +
-                            padding(block).left +
-                            padding(block).right +
-                            this.prefixWidth(block),
-                    ),
-                ),
+                ...blocks.map((block) => {
+                    const width = natural(block);
+                    if (width === null) return 0;
+                    const pads = padding(block);
+                    const contribution =
+                        width +
+                        pads.left +
+                        pads.right +
+                        this.prefixWidth(block);
+                    // A wrapping width bounds the block's own lines, so it must not widen the tooltip past it.
+                    const bound = policyFor(block)?.widthPixels;
+                    return bound == null
+                        ? contribution
+                        : Math.min(contribution, bound);
+                }),
             ),
         );
         const lines: ComposedLine[] = [];
@@ -382,11 +558,10 @@ export class FlowComposer {
                 });
             if (block.kind === "description" && lines.length)
                 gap(layout?.descriptionGapBeforePixels ?? 0, block.gapPrefix);
-            const policy =
-                (block.wrapping && this.layout.wrapping[block.wrapping]) ||
-                this.layout.wrapping.body ||
-                Object.values(this.layout.wrapping)[0];
+            const policy = policyFor(block);
             const pads = padding(block);
+            const sectionLeft = sectionPadding(block).left;
+            const indent = policy?.continuationIndentPixels ?? 0;
             // Marker prefixes are measured runs, so the text beside them wraps in what remains.
             const available =
                 Math.min(policy?.widthPixels ?? target, target) -
@@ -397,64 +572,25 @@ export class FlowComposer {
                 throw new LayoutOverflowError(
                     "Section padding consumes the available width",
                 );
-            const value =
-                block.fieldValueIndex === null
-                    ? undefined
-                    : block.runs[block.fieldValueIndex];
-            const explicit = this.explicit(block.runs);
-            const paragraphs =
-                policy?.preserveExplicitLines === false
-                    ? [
-                          explicit.flatMap((line, i) =>
-                              i
-                                  ? [
-                                        this.run(
-                                            " ",
-                                            line[0]?.style ??
-                                                themeStyle(this.theme, "value"),
-                                            "TEXT",
-                                            false,
-                                        ),
-                                        ...line,
-                                    ]
-                                  : line,
-                          ),
-                      ]
-                    : explicit;
             let emitted = 0;
-            for (const paragraph of paragraphs) {
-                let runs = iconGap(paragraph);
-                const valueIndex = value
-                    ? runs.findIndex((run) => run.style === value.style)
-                    : -1;
-                if (
-                    layout?.fieldValueAlignment === "RIGHT" &&
-                    block.kind === "field" &&
-                    valueIndex > 0
-                ) {
-                    runs = [
-                        ...runs.slice(0, valueIndex),
-                        ...this.padding(
-                            available - this.width(runs),
-                            this.plainStyle(value!.style),
-                            true,
-                        ),
-                        ...runs.slice(valueIndex),
-                    ];
-                }
+            const wrap = (runs: readonly PreviewRun[]) => {
                 const remaining = (policy?.maximumLines ?? 16) - emitted;
                 if (remaining < 1)
                     throw new LayoutOverflowError(
                         "Block exceeds its line budget",
                     );
-                const wrapped = wrapRuns(runs, this.fonts, {
+                return wrapRuns(runs, this.fonts, {
                     widthPixels: available,
                     maximumLines: remaining,
                     overflow: policy?.overflow ?? "ELLIPSIS",
                     preserveExplicitLines: false,
-                    continuationIndentPixels:
-                        policy?.continuationIndentPixels ?? 0,
+                    continuationIndentPixels: indent,
                 });
+            };
+            const emit = (
+                wrapped: ReadonlyArray<{ runs: readonly PreviewRun[] }>,
+                continuationIndent: number,
+            ) => {
                 wrapped.forEach((line, i) => {
                     const style =
                         line.runs[0]?.style ?? themeStyle(this.theme, "value");
@@ -462,18 +598,12 @@ export class FlowComposer {
                         emitted === 0 && i === 0
                             ? block.firstPrefix
                             : block.continuationPrefix;
+                    const continuation = i ? continuationIndent : 0;
                     if (prefix?.length) {
                         const decorated = [
                             ...this.padding(themeLeft, style),
                             ...this.prefixRuns(prefix),
-                            ...this.padding(
-                                sectionLeft(block) +
-                                    (i
-                                        ? (policy?.continuationIndentPixels ??
-                                          0)
-                                        : 0),
-                                style,
-                            ),
+                            ...this.padding(sectionLeft + continuation, style),
                             ...line.runs,
                         ];
                         lines.push({
@@ -490,14 +620,7 @@ export class FlowComposer {
                     }
                     lines.push({
                         line: this.line([
-                            ...this.padding(
-                                pads.left +
-                                    (i
-                                        ? (policy?.continuationIndentPixels ??
-                                          0)
-                                        : 0),
-                                style,
-                            ),
+                            ...this.padding(pads.left + continuation, style),
                             ...line.runs,
                             ...this.padding(
                                 pads.right,
@@ -508,15 +631,78 @@ export class FlowComposer {
                     });
                 });
                 emitted += wrapped.length;
+            };
+            const join = (explicit: PreviewRun[][]) =>
+                explicit.flatMap((line, i) =>
+                    i
+                        ? [
+                              this.run(
+                                  " ",
+                                  line[0]?.style ??
+                                      themeStyle(this.theme, "value"),
+                                  "TEXT",
+                                  false,
+                              ),
+                              ...line,
+                          ]
+                        : line,
+                );
+            if (block.kind === "rule") {
+                emit([{ runs: this.renderRule(block, available) }], 0);
+            } else if (block.kind === "row") {
+                this.renderRow(
+                    block,
+                    available,
+                    policy?.preserveExplicitLines !== false,
+                    indent,
+                    iconGap,
+                    join,
+                    wrap,
+                    emit,
+                );
+            } else {
+                const value =
+                    block.fieldValueIndex === null
+                        ? undefined
+                        : block.runs[block.fieldValueIndex];
+                const explicit = this.explicit(block.runs);
+                const paragraphs =
+                    policy?.preserveExplicitLines === false
+                        ? [join(explicit)]
+                        : explicit;
+                for (const paragraph of paragraphs) {
+                    let runs = iconGap(paragraph);
+                    const valueIndex = value
+                        ? runs.findIndex((run) => run.style === value.style)
+                        : -1;
+                    if (
+                        layout?.fieldValueAlignment === "RIGHT" &&
+                        block.kind === "field" &&
+                        valueIndex > 0
+                    ) {
+                        runs = [
+                            ...runs.slice(0, valueIndex),
+                            ...this.padding(
+                                available - this.width(runs),
+                                this.plainStyle(value!.style),
+                                true,
+                            ),
+                            ...runs.slice(valueIndex),
+                        ];
+                    }
+                    emit(wrap(runs), indent);
+                }
             }
             if (blockIndex < blocks.length - 1)
                 gap(
                     layout?.blockGapAfterPixels ?? 0,
                     blocks[blockIndex + 1]!.gapPrefix,
                 );
-            if (lines.length > 256)
-                throw new LayoutOverflowError("Lore exceeds its line budget");
         });
+        if (lines.length > this.document.budgets.maximumLines)
+            throw new LayoutOverflowError("Lore exceeds its line budget", {
+                capacity: true,
+            });
         return {
             lines,
             boundaries,
@@ -528,6 +714,68 @@ export class FlowComposer {
                 ),
             ),
         };
+    }
+    /**
+     * A row's right region ends exactly at the content edge. When both regions cannot share one
+     * line, the left region wraps and the right region takes its own line, still right-aligned.
+     */
+    private renderRow(
+        block: FlowBlock,
+        available: number,
+        preserveExplicitLines: boolean,
+        indent: number,
+        iconGap: (runs: readonly PreviewRun[]) => PreviewRun[],
+        join: (lines: PreviewRun[][]) => PreviewRun[],
+        wrap: (runs: readonly PreviewRun[]) => ReadonlyArray<{
+            runs: readonly PreviewRun[];
+        }>,
+        emit: (
+            lines: ReadonlyArray<{ runs: readonly PreviewRun[] }>,
+            continuationIndent: number,
+        ) => void,
+    ): void {
+        const { left, right } = this.rowRegions(block);
+        const logical = preserveExplicitLines
+            ? left
+            : left.length
+              ? [join(left)]
+              : [];
+        const leftRuns = logical.map(iconGap);
+        const rightWidth = this.width(right);
+        if (logical.length <= 1) {
+            const single = leftRuns[0];
+            const leftWidth = single ? this.width(single) : 0;
+            const gap = single && right.length ? this.rowGap(right) : 0;
+            if (leftWidth + gap + rightWidth <= available) {
+                const runs = [
+                    ...(single ?? []),
+                    ...(right.length
+                        ? [
+                              ...this.exactPadding(
+                                  available - leftWidth - rightWidth,
+                                  right[0]!.style,
+                              ),
+                              ...right,
+                          ]
+                        : []),
+                ];
+                emit(wrap(runs), 0);
+                return;
+            }
+        }
+        leftRuns.forEach((runs) => emit(wrap(runs), indent));
+        if (!right.length) return;
+        const aligned =
+            rightWidth <= available
+                ? [
+                      ...this.exactPadding(
+                          available - rightWidth,
+                          right[0]!.style,
+                      ),
+                      ...right,
+                  ]
+                : right;
+        emit(wrap(aligned), indent);
     }
     anchorFlow(
         name: PreviewLine,
@@ -572,6 +820,7 @@ export class FlowComposer {
         if (flow.lines.length > frame.maximumLines)
             throw new LayoutOverflowError(
                 "Character frame line count exceeded",
+                { capacity: true },
             );
         const chars = {
             UNICODE_SINGLE: [

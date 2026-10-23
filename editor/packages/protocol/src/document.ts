@@ -26,6 +26,7 @@ import {
     namespacedKeyFormatModeSchema,
     nestedContentComponentSchema,
     overflowPolicySchema,
+    overflowStrategySchema,
     themeRendererSchema,
     uuidSchema,
     vanillaTooltipLinePolicySchema,
@@ -370,6 +371,10 @@ export const layoutNodeSchema = z.discriminatedUnion("kind", [
         wrapping: z.record(z.string().min(1), wrappingSchema),
         /** Absent keeps the built-in colon so existing documents keep their hashes. */
         fieldSeparator: fieldSeparatorSchema.optional(),
+        /** Fixed field icon width so labels align; absent keeps each icon's own width. */
+        fieldIconSlotPixels: z.number().int().min(1).max(4096).optional(),
+        /** Absent means FALLBACK, the behaviour before hiding existed. */
+        overflow: overflowStrategySchema.optional(),
     }),
     z.strictObject({
         ...nodeIdentity,
@@ -424,8 +429,21 @@ export const themeMarkersSchema = z.strictObject({
             vertical: markerPieceSchema.optional(),
         })
         .optional(),
+    /** Extra pixels between a marker and its row; absent means none. */
+    gapPixels: z.number().int().min(0).max(4096).optional(),
 });
 export type ThemeMarkers = z.infer<typeof themeMarkersSchema>;
+
+/** Rule art; every key is absent when it has its default value. */
+export const themeRulesSchema = z.strictObject({
+    style: z.string().min(1).optional(),
+    fill: markerPieceSchema.optional(),
+    left: markerPieceSchema.optional(),
+    right: markerPieceSchema.optional(),
+    /** Absent means the default 4 pixels around a title. */
+    titleGapPixels: z.number().int().min(0).max(4096).optional(),
+});
+export type ThemeRules = z.infer<typeof themeRulesSchema>;
 
 export const themeNodeSchema = z.strictObject({
     ...nodeIdentity,
@@ -529,6 +547,10 @@ export const themeNodeSchema = z.strictObject({
         .default(null),
     /** Group marker art; absent keeps the built-in pieces and the existing hash. */
     markers: themeMarkersSchema.optional(),
+    /** Rule art; absent keeps the built-in dark grey line. */
+    rules: themeRulesSchema.optional(),
+    /** Padding on each side of the item name; absent means none. */
+    nameInsetPixels: z.number().int().min(0).max(4096).optional(),
 });
 export type ThemeNode = z.infer<typeof themeNodeSchema>;
 
@@ -643,6 +665,15 @@ export const themeSelectorNodeSchema = z.strictObject({
 });
 export type ThemeSelectorNode = z.infer<typeof themeSelectorNodeSchema>;
 
+/** Styles for the parts of a field row; absent parts use the block style. */
+export const fieldPartStylesSchema = z.strictObject({
+    icon: z.string().min(1).optional(),
+    label: z.string().min(1).optional(),
+    separator: z.string().min(1).optional(),
+    value: z.string().min(1).optional(),
+});
+export type FieldPartStyles = z.infer<typeof fieldPartStylesSchema>;
+
 const compoundFieldTemplateSchema = z.strictObject({
     labelMessage: messageKeySchema,
     valuePath: z.string().min(1),
@@ -650,9 +681,91 @@ const compoundFieldTemplateSchema = z.strictObject({
     icon: z.string().min(1).nullable().default(null),
     format: namespacedIdSchema.nullable().default(null),
     separator: fieldSeparatorSchema.optional(),
+    partStyles: fieldPartStylesSchema.optional(),
 });
 
-export type PresentationBlock =
+/**
+ * One run of a composed row: a localized message, a formatted data value, a resource-pack glyph,
+ * literal text, or a summary slot that collects what hidden blocks leave behind.
+ */
+export type Fragment = (
+    | { kind: "message"; message: string }
+    | { kind: "data"; data: string; format?: string }
+    | { kind: "glyph"; glyph: string }
+    | { kind: "literal"; text: string }
+    | {
+          kind: "slot";
+          id: string;
+          prefix?: Fragment;
+          suffix?: Fragment;
+          separator?: Fragment;
+          maximumEntries?: number;
+          overflowCountMessage?: string;
+      }
+) & { style?: string; condition?: PresentationCondition };
+
+export const fragmentSchema: z.ZodType<Fragment, z.ZodTypeDef, unknown> =
+    z.lazy(() => {
+        const common = {
+            style: z.string().min(1).optional(),
+            condition: conditionSchema.optional(),
+        };
+        return z.discriminatedUnion("kind", [
+            z.strictObject({
+                kind: z.literal("message"),
+                message: messageKeySchema,
+                ...common,
+            }),
+            z.strictObject({
+                kind: z.literal("data"),
+                data: namespacedIdSchema,
+                format: namespacedIdSchema.optional(),
+                ...common,
+            }),
+            z.strictObject({
+                kind: z.literal("glyph"),
+                glyph: z.string().min(1),
+                ...common,
+            }),
+            z.strictObject({
+                kind: z.literal("literal"),
+                text: z.string().min(1).max(256),
+                ...common,
+            }),
+            z.strictObject({
+                kind: z.literal("slot"),
+                id: z.string().min(1).max(64),
+                prefix: fragmentSchema.optional(),
+                suffix: fragmentSchema.optional(),
+                separator: fragmentSchema.optional(),
+                maximumEntries: z.number().int().min(1).max(4096).optional(),
+                overflowCountMessage: messageKeySchema.optional(),
+                ...common,
+            }),
+        ]);
+    });
+
+/** A ranked weight (lower hides first) or "never"; absent inherits the enclosing block's. */
+export const hidingWeightSchema = z.union([
+    z.number().int().min(0).max(2147483647),
+    z.literal("never"),
+]);
+export type HidingWeight = z.infer<typeof hidingWeightSchema>;
+
+/** What a hidden block leaves in a slot: a static piece, or a repeat element value. */
+export const summarySchema = z.strictObject({
+    slot: z.string().min(1).max(64),
+    piece: fragmentSchema.optional(),
+    valuePath: z.string().min(1).optional(),
+    format: namespacedIdSchema.optional(),
+    style: z.string().min(1).optional(),
+});
+export type Summary = z.infer<typeof summarySchema>;
+
+/** Hiding settings every content block may carry; absent when unset. */
+type Hiding = { weight?: HidingWeight; summary?: Summary };
+
+export type PresentationBlock = (
     | {
           uuid: string;
           type: "text";
@@ -675,6 +788,7 @@ export type PresentationBlock =
           wrapping: string | null;
           missingPolicy: z.infer<typeof missingDataPolicySchema>;
           separator?: FieldSeparator;
+          partStyles?: FieldPartStyles;
       }
     | {
           uuid: string;
@@ -723,7 +837,25 @@ export type PresentationBlock =
           gapBeforeLines?: number;
           style: string | null;
           anchor: string | null;
-      };
+      }
+    | {
+          uuid: string;
+          type: "row";
+          left: Fragment[];
+          right: Fragment[];
+          wrapping: string | null;
+          style: string | null;
+          anchor: string | null;
+      }
+    | {
+          uuid: string;
+          type: "rule";
+          title: Fragment[];
+          style: string | null;
+          anchor: string | null;
+      }
+) &
+    Hiding;
 
 const styleRef = z.string().min(1).nullable().default(null);
 const anchorRef = z.string().min(1).nullable().default(null);
@@ -746,6 +878,8 @@ export const presentationBlockSchema: z.ZodType<
             wrapping: wrappingRef,
             unbreakable: z.boolean().default(false),
             missingPolicy: missingDataPolicySchema.default("ERROR"),
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -759,6 +893,9 @@ export const presentationBlockSchema: z.ZodType<
             wrapping: wrappingRef,
             missingPolicy: missingDataPolicySchema.default("ERROR"),
             separator: fieldSeparatorSchema.optional(),
+            partStyles: fieldPartStylesSchema.optional(),
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -767,6 +904,8 @@ export const presentationBlockSchema: z.ZodType<
             style: styleRef,
             anchor: anchorRef,
             wrapping: wrappingRef,
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -776,6 +915,7 @@ export const presentationBlockSchema: z.ZodType<
             otherwiseBlocks: z.array(presentationBlockSchema).max(128),
             style: styleRef,
             anchor: anchorRef,
+            weight: hidingWeightSchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -786,12 +926,16 @@ export const presentationBlockSchema: z.ZodType<
             style: styleRef,
             anchor: anchorRef,
             missingPolicy: missingDataPolicySchema.default("ERROR"),
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
             type: z.literal("nestedItemList"),
             style: styleRef,
             anchor: anchorRef,
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
         z.strictObject({
             uuid: uuidSchema,
@@ -810,6 +954,27 @@ export const presentationBlockSchema: z.ZodType<
                 .optional(),
             style: styleRef,
             anchor: anchorRef,
+            weight: hidingWeightSchema.optional(),
+        }),
+        z.strictObject({
+            uuid: uuidSchema,
+            type: z.literal("row"),
+            left: z.array(fragmentSchema).max(256).default([]),
+            right: z.array(fragmentSchema).max(256).default([]),
+            wrapping: wrappingRef,
+            style: styleRef,
+            anchor: anchorRef,
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
+        }),
+        z.strictObject({
+            uuid: uuidSchema,
+            type: z.literal("rule"),
+            title: z.array(fragmentSchema).max(256).default([]),
+            style: styleRef,
+            anchor: anchorRef,
+            weight: hidingWeightSchema.optional(),
+            summary: summarySchema.optional(),
         }),
     ]),
 );
@@ -890,6 +1055,11 @@ export const itemNodeSchema = z.strictObject({
          */
         marker: groupMarkerSchema.optional(),
         dividers: groupDividersSchema.optional(),
+        /** Runs around the item name; absent when empty. */
+        nameBefore: z.array(fragmentSchema).max(256).optional(),
+        nameAfter: z.array(fragmentSchema).max(256).optional(),
+        /** Absent inherits the layout's strategy. */
+        overflow: overflowStrategySchema.optional(),
     }),
     /** Editor-only: instance data used when previewing this item. Never published. */
     previewData: z.array(dataAssignmentSchema).max(256).default([]),

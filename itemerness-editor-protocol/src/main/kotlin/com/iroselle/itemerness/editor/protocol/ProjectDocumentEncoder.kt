@@ -6,17 +6,21 @@ import com.iroselle.itemerness.core.catalog.DataGeneratorSource
 import com.iroselle.itemerness.core.catalog.DataSchemaSource
 import com.iroselle.itemerness.core.catalog.ItemDefinitionSource
 import com.iroselle.itemerness.core.presentation.ConditionSource
+import com.iroselle.itemerness.core.presentation.FieldPartStyles
 import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FormatSource
+import com.iroselle.itemerness.core.presentation.FragmentSource
 import com.iroselle.itemerness.core.presentation.GroupDividers
 import com.iroselle.itemerness.core.presentation.GroupEmptyPolicy
 import com.iroselle.itemerness.core.presentation.GroupHeaderMissingPolicy
 import com.iroselle.itemerness.core.presentation.GroupMarker
+import com.iroselle.itemerness.core.presentation.HidingWeight
 import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationSource
 import com.iroselle.itemerness.core.presentation.ResourcePackDelivery
+import com.iroselle.itemerness.core.presentation.SummarySource
 import com.iroselle.itemerness.core.presentation.ThemeSelectorSource
 import com.iroselle.itemerness.core.presentation.ValueReferenceSource
 import com.iroselle.itemerness.editor.protocol.DocumentEncoding.obj
@@ -156,6 +160,9 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
                 *listOfNotNull(
                     presentation.marker.takeIf { it != GroupMarker.NONE }?.let { "marker" to it },
                     presentation.dividers.takeIf { it != GroupDividers.BETWEEN_CHILDREN }?.let { "dividers" to it },
+                    presentation.nameBefore.takeIf { it.isNotEmpty() }?.let { "nameBefore" to it.map(::fragment) },
+                    presentation.nameAfter.takeIf { it.isNotEmpty() }?.let { "nameAfter" to it.map(::fragment) },
+                    presentation.overflow?.let { "overflow" to it },
                 ).toTypedArray(),
             ),
             "previewData" to emptyList<JsonValue>(),
@@ -176,20 +183,20 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
     private fun block(block: PresentationBlockSource, path: String): JsonValue {
         val fields = when (block) {
             is PresentationBlockSource.Text -> obj("type" to "text", "data" to block.data, "wrapping" to block.wrapping, "unbreakable" to block.unbreakable, "missingPolicy" to block.missingPolicy)
-            is PresentationBlockSource.Field -> withSeparator(
+            is PresentationBlockSource.Field -> withPartStyles(withSeparator(
                 obj("type" to "field", "data" to block.data, "labelMessage" to block.labelMessage, "format" to block.format, "icon" to block.icon, "wrapping" to block.wrapping, "missingPolicy" to block.missingPolicy),
                 block.separator,
-            )
+            ), block.partStyles)
             is PresentationBlockSource.Description -> obj("type" to "description", "message" to block.message, "wrapping" to block.wrapping)
             is PresentationBlockSource.Conditional -> obj("type" to "conditional", "condition" to condition(block.condition),
                 "thenBlocks" to block.thenBlocks.mapIndexed { index, child -> block(child, "$path/then/$index") },
                 "otherwiseBlocks" to block.otherwiseBlocks.mapIndexed { index, child -> block(child, "$path/otherwise/$index") },
             )
             is PresentationBlockSource.Repeat -> obj("type" to "repeat", "data" to block.data, "maximumElements" to block.maximumElements, "missingPolicy" to block.missingPolicy,
-                "template" to withSeparator(
+                "template" to withPartStyles(withSeparator(
                     obj("labelMessage" to block.template.labelMessage, "valuePath" to block.template.valuePath, "missingMessage" to block.template.missingMessage, "icon" to block.template.icon, "format" to block.template.format),
                     block.template.separator,
-                ),
+                ), block.template.partStyles),
             )
             is PresentationBlockSource.NestedItemList -> obj("type" to "nestedItemList")
             is PresentationBlockSource.Group -> JsonValue.Obj(buildMap {
@@ -203,8 +210,41 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
                 if (block.whenEmpty != GroupEmptyPolicy.SHOW_HEADER) put("whenEmpty", JsonValue.Text(block.whenEmpty.name))
                 if (block.gapBeforeLines != 0) put("gapBeforeLines", JsonValue.Num(block.gapBeforeLines.toDouble()))
             })
+            is PresentationBlockSource.Row -> obj("type" to "row", "left" to block.left.map(::fragment), "right" to block.right.map(::fragment), "wrapping" to block.wrapping)
+            is PresentationBlockSource.Rule -> obj("type" to "rule", "title" to block.title.map(::fragment))
         }
-        return withIdentity("blocks", path, JsonValue.Obj(fields.entries + obj("style" to block.style, "anchor" to block.anchor).entries))
+        // Hiding settings stay absent when unset so existing documents keep their hashes.
+        val hiding = present("weight" to block.weight?.let(::weight), "summary" to block.summary?.let(::summary))
+        return withIdentity("blocks", path, JsonValue.Obj(fields.entries + obj("style" to block.style, "anchor" to block.anchor).entries + hiding.entries))
+    }
+
+    /** Like [obj], but null values are absent rather than JSON null. */
+    private fun present(vararg values: Pair<String, Any?>): JsonValue.Obj = obj(*values.filter { it.second != null }.toTypedArray())
+
+    private fun weight(weight: HidingWeight): Any = when (weight) {
+        HidingWeight.Never -> "never"
+        is HidingWeight.Ranked -> weight.value
+    }
+
+    private fun summary(summary: SummarySource): JsonValue = present("slot" to summary.slot, "piece" to summary.piece?.let(::fragment),
+        "valuePath" to summary.valuePath, "format" to summary.format, "style" to summary.style)
+
+    private fun withPartStyles(node: JsonValue.Obj, styles: FieldPartStyles?): JsonValue.Obj =
+        if (styles == null) node else JsonValue.Obj(node.entries + ("partStyles" to present(
+            "icon" to styles.icon, "label" to styles.label, "separator" to styles.separator, "value" to styles.value,
+        )))
+
+    private fun fragment(fragment: FragmentSource): JsonValue {
+        val fields = when (fragment) {
+            is FragmentSource.Message -> present("kind" to "message", "message" to fragment.message)
+            is FragmentSource.Data -> present("kind" to "data", "data" to fragment.data, "format" to fragment.format)
+            is FragmentSource.Glyph -> present("kind" to "glyph", "glyph" to fragment.glyph)
+            is FragmentSource.Literal -> present("kind" to "literal", "text" to fragment.text)
+            is FragmentSource.Slot -> present("kind" to "slot", "id" to fragment.id, "prefix" to fragment.prefix?.let(::fragment),
+                "suffix" to fragment.suffix?.let(::fragment), "separator" to fragment.separator?.let(::fragment),
+                "maximumEntries" to fragment.maximumEntries, "overflowCountMessage" to fragment.overflowCountMessage)
+        }
+        return JsonValue.Obj(fields.entries + present("style" to fragment.style, "condition" to fragment.condition?.let(::condition)).entries)
     }
 
     /** Absent separators inherit; they stay absent so existing documents keep their hashes. */

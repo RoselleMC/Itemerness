@@ -3,9 +3,12 @@ import type {
     DataValue,
     DataTypeNode,
     Diagnostic,
+    FieldPartStyles,
     FieldSeparator,
+    Fragment,
     GroupDividers,
     GroupMarker,
+    HidingWeight,
     ItemNode,
     LayoutNode,
     PresentationBlock,
@@ -15,6 +18,7 @@ import type {
     PreviewRun,
     PreviewViewer,
     ProjectDocument,
+    Summary,
     ThemeNode,
 } from "@itemerness/protocol";
 import type { PresentationFonts } from "./fonts.js";
@@ -343,6 +347,7 @@ interface ComposeContext {
     readonly facts: Map<string, DataValue>;
     readonly diagnostics: Diagnostic[];
     readonly fonts: PresentationFonts;
+    readonly hiding: HidingState;
 }
 
 function styleFor(
@@ -402,16 +407,273 @@ function separatorText(
     return context.messages.lookup(effective.message);
 }
 
-function blockRuns(
+/** A resolved run before theme styling, mirroring the compiler's semantic run. */
+interface SemanticRun {
+    text: string;
+    role: string;
+    unbreakable: boolean;
+    /** A resource-pack glyph; dropped by themes without a pack. */
+    glyph?: string;
+}
+
+/** Hiding state for one resolution pass, mirroring the compiler's resolution. */
+interface HidingState {
+    readonly excluded: ReadonlySet<string>;
+    readonly slotEntries: ReadonlyMap<string, SemanticRun[][]>;
+    readonly rows: RowRecord[];
+    readonly summaries: Array<{ slot: string; order: number; runs: SemanticRun[] }>;
+    order: number;
+}
+
+interface RowRecord {
+    id: string;
+    weight: HidingWeight | undefined;
+    hostsSlot: boolean;
+}
+
+/** Whether the row at `path` is hidden; a hidden row leaves its summary in document order. */
+function hide(
+    context: ComposeContext,
+    path: string,
+    summary: Summary | undefined,
+    runs: (summary: Summary) => SemanticRun[],
+): boolean {
+    const hiding = context.hiding;
+    const position = hiding.order++;
+    if (!hiding.excluded.has(path)) return false;
+    if (summary) {
+        const pieces = runs(summary);
+        if (pieces.length)
+            hiding.summaries.push({ slot: summary.slot, order: position, runs: pieces });
+    }
+    return true;
+}
+
+function styleSemantic(
+    context: ComposeContext,
+    run: SemanticRun,
+    kind: PreviewRun["kind"] = "TEXT",
+): PreviewRun[] {
+    if (run.glyph === undefined)
+        return [
+            {
+                text: run.text,
+                kind,
+                unbreakable: run.unbreakable,
+                style: styleFor(context, run.role),
+            },
+        ];
+    if (!context.theme.requiresResourcePack) return [];
+    const glyph = context.document.glyphs.find((entry) => entry.id === run.glyph);
+    if (!glyph) {
+        context.diagnostics.push(
+            diagnostic(
+                "ASSETS.ICON_UNDECLARED",
+                "diagnostics.assets.icon_undeclared",
+                { icon: run.glyph },
+                "ERROR",
+                itemKey(context.document, context.item),
+            ),
+        );
+        return [];
+    }
+    return [
+        {
+            text: String.fromCodePoint(glyph.codePoint),
+            kind,
+            unbreakable: true,
+            style: {
+                ...styleFor(context, run.role),
+                font: glyph.font,
+                bold: false,
+                italic: false,
+            },
+        },
+    ];
+}
+
+function styleAll(context: ComposeContext, runs: readonly SemanticRun[]): PreviewRun[] {
+    return runs.flatMap((run) => styleSemantic(context, run));
+}
+
+/**
+ * Resolves inline fragments in order. A fragment whose condition is false or whose data is
+ * absent is omitted; `role` is the enclosing block's style, used when a fragment has none.
+ */
+function resolveFragments(
+    context: ComposeContext,
+    fragments: readonly Fragment[] | undefined,
+    role: string | null | undefined,
+): SemanticRun[] {
+    const output: SemanticRun[] = [];
+    for (const fragment of fragments ?? []) {
+        if (
+            fragment.condition &&
+            !conditionHolds(fragment.condition, context.data, context.facts)
+        )
+            continue;
+        switch (fragment.kind) {
+            case "message":
+                output.push({
+                    text: context.messages.lookup(fragment.message),
+                    role: fragment.style ?? role ?? "label",
+                    unbreakable: false,
+                });
+                break;
+            case "data": {
+                const value = context.data.get(fragment.data);
+                if (!value || value.kind === "null") break;
+                output.push({
+                    text: context.formatter.format(
+                        value,
+                        fragment.format ?? null,
+                        context.dataTypes.get(fragment.data),
+                    ),
+                    role: fragment.style ?? role ?? "value",
+                    unbreakable: false,
+                });
+                break;
+            }
+            case "glyph":
+                output.push({
+                    text: "",
+                    role: fragment.style ?? role ?? "value",
+                    unbreakable: true,
+                    glyph: fragment.glyph,
+                });
+                break;
+            case "literal":
+                output.push({
+                    text: fragment.text,
+                    role: fragment.style ?? role ?? "label",
+                    unbreakable: true,
+                });
+                break;
+            case "slot":
+                output.push(...slotRuns(context, fragment, role));
+                break;
+        }
+    }
+    return output;
+}
+
+/** A slot's entries with its decorations, or nothing when no hidden block named it. */
+function slotRuns(
+    context: ComposeContext,
+    slot: Extract<Fragment, { kind: "slot" }>,
+    role: string | null | undefined,
+): SemanticRun[] {
+    const entries = context.hiding.slotEntries.get(slot.id) ?? [];
+    if (!entries.length) return [];
+    const slotRole = slot.style ?? role ?? "label";
+    const decoration = (piece: Fragment | undefined) =>
+        piece ? resolveFragments(context, [piece], slotRole) : [];
+    const shown =
+        slot.maximumEntries === undefined
+            ? entries
+            : entries.slice(0, slot.maximumEntries);
+    const remaining = entries.length - shown.length;
+    const separator = decoration(slot.separator);
+    const runs: SemanticRun[] = [...decoration(slot.prefix)];
+    shown.forEach((entry, index) => {
+        if (index > 0) runs.push(...separator);
+        runs.push(...entry);
+    });
+    if (remaining > 0 && slot.overflowCountMessage !== undefined) {
+        if (shown.length) runs.push(...separator);
+        runs.push({
+            text: context.messages
+                .lookup(slot.overflowCountMessage)
+                .replace(/\{count\}/g, String(remaining)),
+            role: slotRole,
+            unbreakable: true,
+        });
+    }
+    runs.push(...decoration(slot.suffix));
+    return runs;
+}
+
+function staticSummaryRuns(context: ComposeContext, summary: Summary): SemanticRun[] {
+    return resolveFragments(
+        context,
+        summary.piece ? [summary.piece] : [],
+        summary.style,
+    );
+}
+
+/** A compound element's nested value and its schema type. */
+function lookupElement(
+    element: DataValue,
+    path: string,
+    listType: DataTypeNode | undefined,
+): { value: DataValue | undefined; type: DataTypeNode | undefined } {
+    let value: DataValue | undefined = element;
+    let type = listType?.kind === "list" ? listType.element : undefined;
+    for (const segment of path.split(".")) {
+        value = value?.kind === "compound" ? value.entries[segment] : undefined;
+        type =
+            type?.kind === "compound"
+                ? type.fields?.find((field) => field.name === segment)?.type
+                : undefined;
+    }
+    return { value: value && value.kind !== "null" ? value : undefined, type };
+}
+
+function hostsSlot(block: PresentationBlock): boolean {
+    if (block.type === "row")
+        return [...block.left, ...block.right].some((entry) => entry.kind === "slot");
+    if (block.type === "rule")
+        return block.title.some((entry) => entry.kind === "slot");
+    return false;
+}
+
+/** Label, separator and value runs shared by fields and repeat templates. */
+function fieldRuns(
+    context: ComposeContext,
+    icon: string | null,
+    label: string,
+    separator: FieldSeparator | undefined,
+    formatted: string,
+    role: string | null,
+    parts: FieldPartStyles | undefined,
+): PreviewRun[] {
+    const separatorValue = separatorText(context, separator);
+    const labelRole = parts?.label ?? role ?? "label";
+    const separatorRole = parts?.separator ?? role ?? "label";
+    const text = (value: string, partRole: string, unbreakable = true): PreviewRun => ({
+        text: value,
+        kind: "TEXT",
+        unbreakable,
+        style: styleFor(context, partRole),
+    });
+    return [
+        ...iconRun(context, icon, parts?.icon ?? role ?? "value"),
+        ...(separatorValue && separatorRole !== labelRole
+            ? [text(label, labelRole), text(separatorValue, separatorRole)]
+            : [text(`${label}${separatorValue}`, labelRole)]),
+        text(formatted, parts?.value ?? role ?? "value", false),
+    ];
+}
+
+interface ResolvedEntry {
+    runs: PreviewRun[];
+    right?: PreviewRun[];
+    origin: string;
+    path: string;
+}
+
+/** A single-row block, or null when its data is absent and the block may be omitted. */
+function leafRuns(
     context: ComposeContext,
     block: PresentationBlock,
-    containerMarker: GroupMarker = "NONE",
-): Array<{ runs: PreviewRun[]; origin: string }> {
+    path: string,
+): ResolvedEntry | null {
     switch (block.type) {
-        case "text": {
+        case "text":
+        case "field": {
             const value = context.data.get(block.data);
             if (!value || value.kind === "null") {
-                if (block.missingPolicy === "OMIT") return [];
+                if (block.missingPolicy === "OMIT") return null;
                 context.diagnostics.push(
                     diagnostic(
                         "DATA.MISSING",
@@ -421,11 +683,12 @@ function blockRuns(
                         itemKey(context.document, context.item),
                     ),
                 );
-                return [];
+                return null;
             }
-            return [
-                {
+            if (block.type === "text")
+                return {
                     origin: block.uuid,
+                    path,
                     runs: [
                         {
                             text: context.formatter.format(
@@ -438,199 +701,83 @@ function blockRuns(
                             style: styleFor(context, block.style ?? "value"),
                         },
                     ],
-                },
-            ];
-        }
-        case "field": {
-            const value = context.data.get(block.data);
-            if (!value || value.kind === "null") {
-                if (block.missingPolicy === "OMIT") return [];
-                context.diagnostics.push(
-                    diagnostic(
-                        "DATA.MISSING",
-                        "diagnostics.data.missing",
-                        { key: block.data },
-                        "ERROR",
-                        itemKey(context.document, context.item),
+                };
+            return {
+                origin: block.uuid,
+                path,
+                runs: fieldRuns(
+                    context,
+                    block.icon,
+                    context.messages.lookup(block.labelMessage),
+                    block.separator,
+                    context.formatter.format(
+                        value,
+                        block.format,
+                        context.dataTypes.get(block.data),
                     ),
-                );
-                return [];
-            }
-            return [
-                {
-                    origin: block.uuid,
-                    runs: [
-                        ...iconRun(context, block.icon, block.style ?? "value"),
-                        {
-                            text: `${context.messages.lookup(block.labelMessage)}${separatorText(context, block.separator)}`,
-                            kind: "TEXT",
-                            unbreakable: true,
-                            style: styleFor(context, block.style ?? "label"),
-                        },
-                        {
-                            text: context.formatter.format(
-                                value,
-                                block.format,
-                                context.dataTypes.get(block.data),
-                            ),
-                            kind: "TEXT",
-                            unbreakable: false,
-                            style: styleFor(context, block.style ?? "value"),
-                        },
-                    ],
-                },
-            ];
+                    block.style,
+                    block.partStyles,
+                ),
+            };
         }
         case "description":
-            return [
-                {
-                    origin: block.uuid,
-                    runs: [
-                        {
-                            text: context.messages.lookup(block.message),
-                            kind: "TEXT",
-                            unbreakable: false,
-                            style: styleFor(
-                                context,
-                                block.style ?? "description",
-                            ),
-                        },
-                    ],
-                },
-            ];
-        case "conditional": {
-            const matched = conditionHolds(
-                block.condition,
-                context.data,
-                context.facts,
-            );
-            const branch = matched ? block.thenBlocks : block.otherwiseBlocks;
-            // Nested blocks keep their own uuids, so a click on a conditional's output selects the
-            // nested row rather than the whole conditional.
-            return branch.flatMap((nested) =>
-                blockRuns(context, nested, containerMarker),
-            );
-        }
-        case "repeat": {
-            const value = context.data.get(block.data);
-            if (!value || value.kind !== "list") {
-                if (block.missingPolicy === "OMIT") return [];
-                return [];
-            }
-            return value.values
-                .slice(0, block.maximumElements)
-                .map((element) => {
-                    let entry: DataValue | undefined = element;
-                    const listType = context.dataTypes.get(block.data);
-                    let entryType =
-                        listType?.kind === "list"
-                            ? listType.element
-                            : undefined;
-                    for (const segment of block.template.valuePath.split(".")) {
-                        entry =
-                            entry?.kind === "compound"
-                                ? entry.entries[segment]
-                                : undefined;
-                        entryType =
-                            entryType?.kind === "compound"
-                                ? entryType.fields?.find(
-                                      (field) => field.name === segment,
-                                  )?.type
-                                : undefined;
-                    }
-                    const text =
-                        entry && entry.kind !== "null"
-                            ? context.formatter.format(
-                                  entry,
-                                  block.template.format,
-                                  entryType,
-                              )
-                            : context.formatter.requiredMessage(
-                                  block.template.missingMessage,
-                              );
-                    return {
-                        origin: block.uuid,
-                        runs: [
-                            ...iconRun(
-                                context,
-                                block.template.icon,
-                                block.style ?? "value",
-                            ),
-                            {
-                                text: `${context.messages.lookup(block.template.labelMessage)}${separatorText(context, block.template.separator)}`,
-                                kind: "TEXT" as const,
-                                unbreakable: true,
-                                style: styleFor(
-                                    context,
-                                    block.style ?? "label",
-                                ),
-                            },
-                            {
-                                text,
-                                kind: "TEXT" as const,
-                                unbreakable: false,
-                                style: styleFor(
-                                    context,
-                                    block.style ?? "value",
-                                ),
-                            },
-                        ],
-                    };
-                });
-        }
-        case "nestedItemList": {
-            return context.item.definition.contents.map((entry) => ({
+            return {
                 origin: block.uuid,
+                path,
                 runs: [
-                    // A decorated container's marker replaces the built-in bullet.
-                    ...(containerMarker === "NONE"
-                        ? [
-                              {
-                                  text: "\u2022 ",
-                                  kind: "TEXT" as const,
-                                  unbreakable: true,
-                                  style: styleFor(
-                                      context,
-                                      block.style ?? "label",
-                                  ),
-                              },
-                          ]
-                        : []),
                     {
-                        text: (() => {
-                            const nested = context.document.items.find(
-                                (item) =>
-                                    itemKey(context.document, item) ===
-                                    entry.item,
-                            );
-                            return nested
-                                ? context.messages.lookup(
-                                      nested.presentation.nameMessage,
-                                  )
-                                : entry.item;
-                        })(),
-                        kind: "TEXT" as const,
+                        text: context.messages.lookup(block.message),
+                        kind: "TEXT",
                         unbreakable: false,
-                        style: styleFor(context, block.style ?? "value"),
-                    },
-                    {
-                        text: ` \u00d7${entry.amount}`,
-                        kind: "TEXT" as const,
-                        unbreakable: true,
-                        style: styleFor(context, block.style ?? "value"),
+                        style: styleFor(context, block.style ?? "description"),
                     },
                 ],
-            }));
+            };
+        case "row": {
+            const left = resolveFragments(context, block.left, block.style);
+            const right = resolveFragments(context, block.right, block.style);
+            if (!left.length && !right.length) return null;
+            // A leading glyph is the row's icon: it takes the layout's icon slot and gap like a field icon.
+            const [first, ...rest] = left;
+            const leftRuns =
+                first?.glyph !== undefined
+                    ? [...styleSemantic(context, first, "ICON"), ...styleAll(context, rest)]
+                    : styleAll(context, left);
+            return {
+                origin: block.uuid,
+                path,
+                runs: leftRuns,
+                right: styleAll(context, right),
+            };
         }
+        case "rule":
+            return {
+                origin: block.uuid,
+                path,
+                runs: styleAll(context, resolveFragments(context, block.title, block.style)),
+            };
         default:
-            return [];
+            return null;
     }
 }
 
+/** Resolves a single-row block unless it is hidden, recording it as a hiding candidate. */
+function resolveRow(
+    context: ComposeContext,
+    block: PresentationBlock,
+    path: string,
+    weight: HidingWeight | undefined,
+): ResolvedEntry | null {
+    if (hide(context, path, block.summary, (summary) => staticSummaryRuns(context, summary)))
+        return null;
+    const entry = leafRuns(context, block, path);
+    if (!entry) return null;
+    context.hiding.rows.push({ id: path, weight, hostsSlot: hostsSlot(block) });
+    return entry;
+}
+
 /** A rendered row with the decoration its containers give it, mirroring the compiler. */
-interface ResolvedRow {
-    runs: PreviewRun[];
-    origin: string;
+interface ResolvedRow extends ResolvedEntry {
     boundaryBefore: boolean;
     firstPrefix: MarkerPiece[];
     continuationPrefix: MarkerPiece[];
@@ -644,7 +791,7 @@ interface ResolvedUnit {
     gapBeforeLines: number;
 }
 
-function leafRow(entry: { runs: PreviewRun[]; origin: string }): ResolvedRow {
+function leafRow(entry: ResolvedEntry): ResolvedRow {
     return {
         ...entry,
         boundaryBefore: false,
@@ -660,41 +807,162 @@ function collectUnits(
     blocks: readonly PresentationBlock[],
     containerMarker: GroupMarker,
     units: ResolvedUnit[],
+    path: string,
+    inherited: HidingWeight | undefined,
 ): void {
-    for (const block of blocks) {
-        if (block.type === "conditional") {
-            // Transparent: the selected branch's blocks are units of this container.
-            const matched = conditionHolds(
-                block.condition,
-                context.data,
-                context.facts,
-            );
-            collectUnits(
-                context,
-                matched ? block.thenBlocks : block.otherwiseBlocks,
-                containerMarker,
-                units,
-            );
-        } else if (block.type === "group") {
-            const rows = resolveGroup(context, block);
-            if (rows)
-                units.push({ rows, gapBeforeLines: block.gapBeforeLines ?? 0 });
-        } else {
-            for (const entry of blockRuns(context, block, containerMarker))
-                units.push({ rows: [leafRow(entry)], gapBeforeLines: 0 });
+    blocks.forEach((block, index) => {
+        const blockPath = `${path}[${index}]`;
+        const weight = block.weight ?? inherited;
+        switch (block.type) {
+            case "conditional": {
+                // Transparent: the selected branch's blocks are units of this container.
+                const matched = conditionHolds(
+                    block.condition,
+                    context.data,
+                    context.facts,
+                );
+                collectUnits(
+                    context,
+                    matched ? block.thenBlocks : block.otherwiseBlocks,
+                    containerMarker,
+                    units,
+                    `${blockPath}.${matched ? "then" : "otherwise"}`,
+                    weight,
+                );
+                return;
+            }
+            case "group": {
+                const rows = resolveGroup(context, block, blockPath, weight);
+                if (rows) units.push({ rows, gapBeforeLines: block.gapBeforeLines ?? 0 });
+                return;
+            }
+            case "repeat": {
+                const value = context.data.get(block.data);
+                if (!value || value.kind !== "list") return;
+                const listType = context.dataTypes.get(block.data);
+                value.values.slice(0, block.maximumElements).forEach((element, elementIndex) => {
+                    const elementPath = `${blockPath}[#${elementIndex}]`;
+                    if (
+                        hide(context, elementPath, block.summary, (summary) => {
+                            if (summary.valuePath === undefined)
+                                return staticSummaryRuns(context, summary);
+                            const nested = lookupElement(element, summary.valuePath, listType);
+                            if (!nested.value) return [];
+                            return [
+                                {
+                                    text: context.formatter.format(
+                                        nested.value,
+                                        summary.format ?? null,
+                                        nested.type,
+                                    ),
+                                    role: summary.style ?? "label",
+                                    unbreakable: true,
+                                },
+                            ];
+                        })
+                    )
+                        return;
+                    const entry = lookupElement(element, block.template.valuePath, listType);
+                    const text = entry.value
+                        ? context.formatter.format(entry.value, block.template.format, entry.type)
+                        : context.formatter.requiredMessage(block.template.missingMessage);
+                    context.hiding.rows.push({ id: elementPath, weight, hostsSlot: false });
+                    units.push({
+                        rows: [
+                            leafRow({
+                                origin: block.uuid,
+                                path: elementPath,
+                                runs: fieldRuns(
+                                    context,
+                                    block.template.icon,
+                                    context.messages.lookup(block.template.labelMessage),
+                                    block.template.separator,
+                                    text,
+                                    block.style,
+                                    block.template.partStyles,
+                                ),
+                            }),
+                        ],
+                        gapBeforeLines: 0,
+                    });
+                });
+                return;
+            }
+            case "nestedItemList": {
+                context.item.definition.contents.forEach((entry, elementIndex) => {
+                    const elementPath = `${blockPath}[#${elementIndex}]`;
+                    if (
+                        hide(context, elementPath, block.summary, (summary) =>
+                            staticSummaryRuns(context, summary),
+                        )
+                    )
+                        return;
+                    context.hiding.rows.push({ id: elementPath, weight, hostsSlot: false });
+                    const nested = context.document.items.find(
+                        (item) => itemKey(context.document, item) === entry.item,
+                    );
+                    const value = styleFor(context, block.style ?? "value");
+                    units.push({
+                        rows: [
+                            leafRow({
+                                origin: block.uuid,
+                                path: elementPath,
+                                runs: [
+                                    // A decorated container's marker replaces the built-in bullet.
+                                    ...(containerMarker === "NONE"
+                                        ? [
+                                              {
+                                                  text: "• ",
+                                                  kind: "TEXT" as const,
+                                                  unbreakable: true,
+                                                  style: styleFor(context, block.style ?? "label"),
+                                              },
+                                          ]
+                                        : []),
+                                    {
+                                        text: nested
+                                            ? context.messages.lookup(nested.presentation.nameMessage)
+                                            : entry.item,
+                                        kind: "TEXT" as const,
+                                        unbreakable: false,
+                                        style: value,
+                                    },
+                                    {
+                                        text: ` ×${entry.amount}`,
+                                        kind: "TEXT" as const,
+                                        unbreakable: true,
+                                        style: styleFor(context, block.style ?? "value"),
+                                    },
+                                ],
+                            }),
+                        ],
+                        gapBeforeLines: 0,
+                    });
+                });
+                return;
+            }
+            default: {
+                const entry = resolveRow(context, block, blockPath, weight);
+                if (entry) units.push({ rows: [leafRow(entry)], gapBeforeLines: 0 });
+            }
         }
-    }
+    });
 }
 
 function resolveGroup(
     context: ComposeContext,
     group: Extract<PresentationBlock, { type: "group" }>,
+    path: string,
+    weight: HidingWeight | undefined,
 ): ResolvedRow[] | null {
-    const header =
-        group.header &&
-        (group.header.type === "field" || group.header.type === "text")
-            ? (blockRuns(context, group.header)[0] ?? null)
-            : null;
+    const header = group.header
+        ? resolveRow(
+              context,
+              group.header,
+              `${path}.header`,
+              group.header.weight ?? weight,
+          )
+        : null;
     if (group.header && !header && (group.whenHeaderMissing ?? "HIDE") === "HIDE")
         return null;
     const children = resolveContainer(
@@ -702,6 +970,8 @@ function resolveGroup(
         group.children,
         group.marker ?? "NONE",
         group.dividers ?? "NONE",
+        `${path}.children`,
+        weight,
     );
     if (children.length)
         return [...(header ? [leafRow(header)] : []), ...children];
@@ -715,9 +985,11 @@ function resolveContainer(
     blocks: readonly PresentationBlock[],
     marker: GroupMarker,
     dividers: GroupDividers,
+    path: string,
+    inherited: HidingWeight | undefined,
 ): ResolvedRow[] {
     const units: ResolvedUnit[] = [];
-    collectUnits(context, blocks, marker, units);
+    collectUnits(context, blocks, marker, units, path, inherited);
     const output: ResolvedRow[] = [];
     units.forEach((unit, unitIndex) => {
         const last = unitIndex === units.length - 1;
@@ -888,41 +1160,6 @@ function composeAttempt(
         };
     }
 
-    const messages = new MessageCatalog(document, viewer.locale, diagnostics);
-    const formatter = new LocalValueFormatter(document.formats, messages);
-
-    const context: ComposeContext = {
-        document,
-        item,
-        theme,
-        layout,
-        messages,
-        formatter,
-        dataTypes,
-        data,
-        facts,
-        diagnostics,
-        fonts,
-    };
-
-    const maximumWidth = Math.min(
-        layout.maximumWidthPixels,
-        theme.content?.maximumWidthPixels ?? layout.maximumWidthPixels,
-        theme.characterFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
-        theme.segmentedFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
-        theme.canvas?.maximumWidthPixels ?? layout.maximumWidthPixels,
-        document.budgets.maximumWidthPixels,
-    );
-
-    const nameRuns: PreviewRun[] = [
-        {
-            text: messages.lookup(item.presentation.nameMessage),
-            kind: "TEXT",
-            unbreakable: true,
-            style: styleFor(context, "item-name"),
-        },
-    ];
-
     const sources = new Map<string, PresentationBlock>();
     const collect = (blocks: readonly PresentationBlock[]) =>
         blocks.forEach((block) => {
@@ -937,59 +1174,130 @@ function composeAttempt(
             }
         });
     collect(item.presentation.blocks);
-    const blocks: CanvasBlock[] = resolveContainer(
-        context,
-        item.presentation.blocks,
-        item.presentation.marker ?? "NONE",
-        item.presentation.dividers ?? "BETWEEN_CHILDREN",
-    ).map(
-        ({
-            runs,
-            origin,
-            boundaryBefore,
-            firstPrefix,
-            continuationPrefix,
-            gapPrefix,
-            gapBeforeLines,
-        }) => {
-            const source = sources.get(origin)!;
+
+    /** One resolution pass; `hidden` rows leave their summaries in the slots they name. */
+    const resolvePass = (
+        hidden: ReadonlySet<string>,
+        slotEntries: ReadonlyMap<string, SemanticRun[][]>,
+    ) => {
+        const passDiagnostics: Diagnostic[] = [];
+        const messages = new MessageCatalog(document, viewer.locale, passDiagnostics);
+        const context: ComposeContext = {
+            document,
+            item,
+            theme,
+            layout,
+            messages,
+            formatter: new LocalValueFormatter(document.formats, messages),
+            dataTypes,
+            data,
+            facts,
+            diagnostics: passDiagnostics,
+            fonts,
+            hiding: {
+                excluded: hidden,
+                slotEntries,
+                rows: [],
+                summaries: [],
+                order: 0,
+            },
+        };
+        const name = styleAll(context, [
+            ...resolveFragments(context, item.presentation.nameBefore, "item-name"),
+            {
+                text: messages.lookup(item.presentation.nameMessage),
+                role: "item-name",
+                unbreakable: true,
+            },
+            ...resolveFragments(context, item.presentation.nameAfter, "item-name"),
+        ]);
+        const blocks: CanvasBlock[] = resolveContainer(
+            context,
+            item.presentation.blocks,
+            item.presentation.marker ?? "NONE",
+            item.presentation.dividers ?? "BETWEEN_CHILDREN",
+            "blocks",
+            undefined,
+        ).map((row) => {
+            const source = sources.get(row.origin)!;
             const field = source.type === "field" || source.type === "repeat";
             return {
-                runs,
-                origin,
-                boundaryBefore,
-                firstPrefix,
-                continuationPrefix,
-                gapPrefix,
-                gapBeforeLines,
+                runs: row.runs,
+                ...(row.right ? { right: row.right } : {}),
+                origin: row.origin,
+                boundaryBefore: row.boundaryBefore,
+                firstPrefix: row.firstPrefix,
+                continuationPrefix: row.continuationPrefix,
+                gapPrefix: row.gapPrefix,
+                gapBeforeLines: row.gapBeforeLines,
                 kind: field
                     ? "field"
                     : source.type === "description"
                       ? "description"
-                      : "generic",
-                wrapping: "wrapping" in source ? source.wrapping : null,
+                      : source.type === "row" || source.type === "rule"
+                        ? source.type
+                        : "generic",
+                wrapping: "wrapping" in source ? (source.wrapping ?? null) : null,
                 anchor: source.anchor,
-                fieldValueIndex: field ? runs.length - 1 : null,
+                fieldValueIndex: field ? row.runs.length - 1 : null,
             };
         });
-    let name = toPreviewLine(
-        ellipsizeLine(nameRuns, fonts, maximumWidth).runs,
-        fonts,
+        return { name, blocks, context, diagnostics: passDiagnostics };
+    };
+    /** Summaries are static, so one collecting pass followed by the real pass is always enough. */
+    const resolveSemantic = (hidden: ReadonlySet<string>) => {
+        const first = resolvePass(hidden, new Map());
+        const summaries = first.context.hiding.summaries;
+        if (!hidden.size || !summaries.length) return first;
+        const entries = new Map<string, SemanticRun[][]>();
+        [...summaries]
+            .sort((left, right) => left.order - right.order)
+            .forEach((summary) =>
+                entries.set(summary.slot, [...(entries.get(summary.slot) ?? []), summary.runs]),
+            );
+        return resolvePass(hidden, entries);
+    };
+
+    const maximumWidth = Math.min(
+        layout.maximumWidthPixels,
+        theme.content?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.characterFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.segmentedFrame?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        theme.canvas?.maximumWidthPixels ?? layout.maximumWidthPixels,
+        document.budgets.maximumWidthPixels,
     );
-    let composed: Array<{ line: PreviewLine; origin: string | null }>;
-    let canvasElements: readonly CanvasElementOrigin[] | undefined;
-    try {
-        if (theme.renderer === "BITMAP_CANVAS") {
-            const canvas = new CanvasComposer(
-                document,
-                theme,
-                layout,
+
+    const render = (resolved: ReturnType<typeof resolveSemantic>) => {
+        const engine = new FlowComposer(document, theme, layout, fonts);
+        const inset = theme.nameInsetPixels ?? 0;
+        if (maximumWidth - 2 * inset <= 0)
+            throw new LayoutOverflowError("The name inset consumes the maximum width");
+        let name = toPreviewLine(
+            ellipsizeLine(resolved.name, fonts, maximumWidth - 2 * inset).runs,
+            fonts,
+        );
+        if (inset > 0) {
+            const nameStyle = themeStyle(theme, "item-name");
+            name = toPreviewLine(
+                [
+                    ...engine.exactPadding(inset, nameStyle),
+                    ...name.runs,
+                    ...engine.exactPadding(inset, nameStyle),
+                ],
                 fonts,
-            ).compose(blocks, name);
+            );
+        }
+        const blocks = resolved.blocks;
+        let composed: Array<{ line: PreviewLine; origin: string | null }>;
+        let canvasElements: readonly CanvasElementOrigin[] | undefined;
+        if (theme.renderer === "BITMAP_CANVAS") {
+            const canvas = new CanvasComposer(document, theme, layout, fonts).compose(
+                blocks,
+                name,
+            );
             composed = canvas.lines;
             canvasElements = canvas.elements;
         } else {
-            const engine = new FlowComposer(document, theme, layout, fonts);
             const frame =
                 theme.renderer === "VANILLA_CHARACTER_FRAME"
                     ? theme.characterFrame
@@ -1002,8 +1310,15 @@ function composeAttempt(
                   frame.rightPaddingPixels -
                   8
                 : maximumWidth;
-            if (theme.renderer === "SEGMENTED_FRAME" && theme.segmentedFrame && usesDecoratedFrame(theme.segmentedFrame)) {
-                const framed = new SegmentedFrameComposer(document, theme, fonts).compose((maximum) => engine.flow(blocks, maximum), name);
+            if (
+                theme.renderer === "SEGMENTED_FRAME" &&
+                theme.segmentedFrame &&
+                usesDecoratedFrame(theme.segmentedFrame)
+            ) {
+                const framed = new SegmentedFrameComposer(document, theme, fonts).compose(
+                    (maximum) => engine.flow(blocks, maximum),
+                    name,
+                );
                 name = framed.name;
                 composed = framed.lines;
             } else {
@@ -1019,15 +1334,45 @@ function composeAttempt(
                 }
             }
         }
+        validateDisplay(document, name, composed.map((entry) => entry.line));
+        return { name, composed, canvasElements };
+    };
+
+    const overflow =
+        item.presentation.overflow ??
+        (layout.kind === "flow" ? layout.overflow : undefined) ??
+        "FALLBACK";
+    let resolved = resolveSemantic(new Set());
+    let hidden: string[] = [];
+    let output: ReturnType<typeof render> | undefined;
+    try {
+        output = render(resolved);
     } catch (error) {
         if (!(error instanceof LayoutOverflowError)) throw error;
-        return composeAttempt(options, new Set([...excluded, theme.id]));
+        if (!error.capacity || overflow !== "HIDE")
+            return composeAttempt(options, new Set([...excluded, theme.id]));
+        // The order depends only on the complete presentation, so the search always ends.
+        const order = hidingOrder(resolved.context.hiding.rows);
+        for (let count = 1; count <= Math.min(order.length, MAXIMUM_HIDING_STEPS); count++) {
+            const attempt = resolveSemantic(new Set(order.slice(0, count)));
+            try {
+                output = render(attempt);
+                resolved = attempt;
+                hidden = order.slice(0, count);
+                break;
+            } catch (retry) {
+                if (!(retry instanceof LayoutOverflowError)) throw retry;
+                if (!retry.capacity)
+                    return composeAttempt(options, new Set([...excluded, theme.id]));
+            }
+        }
+        if (!output) return composeAttempt(options, new Set([...excluded, theme.id]));
     }
 
     return {
         display: {
-            displayName: name,
-            lore: composed.map((entry) => entry.line),
+            displayName: output.name,
+            lore: output.composed.map((entry) => entry.line),
             tooltipStyle:
                 theme.renderer === "NATIVE_TOOLTIP_STYLE" ||
                 theme.renderer === "SEGMENTED_FRAME" ||
@@ -1039,12 +1384,77 @@ function composeAttempt(
             requestedTheme,
             catalogRevision: 0,
             fallbackReasons: reasons,
+            hiddenElements: hidden,
         },
-        diagnostics,
+        diagnostics: [...diagnostics, ...resolved.diagnostics],
         themeChain: chain,
-        lineOrigins: composed.map((entry) => entry.origin),
-        ...(canvasElements ? { canvasElements } : {}),
+        lineOrigins: output.composed.map((entry) => entry.origin),
+        ...(output.canvasElements ? { canvasElements: output.canvasElements } : {}),
     };
+}
+
+/** Each hiding step re-resolves and re-renders, so the search stays bounded. */
+const MAXIMUM_HIDING_STEPS = 64;
+
+/** Slot hosts last, unweighted rows after weighted ones, then lowest weight and latest row first. */
+function hidingOrder(rows: readonly RowRecord[]): string[] {
+    return rows
+        .map((row, index) => ({ row, index }))
+        .filter(({ row }) => row.weight !== "never")
+        .sort(
+            (left, right) =>
+                Number(left.row.hostsSlot) - Number(right.row.hostsSlot) ||
+                Number(left.row.weight === undefined) -
+                    Number(right.row.weight === undefined) ||
+                ((left.row.weight as number | undefined) ?? 0) -
+                    ((right.row.weight as number | undefined) ?? 0) ||
+                right.index - left.index,
+        )
+        .map(({ row }) => row.id);
+}
+
+/** The compiler's output budgets; line-count and height overflows can be resolved by hiding. */
+function validateDisplay(
+    document: ProjectDocument,
+    name: PreviewLine,
+    lore: readonly PreviewLine[],
+): void {
+    const budgets = document.budgets;
+    if (lore.length > budgets.maximumLines)
+        throw new LayoutOverflowError("Lore line budget exceeded", { capacity: true });
+    const all = [name, ...lore];
+    const runs = all.flatMap((line) => line.runs);
+    if (
+        all.some(
+            (line) =>
+                line.logicalWidthPixels > budgets.maximumWidthPixels ||
+                line.visualBounds.right - line.visualBounds.left >
+                    budgets.maximumWidthPixels ||
+                line.runs.length > 256 ||
+                line.runs.reduce((sum, run) => sum + run.text.length, 0) > 8192,
+        ) ||
+        runs.length > Math.min(budgets.maximumRuns, 4096) ||
+        runs.reduce((sum, run) => sum + [...run.text].length, 0) >
+            budgets.maximumTextCodePoints ||
+        runs.reduce((sum, run) => sum + run.text.length, 0) > 131072
+    )
+        throw new LayoutOverflowError("Display exceeds its output budget");
+    let top = Infinity;
+    let bottom = -Infinity;
+    all.forEach((line, index) => {
+        if (line.visualBounds.bottom <= line.visualBounds.top) return;
+        const baseline = index * 10 + (index === 0 ? 0 : 2);
+        top = Math.min(top, baseline + line.visualBounds.top);
+        bottom = Math.max(bottom, baseline + line.visualBounds.bottom);
+    });
+    const structural = all.length === 1 ? 8 : all.length * 10;
+    if (
+        Math.max(structural, Number.isFinite(top) ? Math.ceil(bottom - top) : 0) >
+        budgets.maximumHeightPixels
+    )
+        throw new LayoutOverflowError("Display height budget exceeded", {
+            capacity: true,
+        });
 }
 
 /** The item data a local preview reads: schema and instance defaults, definition and preview data. */
@@ -1098,5 +1508,6 @@ function emptyDisplay(itemId: string): PreviewDisplay {
         requestedTheme: itemId,
         catalogRevision: 0,
         fallbackReasons: [],
+        hiddenElements: [],
     };
 }

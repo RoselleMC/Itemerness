@@ -57,6 +57,9 @@ object CatalogPresentationValidator {
                 )
                 return@forEach
             }
+            listOf("before" to item.nameBefore, "after" to item.nameAfter).forEach { (side, fragments) ->
+                validateFragments(fragments, "presentation.items.${item.key}.name.$side", definition, domain, presentation, diagnostics)
+            }
             validateBlocks(
                 item.blocks,
                 "presentation.items.${item.key}.blocks",
@@ -148,8 +151,32 @@ object CatalogPresentationValidator {
                             diagnostics,
                         )
                     }
+                    block.summary?.valuePath?.let { valuePath ->
+                        when (val resolved = resolveCompoundPath(compound, valuePath)) {
+                            CompoundPath.Open -> Unit
+                            CompoundPath.Missing -> diagnostics += CatalogDiagnostic(
+                                CatalogDiagnosticCode.MISSING_REFERENCE,
+                                "$blockPath.summary.value-path",
+                                "Compound path $valuePath is not defined by ${block.data}",
+                            )
+                            is CompoundPath.Resolved -> validateFormat(
+                                resolved.type,
+                                block.summary.format,
+                                "$blockPath.summary.format",
+                                presentation,
+                                diagnostics,
+                            )
+                        }
+                    }
                 }
             }
+
+            is CompiledPresentationBlock.Row -> {
+                validateFragments(block.left, "$blockPath.left", item, domain, presentation, diagnostics)
+                validateFragments(block.right, "$blockPath.right", item, domain, presentation, diagnostics)
+            }
+
+            is CompiledPresentationBlock.Rule -> validateFragments(block.title, "$blockPath.title", item, domain, presentation, diagnostics)
 
             is CompiledPresentationBlock.Group -> {
                 block.header?.let { validateBlock(it, "$blockPath.header", item, domain, presentation, diagnostics) }
@@ -162,6 +189,24 @@ object CatalogPresentationValidator {
                     blockPath,
                     "A nested item list requires configured item contents",
                 )
+            }
+        }
+    }
+
+    private fun validateFragments(
+        fragments: List<CompiledFragment>,
+        path: String,
+        item: CatalogItemDefinition,
+        domain: CatalogSnapshot,
+        presentation: PresentationCatalogSnapshot,
+        diagnostics: MutableList<CatalogDiagnostic>,
+    ) {
+        fragments.forEachIndexed { index, fragment ->
+            val fragmentPath = "$path[$index]"
+            fragment.condition?.let { validateCondition(it, "$fragmentPath.when", item, domain, presentation, diagnostics) }
+            if (fragment is CompiledFragment.Data) {
+                val type = dataType(item, domain, fragment.data, "$fragmentPath.data", diagnostics)
+                validateFormat(type, fragment.format, "$fragmentPath.format", presentation, diagnostics)
             }
         }
     }

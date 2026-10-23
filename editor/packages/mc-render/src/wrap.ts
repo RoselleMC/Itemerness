@@ -159,7 +159,18 @@ export interface WrapOptions {
     readonly continuationIndentPixels?: number;
 }
 
-export class LayoutOverflowError extends Error {}
+export class LayoutOverflowError extends Error {
+    /**
+     * Whether the content was valid but more than the display budget holds. Only these failures
+     * may be resolved by hiding rows; every other overflow falls back to a safer theme.
+     */
+    readonly capacity: boolean;
+
+    constructor(message: string, options: { capacity?: boolean } = {}) {
+        super(message);
+        this.capacity = options.capacity ?? false;
+    }
+}
 
 export function wrapRuns(
     runs: readonly PreviewRun[],

@@ -27,10 +27,12 @@ import com.iroselle.itemerness.core.presentation.CompoundFieldTemplateSource
 import com.iroselle.itemerness.core.presentation.ConditionOperator
 import com.iroselle.itemerness.core.presentation.ConditionSource
 import com.iroselle.itemerness.core.presentation.ContentAreaSource
+import com.iroselle.itemerness.core.presentation.FieldPartStyles
 import com.iroselle.itemerness.core.presentation.FieldSeparatorSource
 import com.iroselle.itemerness.core.presentation.FieldValueAlignment
 import com.iroselle.itemerness.core.presentation.FontSource
 import com.iroselle.itemerness.core.presentation.FormatSource
+import com.iroselle.itemerness.core.presentation.FragmentSource
 import com.iroselle.itemerness.core.presentation.FrameRowSource
 import com.iroselle.itemerness.core.presentation.GlyphMetricSource
 import com.iroselle.itemerness.core.presentation.GlyphSource
@@ -38,6 +40,7 @@ import com.iroselle.itemerness.core.presentation.GroupDividers
 import com.iroselle.itemerness.core.presentation.GroupEmptyPolicy
 import com.iroselle.itemerness.core.presentation.GroupHeaderMissingPolicy
 import com.iroselle.itemerness.core.presentation.GroupMarker
+import com.iroselle.itemerness.core.presentation.HidingWeight
 import com.iroselle.itemerness.core.presentation.ItemPresentationSource
 import com.iroselle.itemerness.core.presentation.LayoutSource
 import com.iroselle.itemerness.core.presentation.LocaleSource
@@ -47,13 +50,16 @@ import com.iroselle.itemerness.core.presentation.MissingDataPolicy
 import com.iroselle.itemerness.core.presentation.MissingKeyValue
 import com.iroselle.itemerness.core.presentation.NamespacedKeyFormatMode
 import com.iroselle.itemerness.core.presentation.OverflowPolicy
+import com.iroselle.itemerness.core.presentation.OverflowStrategy
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
 import com.iroselle.itemerness.core.presentation.PresentationCompilation
 import com.iroselle.itemerness.core.presentation.PresentationCompiler
 import com.iroselle.itemerness.core.presentation.PresentationSource
+import com.iroselle.itemerness.core.presentation.RuleThemeSource
 import com.iroselle.itemerness.core.presentation.SegmentedFrameSource
 import com.iroselle.itemerness.core.presentation.SpacingRangeSource
 import com.iroselle.itemerness.core.presentation.SpacingSource
+import com.iroselle.itemerness.core.presentation.SummarySource
 import com.iroselle.itemerness.core.presentation.TextStyleSource
 import com.iroselle.itemerness.core.presentation.ThemeRenderer
 import com.iroselle.itemerness.core.presentation.ThemeSelectorCaseSource
@@ -223,7 +229,7 @@ internal class PresentationSourceLoader(
         node: YamlObject,
         path: Path,
     ): LayoutSource.Flow {
-        node.rejectUnknown("content-width", "flow", "sections", "wrapping")
+        node.rejectUnknown("content-width", "flow", "sections", "wrapping", "overflow")
         val width = node.requiredObject("content-width").rejectUnknown(
             "minimum-pixels",
             "maximum-pixels",
@@ -252,7 +258,7 @@ internal class PresentationSourceLoader(
         val sections = node.optionalObject("sections")
         sections?.rejectUnknown("field", "description")
         val field = sections?.optionalObject("field")
-        field?.rejectUnknown("left-padding-pixels", "icon-gap-pixels", "value-alignment", "separator")
+        field?.rejectUnknown("left-padding-pixels", "icon-gap-pixels", "icon-slot-pixels", "value-alignment", "separator")
         field?.optionalString("value-alignment")?.let { alignment ->
             if (alignment !in setOf("left", "right")) invalid("Unsupported field alignment", path, id)
         }
@@ -278,7 +284,17 @@ internal class PresentationSourceLoader(
             fieldSeparator = field?.takeIf { it.contains("separator") }?.let {
                 parseSeparator(it.raw("separator"), path.toString(), "layouts.$id.sections.field.separator")
             },
+            fieldIconSlotPixels = field?.optionalInt("icon-slot-pixels"),
+            overflow = parseOverflowStrategy(node.optionalString("overflow"), path.toString(), "layouts.$id.overflow")
+                ?: OverflowStrategy.FALLBACK,
         )
+    }
+
+    private fun parseOverflowStrategy(value: String?, source: String, path: String): OverflowStrategy? = when (value) {
+        null -> null
+        "fallback" -> OverflowStrategy.FALLBACK
+        "hide" -> OverflowStrategy.HIDE
+        else -> throw StrictYamlException("Unsupported overflow strategy at $path in $source")
     }
 
     private fun parseCanvasLayout(
@@ -727,6 +743,8 @@ internal class PresentationSourceLoader(
                 "fonts",
                 "styles",
                 "markers",
+                "rules",
+                "name-inset-pixels",
             )
             val rendererKeys = when (renderer) {
                 ThemeRenderer.PLAIN -> setOf("icons")
@@ -802,14 +820,17 @@ internal class PresentationSourceLoader(
                 requireExactFontMetrics = node.optionalObject("safety")
                     ?.optionalBoolean("require-exact-font-metrics", false) ?: false,
                 markers = node.optionalObject("markers")?.let { parseMarkers(it, path.toString(), "themes.$id.markers") },
+                rules = node.optionalObject("rules")?.let { parseRules(it, path.toString(), "themes.$id.rules") },
+                nameInsetPixels = node.optionalInt("name-inset-pixels") ?: 0,
             )
         }
     }
 
     private fun parseMarkers(node: YamlObject, source: String, path: String): MarkerThemeSource {
-        node.rejectUnknown("style", "bullet", "tree")
+        node.rejectUnknown("style", "bullet", "tree", "gap-pixels")
         val tree = node.optionalObject("tree")?.rejectUnknown("branch", "last", "vertical")
         return MarkerThemeSource(
+            gapPixels = node.optionalInt("gap-pixels") ?: 0,
             style = node.optionalString("style"),
             bullet = node.raw("bullet")?.let { parseMarkerPiece(it, source, "$path.bullet") },
             tree = tree?.let {
@@ -819,6 +840,17 @@ internal class PresentationSourceLoader(
                     vertical = it.raw("vertical")?.let { raw -> parseMarkerPiece(raw, source, "$path.tree.vertical") },
                 )
             },
+        )
+    }
+
+    private fun parseRules(node: YamlObject, source: String, path: String): RuleThemeSource {
+        node.rejectUnknown("style", "fill", "left", "right", "title-gap-pixels")
+        return RuleThemeSource(
+            style = node.optionalString("style"),
+            fill = node.raw("fill")?.let { parseMarkerPiece(it, source, "$path.fill") },
+            left = node.raw("left")?.let { parseMarkerPiece(it, source, "$path.left") },
+            right = node.raw("right")?.let { parseMarkerPiece(it, source, "$path.right") },
+            titleGapPixels = node.optionalInt("title-gap-pixels") ?: 4,
         )
     }
 
@@ -1038,13 +1070,14 @@ internal class PresentationSourceLoader(
                 "shown-flags",
                 "marker",
                 "dividers",
+                "overflow",
             )
             presentation.optionalString("nested-items")?.let {
                 if (it != "recursive") {
                     throw StrictYamlException("Unsupported nested item projection for $itemKey")
                 }
             }
-            val name = presentation.requiredObject("name").rejectUnknown("message")
+            val name = presentation.requiredObject("name").rejectUnknown("message", "before", "after")
             ItemPresentationSource(
                 id = itemKey.toString(),
                 layout = presentation.optionalString("layout")
@@ -1072,6 +1105,9 @@ internal class PresentationSourceLoader(
                     "catalog item $itemKey",
                     "presentation.dividers",
                 ),
+                nameBefore = parseFragments(name.optionalList("before"), "catalog item $itemKey", "presentation.name.before"),
+                nameAfter = parseFragments(name.optionalList("after"), "catalog item $itemKey", "presentation.name.after"),
+                overflow = parseOverflowStrategy(presentation.optionalString("overflow"), "catalog item $itemKey", "presentation.overflow"),
             )
         }
 
@@ -1089,9 +1125,11 @@ internal class PresentationSourceLoader(
         val node = objectNode(raw, source, blockPath)
         return when (node.requiredString("type")) {
             "text" -> {
-                node.rejectUnknown("type", "id", "data", "style", "anchor", "wrapping", "unbreakable", "missing-policy")
+                node.rejectUnknown("type", "id", "data", "style", "anchor", "wrapping", "unbreakable", "missing-policy", *HIDING_KEYS)
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Text(
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
                     data = node.requiredString("data"),
                     style = node.optionalString("style"),
                     anchor = node.optionalString("anchor"),
@@ -1101,9 +1139,15 @@ internal class PresentationSourceLoader(
                 )
             }
             "field" -> {
-                node.rejectUnknown("type", "id", "icon", "label", "data", "format", "style", "anchor", "wrapping", "missing-policy", "separator")
+                node.rejectUnknown(
+                    "type", "id", "icon", "label", "data", "format", "style", "styles", "anchor", "wrapping", "missing-policy",
+                    "separator", *HIDING_KEYS,
+                )
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Field(
+                    partStyles = parsePartStyles(node, source, blockPath),
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
                     labelMessage = node.requiredString("label"),
                     data = node.requiredString("data"),
                     format = node.optionalString("format"),
@@ -1118,9 +1162,11 @@ internal class PresentationSourceLoader(
                 )
             }
             "description" -> {
-                node.rejectUnknown("type", "id", "message", "style", "anchor", "wrapping")
+                node.rejectUnknown("type", "id", "message", "style", "anchor", "wrapping", *HIDING_KEYS)
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Description(
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
                     message = node.requiredString("message"),
                     style = node.optionalString("style") ?: "description",
                     anchor = node.optionalString("anchor"),
@@ -1128,9 +1174,10 @@ internal class PresentationSourceLoader(
                 )
             }
             "conditional" -> {
-                node.rejectUnknown("type", "id", "condition", "then", "otherwise", "style", "anchor")
+                node.rejectUnknown("type", "id", "condition", "then", "otherwise", "style", "anchor", "weight")
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Conditional(
+                    weight = parseWeight(node, source, blockPath),
                     condition = parseCondition(node.requiredObject("condition"), source, "$blockPath.condition"),
                     thenBlocks = parseBlocks(node.requiredList("then"), source, "$blockPath.then"),
                     otherwiseBlocks = node.optionalList("otherwise")?.let {
@@ -1141,7 +1188,7 @@ internal class PresentationSourceLoader(
                 )
             }
             "repeat" -> {
-                node.rejectUnknown("type", "id", "data", "maximum-elements", "template", "style", "anchor", "missing-policy")
+                node.rejectUnknown("type", "id", "data", "maximum-elements", "template", "style", "anchor", "missing-policy", *HIDING_KEYS)
                 validateOptionalSemanticId(node, source, blockPath)
                 val template = node.requiredObject("template").rejectUnknown(
                     "type",
@@ -1151,6 +1198,7 @@ internal class PresentationSourceLoader(
                     "missing-message",
                     "format",
                     "separator",
+                    "styles",
                 )
                 if (template.requiredString("type") != "compound-field") {
                     throw StrictYamlException("Unsupported repeat template at $blockPath in $source")
@@ -1167,16 +1215,21 @@ internal class PresentationSourceLoader(
                         separator = template.takeIf { it.contains("separator") }?.let {
                             parseSeparator(it.raw("separator"), source, "$blockPath.template.separator")
                         },
+                        partStyles = parsePartStyles(template, source, "$blockPath.template"),
                     ),
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
                     style = node.optionalString("style"),
                     anchor = node.optionalString("anchor"),
                     missingPolicy = parseMissingDataPolicy(node.optionalString("missing-policy"), source, blockPath),
                 )
             }
             "nested-item-list" -> {
-                node.rejectUnknown("type", "id", "style", "anchor")
+                node.rejectUnknown("type", "id", "style", "anchor", *HIDING_KEYS)
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.NestedItemList(
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
                     style = node.optionalString("style"),
                     anchor = node.optionalString("anchor"),
                 )
@@ -1184,10 +1237,11 @@ internal class PresentationSourceLoader(
             "group" -> {
                 node.rejectUnknown(
                     "type", "id", "header", "children", "marker", "dividers", "when-header-missing", "when-empty",
-                    "gap-before-lines", "style", "anchor",
+                    "gap-before-lines", "style", "anchor", "weight",
                 )
                 validateOptionalSemanticId(node, source, blockPath)
                 PresentationBlockSource.Group(
+                    weight = parseWeight(node, source, blockPath),
                     header = node.optionalObject("header")?.let { parseBlock(node.raw("header"), source, "$blockPath.header") },
                     children = parseBlocks(node.requiredList("children"), source, "$blockPath.children"),
                     marker = parseGroupMarker(node.optionalString("marker"), source, "$blockPath.marker"),
@@ -1207,7 +1261,112 @@ internal class PresentationSourceLoader(
                     anchor = node.optionalString("anchor"),
                 )
             }
+            "row" -> {
+                node.rejectUnknown("type", "id", "left", "right", "style", "anchor", "wrapping", *HIDING_KEYS)
+                validateOptionalSemanticId(node, source, blockPath)
+                PresentationBlockSource.Row(
+                    left = parseFragments(node.optionalList("left"), source, "$blockPath.left"),
+                    right = parseFragments(node.optionalList("right"), source, "$blockPath.right"),
+                    style = node.optionalString("style"),
+                    anchor = node.optionalString("anchor"),
+                    wrapping = node.optionalString("wrapping"),
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
+                )
+            }
+            "rule" -> {
+                node.rejectUnknown("type", "id", "title", "style", "anchor", *HIDING_KEYS)
+                validateOptionalSemanticId(node, source, blockPath)
+                PresentationBlockSource.Rule(
+                    title = parseFragments(node.optionalList("title"), source, "$blockPath.title"),
+                    style = node.optionalString("style"),
+                    anchor = node.optionalString("anchor"),
+                    weight = parseWeight(node, source, blockPath),
+                    summary = parseSummary(node, source, blockPath),
+                )
+            }
             else -> throw StrictYamlException("Unsupported block type at $blockPath in $source")
+        }
+    }
+
+    /** `weight` is a non-negative integer or `never`; absent inherits the enclosing block's. */
+    private fun parseWeight(node: YamlObject, source: String, path: String): HidingWeight? {
+        if (!node.contains("weight")) return null
+        return when (node.raw("weight")) {
+            "never" -> HidingWeight.Never
+            is String -> throw StrictYamlException("$path.weight in $source must be an integer or never")
+            else -> HidingWeight.Ranked(node.requiredInt("weight"))
+        }
+    }
+
+    private fun parseSummary(node: YamlObject, source: String, path: String): SummarySource? {
+        val summary = node.optionalObject("summary") ?: return null
+        summary.rejectUnknown("slot", "piece", "value-path", "format", "style")
+        return SummarySource(
+            slot = summary.requiredString("slot"),
+            piece = summary.raw("piece")?.let { parseFragment(it, source, "$path.summary.piece") },
+            valuePath = summary.optionalString("value-path"),
+            format = summary.optionalString("format"),
+            style = summary.optionalString("style"),
+        )
+    }
+
+    private fun parsePartStyles(node: YamlObject, source: String, path: String): FieldPartStyles? {
+        val styles = node.optionalObject("styles") ?: return null
+        styles.rejectUnknown("icon", "label", "separator", "value")
+        return FieldPartStyles(
+            icon = styles.optionalString("icon"),
+            label = styles.optionalString("label"),
+            separator = styles.optionalString("separator"),
+            value = styles.optionalString("value"),
+        )
+    }
+
+    private fun parseFragments(values: List<Any?>?, source: String, path: String): List<FragmentSource> =
+        values.orEmpty().mapIndexed { index, raw -> parseFragment(raw, source, "$path[$index]") }
+
+    /**
+     * A fragment is a mapping with exactly one kind key: `message`, `data`, `glyph`, `literal` or
+     * `slot`, plus optional `style` and `when`.
+     */
+    private fun parseFragment(raw: Any?, source: String, path: String): FragmentSource {
+        val node = objectNode(raw, source, path)
+        val kinds = node.keys.intersect(FRAGMENT_KINDS)
+        if (kinds.size != 1) {
+            throw StrictYamlException("$path in $source must name exactly one of ${FRAGMENT_KINDS.joinToString()}")
+        }
+        val style = node.optionalString("style")
+        val condition = node.optionalObject("when")?.let { parseCondition(it, source, "$path.when") }
+        return when (kinds.single()) {
+            "message" -> {
+                node.rejectUnknown("message", "style", "when")
+                FragmentSource.Message(node.requiredString("message"), style, condition)
+            }
+            "data" -> {
+                node.rejectUnknown("data", "format", "style", "when")
+                FragmentSource.Data(node.requiredString("data"), node.optionalString("format"), style, condition)
+            }
+            "glyph" -> {
+                node.rejectUnknown("glyph", "style", "when")
+                FragmentSource.Glyph(node.requiredString("glyph"), style, condition)
+            }
+            "literal" -> {
+                node.rejectUnknown("literal", "style", "when")
+                FragmentSource.Literal(node.requiredString("literal"), style, condition)
+            }
+            else -> {
+                node.rejectUnknown("slot", "prefix", "suffix", "separator", "maximum-entries", "overflow-count-message", "style", "when")
+                FragmentSource.Slot(
+                    id = node.requiredString("slot"),
+                    prefix = node.raw("prefix")?.let { parseFragment(it, source, "$path.prefix") },
+                    suffix = node.raw("suffix")?.let { parseFragment(it, source, "$path.suffix") },
+                    separator = node.raw("separator")?.let { parseFragment(it, source, "$path.separator") },
+                    maximumEntries = node.optionalInt("maximum-entries"),
+                    overflowCountMessage = node.optionalString("overflow-count-message"),
+                    style = style,
+                    condition = condition,
+                )
+            }
         }
     }
 
@@ -1319,6 +1478,8 @@ internal class PresentationSourceLoader(
         const val MAX_BYTES_PER_DOMAIN = 16L * 1024L * 1024L
         val YAML_EXTENSIONS = setOf("yml", "yaml")
         val SEMANTIC_ID = Regex("[a-z0-9][a-z0-9._/-]*")
+        val HIDING_KEYS = arrayOf("weight", "summary")
+        val FRAGMENT_KINDS = setOf("message", "data", "glyph", "literal", "slot")
     }
 }
 
