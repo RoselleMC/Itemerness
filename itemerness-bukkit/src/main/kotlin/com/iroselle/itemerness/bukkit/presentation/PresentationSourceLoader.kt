@@ -52,6 +52,7 @@ import com.iroselle.itemerness.core.presentation.NamespacedKeyFormatMode
 import com.iroselle.itemerness.core.presentation.OverflowPolicy
 import com.iroselle.itemerness.core.presentation.OverflowStrategy
 import com.iroselle.itemerness.core.presentation.PresentationBlockSource
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationCompilation
 import com.iroselle.itemerness.core.presentation.PresentationCompiler
 import com.iroselle.itemerness.core.presentation.PresentationSource
@@ -104,6 +105,7 @@ internal class PresentationSourceLoader(
         defaultLayout: ItemKey? = null,
         defaultTheme: ItemKey? = null,
         revision: Long = 0,
+        budgets: PresentationBudgets = PresentationBudgets(),
     ): LoadedPresentationSource {
         val formats = yamlFiles(root, "formats").flatMap(::parseFormats)
         val locales = yamlFiles(root, "locales").map(::parseLocale)
@@ -132,7 +134,7 @@ internal class PresentationSourceLoader(
         )
         return LoadedPresentationSource(
             source = source,
-            compilation = PresentationCompiler(defaultLocale).compile(source, revision),
+            compilation = PresentationCompiler(defaultLocale, budgets).compile(source, revision),
             locales = locales.map(LocaleSource::locale),
         )
     }

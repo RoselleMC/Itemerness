@@ -10,6 +10,8 @@ import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonObject
 import com.iroselle.itemerness.editor.protocol.JsonValue
 import com.iroselle.itemerness.editor.protocol.ProjectDocumentCodec
+import com.iroselle.itemerness.editor.protocol.ProjectDocumentEncoder
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -732,6 +734,59 @@ class EditorCatalogReaderTest {
             "CATALOG.SOURCE_CHANGED_SINCE_IMPORT",
             stale.requiredObjects("diagnostics").single().requiredString("code"),
         )
+    }
+
+    @Test
+    fun `a configured tooltip height limit reaches documents previews and exports`() {
+        fixture()
+        val config = directory.resolve("config.yml")
+        Files.writeString(config, Files.readString(config).replace("maximum-height-pixels: 180", "maximum-height-pixels: 320"))
+        val items = directory.resolve("items/examples.yml")
+        val rows = """        - type: field
+          label: data.charges.label
+          data: example:charges
+          format: itemerness:integer
+""".repeat(20)
+        Files.writeString(items, Files.readString(items).replace(
+            "          message: item.travel-token.description\n",
+            "          message: item.travel-token.description\n$rows",
+        ).replace("  travel-token:\n    enabled: false", "  travel-token:\n    enabled: true"))
+        val document = requireNotNull(read().raw("document"))
+        val text = Json.canonicalize(document)
+        val decoded = ProjectDocumentCodec.decode(text, BundledBuiltinFontMetrics(metrics))
+        assertEquals(PresentationBudgets(maximumHeightPixels = 320), decoded.budgets)
+
+        val raised = CompilerBridge(BundledBuiltinFontMetrics(metrics), "test", { PresentationBudgets(maximumHeightPixels = 320) })
+        assertTrue(raised.validateDocument(document).isEmpty())
+        fun reasons(bridge: CompilerBridge, documentText: String): String {
+            val result = bridge.compilePreview(documentText, CompilerBridge.PreviewContext(
+                itemId = "itemerness:travel-token", locale = "en_us", requestedTheme = "itemerness:default",
+                assetProfile = null, capabilities = emptyList(), metricsRevision = null,
+                resourcePackLoaded = false, managesVanillaTooltipLines = true,
+                snapshotHash = com.iroselle.itemerness.editor.agent.EditorDraftStore.digest(documentText),
+            ))
+            return (result as? CompilerBridge.Outcome.Rendered)?.json ?: (result as CompilerBridge.Outcome.Rejected).json
+        }
+        // The raised limit fits the tall item; the default one does not.
+        val fitted = JsonObject.parse(reasons(raised, text), "preview")
+        assertEquals(JsonValue.Null, fitted.raw("failure"))
+        // More Lore lines than a 180-pixel tooltip can hold.
+        assertTrue(fitted.requiredObject("display").requiredObjects("lore").size > 17)
+        assertFalse("Display height budget exceeded" in Json.canonicalize(requireNotNull(fitted.raw("display"))))
+        val defaults = JsonValue.Obj((document as JsonValue.Obj).entries + ("budgets" to ProjectDocumentEncoder.budgetsJson(PresentationBudgets())))
+        val defaultText = Json.canonicalize(defaults)
+        val fallback = reasons(CompilerBridge(BundledBuiltinFontMetrics(metrics), "test"), defaultText)
+        assertTrue("Display height budget exceeded" in fallback, fallback.take(3000))
+        // A server compiles only documents made under its own limits.
+        assertTrue(Json.canonicalize(JsonValue.Arr(raised.validateDocument(defaults))).contains("runtime_budgets_mismatch"))
+        assertTrue(Json.canonicalize(JsonValue.Arr(CompilerBridge(BundledBuiltinFontMetrics(metrics), "test").validateDocument(document))).contains("runtime_budgets_mismatch"))
+
+        val exported = JsonObject.of(EditorCatalogExporter(metrics, raised).export(document), "export")
+        assertTrue("maximum-height-pixels: 320" in exported.requiredString("settingsPatch"), exported.requiredString("settingsPatch"))
+        val unchanged = JsonObject.of(exporter().export(requireNotNull(JsonObject.of(reader().read(), "r").raw("document")).let {
+            JsonValue.Obj((it as JsonValue.Obj).entries + ("budgets" to ProjectDocumentEncoder.budgetsJson(PresentationBudgets())))
+        }), "export")
+        assertFalse("maximum-height-pixels" in unchanged.requiredString("settingsPatch"))
     }
 
     private fun updateKey(document: JsonValue.Obj, id: String, update: (JsonValue.Obj) -> JsonValue.Obj): JsonValue.Obj =

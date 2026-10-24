@@ -16,7 +16,7 @@
         "invalid": "项目文档未通过校验。",
         "catalog_invalid": "物品目录未通过校验（{{diagnosticCount}} 个问题）。",
         "preview_data_invalid": "物品 {{item}} 的预览数据无效：{{detail}}",
-        "runtime_budgets_mismatch": "草稿的渲染限制与插件固定的运行限制不一致。"
+        "runtime_budgets_mismatch": "此草稿使用的提示框限制与插件当前的不一致。请重新连接以载入插件的限制；修改 config.yml 后需先执行 /itemerness reload。"
     },
     "item": { "unknown": "物品 {{item}} 不在本项目中。" },
     "theme": {

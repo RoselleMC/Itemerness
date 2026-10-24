@@ -27,10 +27,13 @@ import com.iroselle.itemerness.editor.protocol.DocumentEncoding.obj
 import java.util.UUID
 
 /** Encodes already validated configuration sources. Asset selectors and policies stay explicit. */
-class ProjectDocumentEncoder(private val documentId: UUID) {
+class ProjectDocumentEncoder(
+    private val documentId: UUID,
+    /** The encoding server's limits; a document is only valid where they apply. */
+    private val budgets: PresentationBudgets = PresentationBudgets(),
+) {
     data class Defaults(val layout: String?, val theme: String?)
     data class ItemBindings(val layout: String?, val theme: String?)
-    private val budgets = PresentationBudgets()
     fun encode(
         namespace: String,
         defaultLocale: String,
@@ -46,12 +49,7 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
         "documentId" to documentId.toString(),
         "namespace" to namespace,
         "defaultLocale" to defaultLocale,
-        "budgets" to obj(
-            "maximumWidthPixels" to budgets.maximumWidthPixels, "maximumHeightPixels" to budgets.maximumHeightPixels, "maximumLines" to budgets.maximumLines,
-            "maximumRuns" to budgets.maximumRuns, "maximumTextCodePoints" to budgets.maximumTextCodePoints, "maximumBlocksPerItem" to budgets.maximumBlocksPerItem,
-            "maximumBlockDepth" to budgets.maximumBlockDepth, "maximumRepeatElements" to budgets.maximumRepeatElements, "maximumCanvasLayers" to budgets.maximumCanvasLayers,
-            "maximumEmittedGlyphs" to budgets.maximumEmittedGlyphs,
-        ),
+        "budgets" to budgetsJson(budgets),
         "measurement" to objectValue(assets.requiredObject("measurement")),
         "dataSchemas" to catalog.schemas.map { schema(it, integrations) },
         "items" to catalog.items.map { item ->
@@ -257,5 +255,15 @@ class ProjectDocumentEncoder(private val documentId: UUID) {
         is ValueReferenceSource.Data -> obj("kind" to "data", "key" to reference.key)
         is ValueReferenceSource.Fact -> obj("kind" to "fact", "key" to reference.key)
         is ValueReferenceSource.Literal -> obj("kind" to "literal", "value" to DocumentEncoding.typedValue(reference.value))
+    }
+
+    companion object {
+        /** The document form of [budgets], as every encoder writes it. */
+        fun budgetsJson(budgets: PresentationBudgets): JsonValue.Obj = obj(
+            "maximumWidthPixels" to budgets.maximumWidthPixels, "maximumHeightPixels" to budgets.maximumHeightPixels, "maximumLines" to budgets.maximumLines,
+            "maximumRuns" to budgets.maximumRuns, "maximumTextCodePoints" to budgets.maximumTextCodePoints, "maximumBlocksPerItem" to budgets.maximumBlocksPerItem,
+            "maximumBlockDepth" to budgets.maximumBlockDepth, "maximumRepeatElements" to budgets.maximumRepeatElements, "maximumCanvasLayers" to budgets.maximumCanvasLayers,
+            "maximumEmittedGlyphs" to budgets.maximumEmittedGlyphs,
+        )
     }
 }

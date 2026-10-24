@@ -1,10 +1,12 @@
 package com.iroselle.itemerness.editor.agent
 
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonException
 import com.iroselle.itemerness.editor.protocol.JsonObject
 import com.iroselle.itemerness.editor.protocol.JsonValue
 import com.iroselle.itemerness.editor.protocol.ProjectDocumentCodec
+import com.iroselle.itemerness.editor.protocol.ProjectDocumentEncoder
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -30,6 +32,8 @@ class EditorApiServer(
     private val readCatalog: ((Boolean) -> JsonValue)? = null,
     private val exportCatalog: ((JsonValue) -> JsonValue)? = null,
     private val serverMetadata: ServerMetadataStore? = null,
+    /** The server's current output limits; a stored draft is realigned to them when read. */
+    private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
 ) : AutoCloseable {
     data class Metadata(
         val serverId: String,
@@ -152,7 +156,8 @@ class EditorApiServer(
                 }
                 "/api/v2/document" -> when (exchange.requestMethod) {
                     "GET" -> {
-                        val snapshot = drafts.read() ?: return error(exchange, 404, "DRAFT_NOT_FOUND")
+                        val snapshot = drafts.alignBudgets(ProjectDocumentEncoder.budgetsJson(budgets()), DEFAULT_BUDGETS)
+                            ?: return error(exchange, 404, "DRAFT_NOT_FOUND")
                         respond(exchange, 200, JsonValue.Obj((snapshot.json() as JsonValue.Obj).entries + ("serverId" to text(metadata.serverId))))
                     }
                     "PUT" -> {
@@ -289,6 +294,8 @@ class EditorApiServer(
         const val PROTOCOL: String = "2.0"
         const val LAYOUT_HEADER: String = "X-Itemerness-Catalog-Layout"
         private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
+        /** What a document without a `budgets` object decodes to. */
+        private val DEFAULT_BUDGETS = ProjectDocumentEncoder.budgetsJson(PresentationBudgets())
         private fun text(value: String): JsonValue = JsonValue.Text(value)
         private fun obj(vararg values: Pair<String, JsonValue>): JsonValue = JsonValue.Obj(mapOf(*values))
     }

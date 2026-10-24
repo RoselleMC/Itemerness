@@ -430,6 +430,13 @@
         "problems": "{{count}} issues",
         "fidelityHeading": "Accuracy",
         "fidelitySummary": "{{count}}/{{total}} aspects verified by the server",
+        "heightLimit": {
+            "short": "{{pixels}}px",
+            "label": "Tooltip height limit: {{pixels}}px",
+            "raised": "This server lets tooltips grow to {{pixels}}px before items hide rows or fall back, instead of the usual {{standard}}px. The client does not scroll tooltips: one taller than a player's game window is cut off. Check tall items at the window sizes and GUI scales your players use.",
+            "lowered": "This server limits tooltips to {{pixels}}px, below the usual {{standard}}px, so items hide rows or fall back sooner than on other servers.",
+            "source": "Set by presentation.maximum-height-pixels in the plugin's config.yml. Previews here use the same limit."
+        },
         "origin": {
             "local": "Draft preview",
             "mock": "Draft preview",

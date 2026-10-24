@@ -1,6 +1,7 @@
 package com.iroselle.itemerness.bukkit.config
 
 import com.iroselle.itemerness.api.ItemKey
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import java.net.URI
 import java.nio.file.Path
 
@@ -22,6 +23,8 @@ internal data class ItemernessSettings(
     val defaultLayout: ItemKey,
     val defaultTheme: ItemKey,
     val editor: EditorEndpoint?,
+    /** Output limits every compilation on this server uses, including editor previews. */
+    val budgets: PresentationBudgets = PresentationBudgets(),
 ) {
     val pendingNameColorRgb: Int
         get() = NAMED_COLORS.getValue(pendingNameColor)
@@ -34,6 +37,12 @@ internal data class ItemernessSettings(
         private const val ITEM_ID_TOKEN = "{item-id}"
         private val LOCALE_PATTERN = Regex("[a-z0-9]{2,16}(?:_[a-z0-9]{2,16})?")
         private val ENVIRONMENT_REFERENCE = Regex("\\$\\{([A-Z_][A-Z0-9_]*)}")
+
+        /**
+         * Operators may trade screen fit for content. Below this a framed name and a few rows no
+         * longer fit; above the maximum the 64-line Lore budget is reached long before the height.
+         */
+        val MAXIMUM_HEIGHT_PIXELS_RANGE = 60..1024
         private val NAMED_COLORS = mapOf(
             "black" to 0x000000,
             "dark_blue" to 0x0000AA,
@@ -117,7 +126,7 @@ internal data class ItemernessSettings(
             }
 
             val presentation = root.requiredObject("presentation")
-                .rejectUnknown("default-layout", "default-theme")
+                .rejectUnknown("default-layout", "default-theme", "maximum-height-pixels")
             val defaultLayout = parseItemKey(
                 presentation.requiredString("default-layout"),
                 "presentation.default-layout",
@@ -129,6 +138,13 @@ internal data class ItemernessSettings(
                 source,
             )
 
+            val maximumHeight = presentation.optionalInt("maximum-height-pixels") ?: PresentationBudgets().maximumHeightPixels
+            if (maximumHeight !in MAXIMUM_HEIGHT_PIXELS_RANGE) {
+                throw StrictYamlException(
+                    "presentation.maximum-height-pixels in $source must be between ${MAXIMUM_HEIGHT_PIXELS_RANGE.first} and ${MAXIMUM_HEIGHT_PIXELS_RANGE.last}",
+                )
+            }
+
             return ItemernessSettings(
                 defaultNamespace = namespace,
                 pendingNameTemplate = pendingTemplate,
@@ -137,6 +153,7 @@ internal data class ItemernessSettings(
                 defaultLayout = defaultLayout,
                 defaultTheme = defaultTheme,
                 editor = editor,
+                budgets = PresentationBudgets(maximumHeightPixels = maximumHeight),
             )
         }
 

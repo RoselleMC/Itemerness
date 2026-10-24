@@ -382,5 +382,47 @@
         "from": "report-resource-pack: deny",
         "to": "report-resource-pack: schema-policy",
         "valid": false
+    },
+    {
+        "name": "height-limit-minimum",
+        "kind": "config",
+        "from": "maximum-height-pixels: 180",
+        "to": "maximum-height-pixels: 60",
+        "valid": true
+    },
+    {
+        "name": "height-limit-maximum",
+        "kind": "config",
+        "from": "maximum-height-pixels: 180",
+        "to": "maximum-height-pixels: 1024",
+        "valid": true
+    },
+    {
+        "name": "height-limit-below",
+        "kind": "config",
+        "from": "maximum-height-pixels: 180",
+        "to": "maximum-height-pixels: 59",
+        "valid": false
+    },
+    {
+        "name": "height-limit-above",
+        "kind": "config",
+        "from": "maximum-height-pixels: 180",
+        "to": "maximum-height-pixels: 1025",
+        "valid": false
+    },
+    {
+        "name": "height-limit-text",
+        "kind": "config",
+        "from": "maximum-height-pixels: 180",
+        "to": "maximum-height-pixels: tall",
+        "valid": false
+    },
+    {
+        "name": "height-limit-absent",
+        "kind": "config",
+        "from": "\n  maximum-height-pixels: 180",
+        "to": "",
+        "valid": true
     }
 ]

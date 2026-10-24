@@ -126,6 +126,8 @@ export function LocalOperationsTool() {
             secret?: boolean;
             numeric?: boolean;
             multiline?: boolean;
+            /** Clearing the input removes the key instead of writing an empty string. */
+            optional?: boolean;
         } = {},
     ) => {
         const common = {
@@ -139,12 +141,14 @@ export function LocalOperationsTool() {
                     HTMLInputElement | HTMLTextAreaElement
                 >,
             ) =>
-                state.edit(
-                    path,
-                    options.numeric
-                        ? numberInput(event.target.value)
-                        : event.target.value,
-                ),
+                options.optional && event.target.value === ""
+                    ? state.edit(path, undefined, { remove: true })
+                    : state.edit(
+                          path,
+                          options.numeric
+                              ? numberInput(event.target.value)
+                              : event.target.value,
+                      ),
         };
         return (
             <label
@@ -435,6 +439,11 @@ export function LocalOperationsTool() {
                                 {field(
                                     ["presentation", "default-theme"],
                                     t("defaultTheme"),
+                                )}
+                                {field(
+                                    ["presentation", "maximum-height-pixels"],
+                                    t("heightLimit"),
+                                    { numeric: true, optional: true },
                                 )}
                                 <h4>{t("listener")}</h4>
                                 {legacy ? (

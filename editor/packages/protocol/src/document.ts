@@ -66,9 +66,20 @@ const nodeIdentity = {
     extensions: z.record(z.string().max(128), z.unknown()).optional(),
 };
 
+/**
+ * The tooltip height limit when a server does not configure one. Servers may raise or lower it
+ * through `presentation.maximum-height-pixels`; documents carry the value they were made under.
+ */
+export const DEFAULT_MAXIMUM_HEIGHT_PIXELS = 180;
+
 export const budgetsSchema = z.strictObject({
     maximumWidthPixels: z.number().int().min(1).max(4096).default(220),
-    maximumHeightPixels: z.number().int().min(1).max(4096).default(180),
+    maximumHeightPixels: z
+        .number()
+        .int()
+        .min(1)
+        .max(4096)
+        .default(DEFAULT_MAXIMUM_HEIGHT_PIXELS),
     maximumLines: z.number().int().min(1).max(256).default(64),
     maximumRuns: z.number().int().min(1).max(4096).default(512),
     maximumTextCodePoints: z.number().int().min(1).max(131_072).default(16_384),

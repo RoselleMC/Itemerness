@@ -425,6 +425,13 @@
         "problems": "{{count}} 个问题",
         "fidelityHeading": "准确度",
         "fidelitySummary": "{{count}}/{{total}} 项已经服务端核验",
+        "heightLimit": {
+            "short": "{{pixels}}px",
+            "label": "提示框高度上限：{{pixels}}px",
+            "raised": "此服务器允许提示框增高到 {{pixels}}px 后才隐藏内容行或回退，通常的上限是 {{standard}}px。客户端不会滚动提示框，高过游戏窗口的部分会被截掉。请在玩家常用的窗口大小和界面缩放下检查较高的物品。",
+            "lowered": "此服务器把提示框限制在 {{pixels}}px，低于通常的 {{standard}}px，物品会比在其他服务器上更早隐藏内容行或回退。",
+            "source": "由插件 config.yml 中的 presentation.maximum-height-pixels 设置，这里的预览使用同一上限。"
+        },
         "origin": {
             "local": "草稿预览",
             "mock": "草稿预览",

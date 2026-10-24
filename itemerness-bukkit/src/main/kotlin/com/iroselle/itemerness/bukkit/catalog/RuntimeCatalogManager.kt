@@ -87,6 +87,7 @@ internal class RuntimeCatalogManager(
                 defaultLocale = settings.defaultLocale,
                 defaultLayout = settings.defaultLayout,
                 defaultTheme = settings.defaultTheme,
+                budgets = settings.budgets,
             )
             LoadedRuntimeCandidate(
                 settings = settings,

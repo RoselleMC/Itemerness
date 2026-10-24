@@ -42,7 +42,7 @@ internal class EditorApiService(
 ) : EditorApiHandle {
     private val metrics = BundledBuiltinFontMetrics(builtinFontMetrics)
     private val validator = RuntimeCatalogValidator()
-    private val bridge = CompilerBridge(metrics, agentVersion) { decoded, domain, presentation ->
+    private val bridge = CompilerBridge(metrics, agentVersion, { settings().budgets }) { decoded, domain, presentation ->
         validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
     }
     private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
@@ -68,6 +68,7 @@ internal class EditorApiService(
         readCatalog = catalogReader::read,
         exportCatalog = catalogExporter::export,
         serverMetadata = serverMetadata,
+        budgets = { settings().budgets },
     ) }
     private val api by apiDelegate
     private var stopped = false

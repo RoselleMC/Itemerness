@@ -67,7 +67,7 @@ internal class EditorCatalogReader(
         if (Json.canonicalize(document).toByteArray(Charsets.UTF_8).size > EditorDraftStore.MAX_BYTES) {
             throw CatalogTransferException("CATALOG_DOCUMENT_TOO_LARGE")
         }
-        val compiler = CompilerBridge(BundledBuiltinFontMetrics(metrics), agentVersion) { decoded, domain, presentation ->
+        val compiler = CompilerBridge(BundledBuiltinFontMetrics(metrics), agentVersion, { settings.budgets }) { decoded, domain, presentation ->
             validator.validateRuntimeContent(settings, decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
         }
         val diagnostics = compiler.validateDocument(document)
@@ -81,7 +81,7 @@ internal class EditorCatalogReader(
         val candidate = compilation.candidate
         if (candidate == null || compilation.diagnostics.isNotEmpty()) rejectCatalog(compilation.diagnostics)
         val presentation = PresentationSourceLoader(metrics).loadAndCompile(directory, catalog,
-            settings.defaultLocale, settings.defaultLayout, settings.defaultTheme)
+            settings.defaultLocale, settings.defaultLayout, settings.defaultTheme, budgets = settings.budgets)
         if (presentation.compilation.diagnostics.isNotEmpty()) {
             throw CatalogTransferException("CATALOG_INVALID", presentation.compilation.diagnostics.map { diagnostic -> obj(
                 "severity" to "ERROR", "origin" to "agent", "code" to "PRESENTATION.${diagnostic.code.name}",
@@ -92,7 +92,7 @@ internal class EditorCatalogReader(
         val presentationCatalog = presentation.compilation.catalog ?: throw CatalogTransferException("CATALOG_INVALID")
         val diagnostics = validator.validate(settings, catalog.source, candidate.materializeValidationView(), presentationCatalog, catalog.dataKeyIntegrations)
         if (diagnostics.isNotEmpty()) rejectCatalog(diagnostics)
-        return ProjectDocumentEncoder(UUID.randomUUID()).encode(settings.defaultNamespace, settings.defaultLocale,
+        return ProjectDocumentEncoder(UUID.randomUUID(), settings.budgets).encode(settings.defaultNamespace, settings.defaultLocale,
             catalog.source, presentation.source, EditorAssetMetadata.read(directory, presentation.source), integrations(catalog),
             ProjectDocumentEncoder.Defaults(settings.defaultLayout.toString(), settings.defaultTheme.toString()),
             catalog.itemDocuments.mapKeys { it.key.toString() }.mapValues { (id, value) ->

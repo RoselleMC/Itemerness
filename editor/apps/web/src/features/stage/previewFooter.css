@@ -53,6 +53,16 @@
     font-size: 11px;
     background: transparent;
 }
+.preview-footer-button[data-testid="height-limit"] {
+    color: var(--warn);
+}
+.footer-height-limit p {
+    margin: 0 0 8px;
+    line-height: 1.45;
+}
+.footer-height-limit p:last-child {
+    margin-bottom: 0;
+}
 .fidelity-summary {
     min-width: 28px;
     font-variant-numeric: tabular-nums;

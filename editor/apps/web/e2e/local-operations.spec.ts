@@ -215,3 +215,24 @@ test("late local file reads never replace newer edits or report errors after clo
     await expect(page.locator(".local-file-name")).toHaveCount(0);
     await expect(page.getByRole("alert")).toHaveCount(0);
 });
+
+test("the tooltip height limit is bounded and clearing it removes the key", async ({
+    page,
+}) => {
+    await start(page, "config.yml");
+    const limit = page.getByTestId("local-presentation-maximum-height-pixels");
+    await expect(limit).toHaveValue("180");
+    await limit.fill("1025");
+    await expect(page.getByTestId("local-export")).toBeDisabled();
+    await limit.fill("320");
+    const raised = parseDocument(await downloadYaml(page), {
+        version: "1.1",
+    }).toJS();
+    expect(raised.presentation["maximum-height-pixels"]).toBe(320);
+    await limit.fill("");
+    await expect(page.getByTestId("local-export")).toBeEnabled();
+    const cleared = await downloadYaml(page);
+    expect(cleared).not.toContain("maximum-height-pixels:");
+    expect(parseDocument(cleared, { version: "1.1" }).toJS().presentation)
+        .toMatchObject({ "default-theme": expect.any(String) });
+});

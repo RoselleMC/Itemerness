@@ -290,7 +290,7 @@ function validateValues(
         const presentation = object(
             root.get("presentation"),
             ["presentation"],
-            ["default-layout", "default-theme"],
+            ["default-layout", "default-theme", "maximum-height-pixels"],
         );
         for (const field of ["default-layout", "default-theme"])
             string(
@@ -299,6 +299,15 @@ function validateValues(
                 itemKey,
                 "itemKey",
             );
+        // Optional; the plugin uses 180 when it is absent.
+        const heightLimit = presentation.get("maximum-height-pixels");
+        if (
+            heightLimit !== undefined &&
+            (typeof heightLimit !== "bigint" ||
+                heightLimit < 60n ||
+                heightLimit > 1024n)
+        )
+            report(["presentation", "maximum-height-pixels"], "heightLimit");
     } else {
         object(root, [], ["config-version", "api"]);
         if (!integer(root.get("config-version"), 1n))

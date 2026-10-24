@@ -19,6 +19,7 @@ import com.iroselle.itemerness.core.catalog.DataType
 import com.iroselle.itemerness.core.catalog.InstanceDataMutation
 import com.iroselle.itemerness.core.catalog.SourceDataValue
 import com.iroselle.itemerness.core.presentation.NestedItemPresentation
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.core.presentation.PresentationCatalogSnapshot
 import com.iroselle.itemerness.core.presentation.PresentationDisplay
 import com.iroselle.itemerness.core.presentation.PresentationEngine
@@ -49,13 +50,15 @@ import java.util.UUID
 class CompilerBridge(
     private val builtinFontMetrics: BuiltinFontMetrics,
     private val agentVersion: String,
+    /** Read per request so a catalog reload that changes the limits applies to the next preview. */
+    private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
     private val validateRuntimeContent: (
         ProjectDocumentCodec.Decoded,
         CatalogSnapshot,
         PresentationCatalogSnapshot,
     ) -> List<CatalogDiagnostic> = { _, _, _ -> emptyList() },
 ) {
-    private val documentCompiler = DocumentCompiler(builtinFontMetrics, validateRuntimeContent)
+    private val documentCompiler = DocumentCompiler(builtinFontMetrics, budgets, validateRuntimeContent)
 
     fun validateDocument(document: JsonValue): List<JsonValue> = when (val result = documentCompiler.compile(Json.canonicalize(document))) {
         is DocumentCompiler.Result.Valid -> emptyList()

@@ -5,6 +5,7 @@ import com.iroselle.itemerness.bukkit.catalog.CatalogSourceLoader
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.editor.agent.CatalogTransferException
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.protocol.*
@@ -87,8 +88,11 @@ internal class EditorCatalogExporter(
             throw CatalogTransferException("CATALOG_EXPORT_INVALID", listOf(obj("code" to "CATALOG.EXPORT_INVALID", "severity" to "ERROR", "origin" to "agent",
                 "messageKey" to "diagnostics.catalog.export_invalid", "params" to obj("detail" to (failure.message ?: "Invalid source").take(2048)))))
         }
+        // A raised or lowered height limit is part of what the document was authored against.
+        val heightLimit = decoded.budgets.maximumHeightPixels.takeIf { it != PresentationBudgets().maximumHeightPixels }
         val settingsPatch = map("catalog" to map("default-namespace" to decoded.namespace), "locale" to map("default" to decoded.defaultLocale),
-            "presentation" to map("default-layout" to decoded.defaultLayout, "default-theme" to decoded.defaultTheme))
+            "presentation" to map("default-layout" to decoded.defaultLayout, "default-theme" to decoded.defaultTheme,
+                *listOfNotNull(heightLimit?.let { "maximum-height-pixels" to it }).toTypedArray()))
         // Export never writes the runtime catalog, so a changed baseline is a review warning, not a conflict.
         val imported = EditorSourceLayout.importedSourceHash(root)
         val current = imported?.let { runCatching(currentSourceHash).getOrNull() }
@@ -131,7 +135,7 @@ internal class EditorCatalogExporter(
         val id = UUID.fromString(root.requiredString("documentId"))
         val policies = root.requiredObjects("dataSchemas").flatMap { it.requiredObjects("keys") }
             .associate { it.requiredString("id") to requireNotNull(it.raw("integration")) }
-        val encoder = ProjectDocumentEncoder(id)
+        val encoder = ProjectDocumentEncoder(id, decoded.budgets)
         val defaults = ProjectDocumentEncoder.Defaults(decoded.defaultLayout, decoded.defaultTheme)
         val bindings = root.requiredObjects("items").associate { item ->
             val presentation = item.requiredObject("presentation")
@@ -142,7 +146,7 @@ internal class EditorCatalogExporter(
             val catalog = CatalogSourceLoader().load(directory)
             if (catalog.dataKeyIntegrations != decoded.runtimeIntegrations()) throw CatalogTransferException("CATALOG_EXPORT_LOSSY")
             val presentation = PresentationSourceLoader(metrics).loadAndCompile(directory, catalog, decoded.defaultLocale,
-                decoded.defaultLayout?.let(ItemKey::parse), decoded.defaultTheme?.let(ItemKey::parse))
+                decoded.defaultLayout?.let(ItemKey::parse), decoded.defaultTheme?.let(ItemKey::parse), budgets = decoded.budgets)
             if (presentation.compilation.diagnostics.isNotEmpty()) throw CatalogTransferException("CATALOG_EXPORT_INVALID")
             val restoredBindings = catalog.itemDocuments.mapKeys { it.key.toString() }.mapValues { (id, value) ->
                 val binding = com.iroselle.itemerness.bukkit.config.YamlObject.root(value, "items.$id").requiredObject("presentation")

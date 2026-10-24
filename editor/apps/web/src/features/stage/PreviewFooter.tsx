@@ -3,6 +3,7 @@ import { Popover } from "@base-ui/react/popover";
 import {
     CircleAlert,
     Columns2,
+    MoveVertical,
     ScanLine,
     ShieldCheck,
     UserRound,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { overallFidelity } from "@itemerness/mc-render";
+import { DEFAULT_MAXIMUM_HEIGHT_PIXELS } from "@itemerness/protocol";
 import { useEditorStore } from "../../state/store.js";
 import { SelectField } from "../common/SelectField.js";
 import { PersonaPanel } from "./PersonaPanel.js";
@@ -96,7 +98,9 @@ export function PreviewFooter({
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
-    const [popup, setPopup] = useState<"persona" | "fidelity" | null>(null);
+    const [popup, setPopup] = useState<
+        "persona" | "fidelity" | "height" | null
+    >(null);
     useEffect(() => {
         if (!active) setPopup(null);
     }, [active]);
@@ -108,6 +112,9 @@ export function PreviewFooter({
         count: verified,
         total: preview.claims.length,
     });
+    // The server owns this limit; a non-default one is worth knowing while authoring tall items.
+    const heightLimit = store.document.budgets.maximumHeightPixels;
+    const heightLabel = t("stage.heightLimit.label", { pixels: heightLimit });
     return (
         <footer className="preview-footer" data-testid="preview-footer">
             <div className="preview-footer-view">
@@ -173,6 +180,45 @@ export function PreviewFooter({
                 </button>
             </div>
             <div className="preview-footer-status">
+                {heightLimit !== DEFAULT_MAXIMUM_HEIGHT_PIXELS && (
+                    <FooterPopover
+                        open={popup === "height"}
+                        onOpenChange={(open) => setPopup(open ? "height" : null)}
+                        label={heightLabel}
+                        testId="height-limit"
+                        align="end"
+                        trigger={
+                            <>
+                                <MoveVertical size={15} />
+                                <span className="footer-control-label">
+                                    {t("stage.heightLimit.short", {
+                                        pixels: heightLimit,
+                                    })}
+                                </span>
+                            </>
+                        }
+                    >
+                        <div
+                            className="footer-height-limit"
+                            data-testid="height-limit-notice"
+                        >
+                            <p>
+                                {t(
+                                    heightLimit > DEFAULT_MAXIMUM_HEIGHT_PIXELS
+                                        ? "stage.heightLimit.raised"
+                                        : "stage.heightLimit.lowered",
+                                    {
+                                        pixels: heightLimit,
+                                        standard: DEFAULT_MAXIMUM_HEIGHT_PIXELS,
+                                    },
+                                )}
+                            </p>
+                            <p className="muted">
+                                {t("stage.heightLimit.source")}
+                            </p>
+                        </div>
+                    </FooterPopover>
+                )}
                 {preview.diagnosticsCount > 0 && (
                     <button
                         type="button"

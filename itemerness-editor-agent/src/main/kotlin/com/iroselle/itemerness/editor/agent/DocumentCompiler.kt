@@ -15,6 +15,8 @@ import com.iroselle.itemerness.editor.protocol.ProjectDocumentCodec
 /** One validation path for previews and configuration transfer, including empty catalogs. */
 internal class DocumentCompiler(
     private val metrics: BuiltinFontMetrics,
+    /** The server's current limits; a document compiled under other limits would mislead its author. */
+    private val budgets: () -> PresentationBudgets,
     private val validateRuntime: (ProjectDocumentCodec.Decoded, CatalogSnapshot, PresentationCatalogSnapshot) -> List<CatalogDiagnostic>,
 ) {
     data class Diagnostic(val code: String, val messageKey: String, val params: Map<String, String>)
@@ -38,7 +40,7 @@ internal class DocumentCompiler(
         } catch (exception: JsonException) {
             return Result.Invalid("DECODE_FAILED", "diagnostics.document.decode_failed", mapOf("detail" to (exception.message ?: "invalid document")))
         }
-        if (decoded.budgets != PresentationBudgets()) {
+        if (decoded.budgets != budgets()) {
             return Result.Invalid("DOCUMENT_INVALID", "diagnostics.document.runtime_budgets_mismatch", emptyMap())
         }
         val diagnostics = ArrayList<Diagnostic>()

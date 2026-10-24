@@ -73,6 +73,21 @@ class EditorDraftStore(private val path: Path, private val validate: (String) ->
         return next
     }
 
+    /**
+     * Rewrites the stored draft's limits to [budgets] when they differ, as a new revision.
+     *
+     * Limits are server configuration, not authored content: after an operator changes them, a
+     * draft saved under the old ones must still open instead of failing every preview.
+     */
+    @Synchronized
+    fun alignBudgets(budgets: JsonValue.Obj, defaults: JsonValue.Obj): Snapshot? {
+        val previous = read() ?: return null
+        val document = previous.document as? JsonValue.Obj ?: return previous
+        val stored = document.entries["budgets"] ?: defaults
+        if (stored == budgets) return previous
+        return save(JsonValue.Obj(document.entries + ("budgets" to budgets)), previous.snapshotHash)
+    }
+
     companion object {
         const val MAX_BYTES: Int = 2 * 1024 * 1024
 

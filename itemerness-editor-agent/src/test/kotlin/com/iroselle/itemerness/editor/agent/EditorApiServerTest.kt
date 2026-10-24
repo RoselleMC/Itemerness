@@ -1,8 +1,10 @@
 package com.iroselle.itemerness.editor.agent
 
+import com.iroselle.itemerness.core.presentation.PresentationBudgets
 import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonObject
 import com.iroselle.itemerness.editor.protocol.JsonValue
+import com.iroselle.itemerness.editor.protocol.ProjectDocumentEncoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -28,6 +30,7 @@ class EditorApiServerTest {
     private fun fixture(version: String = "26.1.2", apiToken: String = token,
                         readCatalog: ((Boolean) -> JsonValue)? = null, exportCatalog: ((JsonValue) -> JsonValue)? = null,
                         persistentIdentity: Boolean = false,
+                        budgets: PresentationBudgets = PresentationBudgets(),
                         action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
         val clock = Executors.newSingleThreadScheduledExecutor()
@@ -46,6 +49,7 @@ class EditorApiServerTest {
             { compiles.incrementAndGet(); JsonValue.Text("compiled") }, workers, scheduler, { throw AssertionError(it) },
             readCatalog, exportCatalog,
             serverMetadata = if (persistentIdentity) ServerMetadataStore(directory.resolve("server-metadata.json"), "test") else null,
+            budgets = { budgets },
         )
         try { api.start(); action(api, compiles) } finally {
             api.close(); workers.shutdownNow(); clock.shutdownNow()
@@ -216,6 +220,30 @@ class EditorApiServerTest {
         assertEquals(hash, stored.snapshotHash)
         assertEquals(1, stored.revision)
         assertEquals(document, stored.document)
+    }
+
+    @Test
+    fun `a draft saved under other limits is realigned to the server's limits when read`() {
+        fixture { api, _ -> assertEquals(200, request(api, "/api/v2/document", "PUT", saveBody()).statusCode()) }
+        val raised = PresentationBudgets(maximumHeightPixels = 320)
+        fixture(budgets = raised) { api, _ ->
+            val body = request(api, "/api/v2/document").body()
+            val first = JsonObject.parse(body, "draft")
+            val aligned = first.requiredObject("document")
+            assertEquals(ProjectDocumentEncoder.budgetsJson(raised), aligned.raw("budgets"))
+            assertEquals("draft", aligned.requiredString("value"))
+            assertEquals(2, first.requiredInt("revision"))
+            // Already aligned: further reads change nothing.
+            assertEquals(body, request(api, "/api/v2/document").body())
+        }
+        // Default limits leave a draft without a budgets object untouched.
+        Files.delete(directory.resolve("draft.json"))
+        fixture { api, _ ->
+            assertEquals(200, request(api, "/api/v2/document", "PUT", saveBody()).statusCode())
+            val read = JsonObject.parse(request(api, "/api/v2/document").body(), "draft")
+            assertEquals(1, read.requiredInt("revision"))
+            assertEquals(document, read.raw("document"))
+        }
     }
 
     @Test

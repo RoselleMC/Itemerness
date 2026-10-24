@@ -16,7 +16,7 @@
         "invalid": "The project document did not pass validation.",
         "catalog_invalid": "The item catalog did not pass validation. See {{diagnosticCount}} diagnostic entries.",
         "preview_data_invalid": "Preview data for {{item}} is invalid: {{detail}}",
-        "runtime_budgets_mismatch": "This draft's rendering limits differ from the plugin's fixed runtime limits."
+        "runtime_budgets_mismatch": "This draft was made under different tooltip limits than the plugin uses now. Reconnect to load the plugin's limits; after editing config.yml, run /itemerness reload first."
     },
     "item": { "unknown": "Item {{item}} is not in this project." },
     "theme": {

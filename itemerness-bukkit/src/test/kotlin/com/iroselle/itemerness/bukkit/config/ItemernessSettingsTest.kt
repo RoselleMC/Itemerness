@@ -83,4 +83,20 @@ class ItemernessSettingsTest {
             ItemernessSettings.from(validDocument() + ("canonical-item" to mapOf("pending-name" to mapOf("text" to "pending", "color" to "dark_gray"))), "config.yml")
         }
     }
+
+    @Test
+    fun `the tooltip height limit defaults to 180 pixels and is configurable within its range`() {
+        assertEquals(180, ItemernessSettings.from(validDocument(), "config.yml").budgets.maximumHeightPixels)
+        fun presentation(vararg extra: Pair<String, Any?>): Map<String, Any?> = validDocument() + ("presentation" to mapOf(
+            "default-layout" to "itemerness:plain", "default-theme" to "itemerness:default", *extra,
+        ))
+        assertEquals(180, ItemernessSettings.from(presentation(), "config.yml").budgets.maximumHeightPixels)
+        val raised = ItemernessSettings.from(presentation("maximum-height-pixels" to 320), "config.yml").budgets
+        assertEquals(320, raised.maximumHeightPixels)
+        // Only the height is configurable; the other limits keep their defaults.
+        assertEquals(com.iroselle.itemerness.core.presentation.PresentationBudgets(maximumHeightPixels = 320), raised)
+        for (invalid in listOf(59, 1025, "tall")) {
+            assertThrows(StrictYamlException::class.java) { ItemernessSettings.from(presentation("maximum-height-pixels" to invalid), "config.yml") }
+        }
+    }
 }

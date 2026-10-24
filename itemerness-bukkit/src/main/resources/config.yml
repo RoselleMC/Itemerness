@@ -32,3 +32,8 @@ locale:
 presentation:
   default-layout: itemerness:plain
   default-theme: itemerness:default
+  # Tallest tooltip, in GUI pixels, before an item hides declared rows or falls back.
+  # 60-1024; 180 when omitted. The client does not scroll tooltips: a tooltip taller than
+  # the game window is cut off, so large values only suit players with tall windows or a
+  # small GUI scale.
+  maximum-height-pixels: 180
