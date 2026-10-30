@@ -100,6 +100,13 @@
     font-size: 11px;
     padding-block: 8px;
 }
+.catalog-baseline {
+    margin: 0 0 8px;
+    line-height: 1.45;
+}
+.catalog-baseline-changed {
+    color: var(--warn);
+}
 .catalog-diagnostics {
     max-height: 180px;
     overflow: auto;

@@ -9,6 +9,13 @@ export const catalogReadSchema = z.strictObject({
 });
 export type CatalogRead = z.infer<typeof catalogReadSchema>;
 
+/** The fingerprint of the server's YAML now; it equals a draft's import baseline while the YAML is unchanged. */
+export const catalogStatusSchema = z.strictObject({
+    serverId: z.string().min(1).max(128),
+    sourceHash: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+});
+export type CatalogStatus = z.infer<typeof catalogStatusSchema>;
+
 const domainPath = z
     .string()
     .max(512)

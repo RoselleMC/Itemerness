@@ -12,6 +12,7 @@ import {
     bitmapNodeSchema,
     fontNodeSchema,
     glyphNodeSchema,
+    LEGACY_TRANSFER_LIMITS,
     projectDocumentSchema,
     type BitmapNode,
     type FontNode,
@@ -242,6 +243,8 @@ function sameBitmap(
 export function proposePackFontImport(
     document: ProjectDocument,
     source: PackFontImport,
+    /** The connected plugin's document limit; the result must still be savable there. */
+    documentLimitBytes: number = LEGACY_TRANSFER_LIMITS.documentBytes,
 ): PackFontProposal {
     const existingFont = document.fonts.find(
         (font) => font.id === source.font.id,
@@ -324,7 +327,7 @@ export function proposePackFontImport(
     projectDocumentSchema.parse(next);
     if (
         new TextEncoder().encode(JSON.stringify(next)).length >
-        2 * 1024 * 1024 - 1024
+        documentLimitBytes - 1024
     )
         throw new Error("documentSize");
     return { document: next, added, existing, conflicts };

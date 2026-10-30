@@ -27,6 +27,8 @@
         "export_lossy": "Export would change the configuration at {{path}}.",
         "source_invalid": "The YAML configuration could not be loaded: {{detail}}",
         "export_invalid": "The exported YAML could not be loaded: {{detail}}",
+        "document_too_large": "The configuration is {{actualBytes}} bytes as an editor document; the limit is {{limitBytes}} bytes.",
+        "response_too_large": "The response is {{actualBytes}} bytes; the limit is {{limitBytes}} bytes.",
         "source_changed_since_import": "The YAML on the server changed after this document was imported. Review the exported files against the current configuration before replacing it.",
         "source_path_invalid": "Source file {{path}} must be a relative .yml or .yaml path inside {{domain}}/.",
         "source_path_conflict": "Two objects that each need their own file were assigned to {{path}}."

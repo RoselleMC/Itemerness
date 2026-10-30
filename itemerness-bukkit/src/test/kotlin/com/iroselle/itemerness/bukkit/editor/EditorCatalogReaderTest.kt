@@ -737,6 +737,20 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `catalog status follows the YAML on disk and reports unreadable sources as diagnostics`() {
+        fixture()
+        val baseline = JsonObject.of(reader().read(includeLayout = true), "response").requiredString("sourceHash")
+        assertEquals(baseline, reader().status())
+        val items = directory.resolve("items/examples.yml")
+        Files.writeString(items, Files.readString(items) + "\n# edited on the server\n")
+        assertNotEquals(baseline, reader().status())
+        Files.createSymbolicLink(directory.resolve("items/linked.yml"), items)
+        val failure = assertThrows(CatalogTransferException::class.java) { reader().status() }
+        assertEquals("CATALOG_INVALID", failure.code)
+        assertTrue(Json.canonicalize(JsonValue.Arr(failure.diagnostics)).contains("CATALOG.SOURCE_INVALID"))
+    }
+
+    @Test
     fun `a configured tooltip height limit reaches documents previews and exports`() {
         fixture()
         val config = directory.resolve("config.yml")

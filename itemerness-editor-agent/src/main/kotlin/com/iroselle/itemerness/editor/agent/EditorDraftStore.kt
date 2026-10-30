@@ -52,7 +52,7 @@ class EditorDraftStore(private val path: Path, private val validate: (String) ->
         val previous = read()
         if (expectedHash != (previous?.snapshotHash ?: "")) throw Conflict(previous?.snapshotHash ?: "")
         val canonical = Json.canonicalize(document)
-        require(canonical.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Editor draft exceeds size limit" }
+        EditorTransferLimits.requireDocument(canonical)
         validate(canonical)
         val hash = digest(canonical)
         if (previous?.snapshotHash == hash) return previous
@@ -89,7 +89,8 @@ class EditorDraftStore(private val path: Path, private val validate: (String) ->
     }
 
     companion object {
-        const val MAX_BYTES: Int = 2 * 1024 * 1024
+        /** The draft file holds one document plus a small envelope. */
+        const val MAX_BYTES: Int = EditorTransferLimits.DOCUMENT_BYTES
 
         fun digest(canonical: String): String = "sha256:" + HexFormat.of().formatHex(
             MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8)),

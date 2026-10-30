@@ -4,7 +4,12 @@ import {
     projectDocumentSchema,
     type ProjectDocument,
 } from "@itemerness/protocol";
-import { PluginHttpError, type PluginClient } from "../../api/client.js";
+import {
+    PluginHttpError,
+    transferSizeDetail,
+    type PluginClient,
+} from "../../api/client.js";
+import { formatBytes } from "../common/formatBytes.js";
 import { notify } from "../../state/toasts.js";
 import i18next from "../../i18n/index.js";
 import {
@@ -121,6 +126,29 @@ export function useDocumentSync(): DocumentSync {
                     try {
                         return await client.saveDocument(draft, expected);
                     } catch (error) {
+                        const size = transferSizeDetail(error);
+                        // The status dot alone cannot say why; a size refusal needs its numbers.
+                        if (size)
+                            notify(
+                                String(
+                                    i18next.t(
+                                        size.actualBytes != null &&
+                                            size.limitBytes != null
+                                            ? "sidebar.documentSync.tooLarge"
+                                            : "sidebar.documentSync.tooLargeUnmeasured",
+                                        {
+                                            actual: formatBytes(
+                                                size.actualBytes ?? 0,
+                                            ),
+                                            limit: formatBytes(
+                                                size.limitBytes ?? 0,
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                "error",
+                                "document-too-large",
+                            );
                         const message =
                             error instanceof Error ? error.message : error;
                         if (

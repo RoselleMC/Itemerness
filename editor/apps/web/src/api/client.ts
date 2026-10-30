@@ -1,10 +1,13 @@
 import {
     catalogReadSchema,
     catalogExportSchema,
+    catalogStatusSchema,
     contentHash,
     diagnosticSchema,
     handshakeSchema,
+    LEGACY_TRANSFER_LIMITS,
     negotiateProtocol,
+    negotiateTransferLimits,
     previewArtifactSchema,
     projectDocumentSchema,
     supportsSegmentedFrameDecorations,
@@ -33,6 +36,7 @@ import {
     type Handshake,
     type PreviewRequest,
     type ProjectDocument,
+    type TransferLimits,
 } from "@itemerness/protocol";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
@@ -46,6 +50,62 @@ export class PluginHttpError extends Error {
         this.name = "PluginHttpError";
     }
 }
+
+/** A transfer refused for its size, by this editor or by the plugin; sizes are UTF-8 bytes. */
+export class TransferSizeError extends Error {
+    constructor(
+        code: "DOCUMENT_TOO_LARGE" | "REQUEST_TOO_LARGE" | "RESPONSE_TOO_LARGE",
+        readonly limitBytes: number,
+        /** Unknown when reading stopped at the limit. */
+        readonly actualBytes: number | null,
+    ) {
+        super(code);
+        this.name = "TransferSizeError";
+    }
+}
+
+const SIZE_CODES = new Set([
+    "DOCUMENT_TOO_LARGE",
+    "REQUEST_TOO_LARGE",
+    "RESPONSE_TOO_LARGE",
+    "CATALOG_DOCUMENT_TOO_LARGE",
+    "CATALOG_RESPONSE_TOO_LARGE",
+]);
+
+/** Size details of a refusal from either peer, for messages that say how far over a document is. */
+export function transferSizeDetail(
+    error: unknown,
+): { code: string; limitBytes: number | null; actualBytes: number | null } | null {
+    if (error instanceof TransferSizeError)
+        return {
+            code: error.message,
+            limitBytes: error.limitBytes,
+            actualBytes: error.actualBytes,
+        };
+    if (!(error instanceof PluginHttpError) || !SIZE_CODES.has(error.message))
+        return null;
+    const body =
+        error.body && typeof error.body === "object"
+            ? (error.body as Record<string, unknown>)
+            : {};
+    const bytes = (value: unknown) => {
+        const number = typeof value === "string" ? Number(value) : value;
+        return typeof number === "number" && Number.isSafeInteger(number)
+            ? number
+            : null;
+    };
+    // Configuration transfers report sizes in their diagnostic; plugins without transfer.limits report none.
+    const params = Array.isArray(body.diagnostics)
+        ? (body.diagnostics[0] as { params?: Record<string, unknown> })?.params
+        : undefined;
+    return {
+        code: error.message,
+        limitBytes: bytes(body.limitBytes ?? params?.limitBytes),
+        actualBytes: bytes(body.actualBytes ?? params?.actualBytes),
+    };
+}
+
+const utf8Length = (text: string) => new TextEncoder().encode(text).length;
 
 export interface DocumentEnvelope {
     readonly document: ProjectDocument;
@@ -75,7 +135,10 @@ export function normalizeApiUrl(value: string): string {
     return url.href.replace(/\/+$/, "");
 }
 
-async function responseJson(response: Response): Promise<unknown> {
+async function responseJson(
+    response: Response,
+    limit: number,
+): Promise<unknown> {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("INVALID_API_RESPONSE");
     const chunks: Uint8Array[] = [];
@@ -85,7 +148,8 @@ async function responseJson(response: Response): Promise<unknown> {
             const chunk = await reader.read();
             if (chunk.done) break;
             size += chunk.value.length;
-            if (size > 2 * 1024 * 1024) throw new Error("RESPONSE_TOO_LARGE");
+            if (size > limit)
+                throw new TransferSizeError("RESPONSE_TOO_LARGE", limit, null);
             chunks.push(chunk.value);
         }
     } finally {
@@ -150,6 +214,7 @@ export class PluginClient {
     private documentSchemas: readonly number[] = [];
     private capabilities: readonly string[] = [];
     private serverId: string | null = null;
+    private limits: TransferLimits = LEGACY_TRANSFER_LIMITS;
     private identityChanged = false;
     private writesSuspended = false;
 
@@ -164,6 +229,11 @@ export class PluginClient {
 
     close(): void {
         this.abort.abort();
+    }
+
+    /** The limits negotiated in the last handshake; 2 MiB before it and with older plugins. */
+    get transferLimits(): TransferLimits {
+        return this.limits;
     }
 
     suspendWrites(suspended: boolean): void {
@@ -181,6 +251,7 @@ export class PluginClient {
         this.protocol = protocol;
         this.documentSchemas = [...info.documentSchemas];
         this.capabilities = [...info.capabilities];
+        this.limits = negotiateTransferLimits(info);
         return { info, protocol };
     }
 
@@ -259,6 +330,13 @@ export class PluginClient {
         return result;
     }
 
+    /** A fingerprint only; comparing it with the draft's baseline never reads or replaces the draft. */
+    async catalogStatus(signal?: AbortSignal) {
+        return catalogStatusSchema.parse(
+            await this.json("/api/v2/catalog/status", "GET", undefined, signal),
+        );
+    }
+
     async exportCatalog(
         document: ProjectDocument,
         targetServerId: string,
@@ -319,6 +397,13 @@ export class PluginClient {
 
     private assertDocumentSendable(document: ProjectDocument): void {
         this.assertDocumentSupported(document);
+        const bytes = utf8Length(JSON.stringify(document));
+        if (bytes > this.limits.documentBytes)
+            throw new TransferSizeError(
+                "DOCUMENT_TOO_LARGE",
+                this.limits.documentBytes,
+                bytes,
+            );
         if (
             usesExtendedBaseComponents(document) &&
             !supportsExtendedBaseComponents(this.capabilities)
@@ -388,11 +473,13 @@ export class PluginClient {
             deadline.check();
             const encoded =
                 body === undefined ? undefined : JSON.stringify(body);
-            if (
-                encoded &&
-                new TextEncoder().encode(encoded).length > 2 * 1024 * 1024
-            )
-                throw new Error("REQUEST_TOO_LARGE");
+            const requestBytes = encoded ? utf8Length(encoded) : 0;
+            if (requestBytes > this.limits.requestBytes)
+                throw new TransferSizeError(
+                    "REQUEST_TOO_LARGE",
+                    this.limits.requestBytes,
+                    requestBytes,
+                );
             let status: number;
             let decoded: unknown;
             if (isTauri()) {
@@ -409,6 +496,14 @@ export class PluginClient {
                     },
                 );
                 status = response.status;
+                // The desktop transport only enforces its fixed ceiling; apply the negotiated limit here.
+                const responseBytes = utf8Length(response.body);
+                if (responseBytes > this.limits.responseBytes)
+                    throw new TransferSizeError(
+                        "RESPONSE_TOO_LARGE",
+                        this.limits.responseBytes,
+                        responseBytes,
+                    );
                 decoded = JSON.parse(response.body);
             } else {
                 const response = await fetch(this.baseUrl + path, {
@@ -433,7 +528,10 @@ export class PluginClient {
                     },
                 });
                 status = response.status;
-                decoded = await responseJson(response);
+                decoded = await responseJson(
+                    response,
+                    this.limits.responseBytes,
+                );
             }
             deadline.check();
             if (this.identityChanged)

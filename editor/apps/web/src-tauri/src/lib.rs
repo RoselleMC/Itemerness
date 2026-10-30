@@ -13,7 +13,9 @@ mod mac_chrome;
 #[cfg(target_os = "macos")]
 mod mac_exit;
 
-const MAX_JSON: usize = 2 * 1024 * 1024;
+// A fixed transport ceiling matching EDITOR_TRANSFER_CEILING; the web layer applies the smaller
+// limits negotiated with each plugin.
+const MAX_JSON: usize = 17 * 1024 * 1024;
 
 fn client(timeout: u64) -> Result<Client, String> {
     Client::builder()
@@ -427,7 +429,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_catalog_responses_keep_the_common_two_mebibyte_cap() {
+    async fn native_catalog_responses_keep_the_transfer_ceiling() {
         let (url, request) = http_fixture("200 OK", &"x".repeat(MAX_JSON + 1), "");
         let result = plugin_request(
             url,

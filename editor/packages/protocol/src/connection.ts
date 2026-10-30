@@ -30,8 +30,63 @@ export const handshakeSchema = z.object({
     capabilities: z.array(z.string().max(128)).max(128),
     /** Optional server data component ids, used only as editor suggestions. */
     dataComponentTypes: z.array(z.string().max(256)).max(1024).optional(),
+    /** Byte limits the plugin applies; plugins before `transfer.limits` omit them and use 2 MiB. */
+    limits: z
+        .object({
+            documentBytes: z.number().int().positive().max(1024 * 1024 * 1024),
+            requestBytes: z.number().int().positive().max(1024 * 1024 * 1024),
+            responseBytes: z.number().int().positive().max(1024 * 1024 * 1024),
+        })
+        .optional(),
 });
 export type Handshake = z.infer<typeof handshakeSchema>;
+
+export interface TransferLimits {
+    /** UTF-8 bytes of one serialized document. */
+    readonly documentBytes: number;
+    /** UTF-8 bytes of a request body, a document plus its envelope. */
+    readonly requestBytes: number;
+    /** UTF-8 bytes of a response body. */
+    readonly responseBytes: number;
+}
+
+/** What every plugin accepted before the limits were advertised. */
+export const LEGACY_TRANSFER_LIMITS: TransferLimits = {
+    documentBytes: 2 * 1024 * 1024,
+    requestBytes: 2 * 1024 * 1024,
+    responseBytes: 2 * 1024 * 1024,
+};
+
+/**
+ * The most this editor sends or accepts whatever a plugin advertises. It matches the desktop transport
+ * ceiling, so a plugin with larger limits is met with this editor's own bound rather than a failure.
+ */
+export const EDITOR_TRANSFER_CEILING: TransferLimits = {
+    documentBytes: 16 * 1024 * 1024,
+    requestBytes: 17 * 1024 * 1024,
+    responseBytes: 17 * 1024 * 1024,
+};
+
+/** Both peers apply the smaller of their limits, so neither accepts what the other must refuse. */
+export function negotiateTransferLimits(
+    handshake: Pick<Handshake, "limits">,
+): TransferLimits {
+    const advertised = handshake.limits ?? LEGACY_TRANSFER_LIMITS;
+    return {
+        documentBytes: Math.min(
+            advertised.documentBytes,
+            EDITOR_TRANSFER_CEILING.documentBytes,
+        ),
+        requestBytes: Math.min(
+            advertised.requestBytes,
+            EDITOR_TRANSFER_CEILING.requestBytes,
+        ),
+        responseBytes: Math.min(
+            advertised.responseBytes,
+            EDITOR_TRANSFER_CEILING.responseBytes,
+        ),
+    };
+}
 
 export function negotiateProtocol(handshake: Handshake): string {
     const compatible = handshake.protocols.filter(

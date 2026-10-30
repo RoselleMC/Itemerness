@@ -136,7 +136,7 @@ describe("explicit catalog transfer", () => {
         );
     });
 
-    it("enforces the common 2 MiB response limit and never retries a busy transfer", async () => {
+    it("enforces the legacy 2 MiB response limit and never retries a busy transfer", async () => {
         const fetch = vi
             .fn()
             .mockResolvedValueOnce(response(handshake))

@@ -15,6 +15,7 @@ import com.iroselle.itemerness.core.catalog.CatalogDiagnostic
 import com.iroselle.itemerness.editor.agent.CatalogTransferException
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorDraftStore
+import com.iroselle.itemerness.editor.agent.EditorTransferLimits
 import com.iroselle.itemerness.editor.protocol.Json
 import com.iroselle.itemerness.editor.protocol.JsonValue
 import com.iroselle.itemerness.editor.protocol.ProjectDocumentEncoder
@@ -34,13 +35,23 @@ internal class EditorCatalogReader(
         return try {
             read(settings, includeLayout)
         } catch (failure: StrictYamlException) {
-            throw CatalogTransferException("CATALOG_INVALID", listOf(obj("code" to "CATALOG.SOURCE_INVALID", "severity" to "ERROR", "origin" to "agent",
-                "messageKey" to "diagnostics.catalog.source_invalid", "params" to obj("detail" to (failure.message ?: "Invalid source").take(2048)))))
+            throw sourceInvalid(failure)
         }
     }
 
     /** Hash of the catalog as it is on disk now, comparable with a document's import baseline. */
     fun currentSourceHash(): String = sourceHash(EditorCatalogFiles.capture(root), settings())
+
+    /** [currentSourceHash] for the API, where unreadable YAML is a catalog diagnostic, not a server failure. */
+    fun status(): String = try {
+        currentSourceHash()
+    } catch (failure: StrictYamlException) {
+        throw sourceInvalid(failure)
+    }
+
+    private fun sourceInvalid(failure: StrictYamlException) = CatalogTransferException("CATALOG_INVALID", listOf(obj("code" to "CATALOG.SOURCE_INVALID",
+        "severity" to "ERROR", "origin" to "agent", "messageKey" to "diagnostics.catalog.source_invalid",
+        "params" to obj("detail" to (failure.message ?: "Invalid source").take(2048)))))
 
     private fun settings(): ItemernessSettings = try {
         ItemernessSettings.load(root.resolve("config.yml"))
@@ -64,8 +75,10 @@ internal class EditorCatalogReader(
             val layout = EditorSourceLayout.encode(encoded, EditorSourceLayout.scan(directory), sourceHash)
             JsonValue.Obj((encoded as JsonValue.Obj).entries + ("sourceLayout" to layout))
         }
-        if (Json.canonicalize(document).toByteArray(Charsets.UTF_8).size > EditorDraftStore.MAX_BYTES) {
-            throw CatalogTransferException("CATALOG_DOCUMENT_TOO_LARGE")
+        val documentBytes = Json.canonicalize(document).toByteArray(Charsets.UTF_8).size
+        if (documentBytes > EditorTransferLimits.DOCUMENT_BYTES) {
+            throw CatalogTransferException("CATALOG_DOCUMENT_TOO_LARGE", listOf(EditorTransferLimits.diagnostic(
+                "CATALOG.DOCUMENT_TOO_LARGE", "diagnostics.catalog.document_too_large", documentBytes, EditorTransferLimits.DOCUMENT_BYTES)))
         }
         val compiler = CompilerBridge(BundledBuiltinFontMetrics(metrics), agentVersion, { settings.budgets }) { decoded, domain, presentation ->
             validator.validateRuntimeContent(settings, decoded.catalog, domain, presentation, decoded.runtimeIntegrations())

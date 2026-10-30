@@ -6,7 +6,8 @@ import {
     type CatalogRead,
     type Diagnostic,
 } from "@itemerness/protocol";
-import { PluginHttpError } from "../../api/client.js";
+import { PluginHttpError, transferSizeDetail } from "../../api/client.js";
+import { formatBytes } from "../common/formatBytes.js";
 import { useEditorStore } from "../../state/store.js";
 import { useConnectionStore } from "../../state/connection.js";
 import { contextOwner } from "../../state/interface.js";
@@ -15,6 +16,7 @@ import type { DocumentSync } from "../document/useDocumentSync.js";
 import { saveCatalogArchive } from "./catalogArchive.js";
 import { CatalogImportSummary } from "./CatalogImportSummary.js";
 import { DiagnosticsList } from "../diagnostics/DiagnosticsList.js";
+import type { CatalogStatus } from "./useCatalogStatus.js";
 import "./catalog-controls.css";
 
 type Operation = {
@@ -40,11 +42,13 @@ const errorCodes = new Set([
     "CATALOG_RESPONSE_TOO_LARGE",
     "RESPONSE_TOO_LARGE",
     "REQUEST_TOO_LARGE",
+    "DOCUMENT_TOO_LARGE",
     "DOCUMENT_SCHEMA_INCOMPATIBLE",
     "DRAFT_CONFLICT",
     "TOKEN_REQUIRED",
     "TARGET_SERVER_MISMATCH",
     "CATALOG_BUSY",
+    "EDITOR_BUSY",
     "EXPORT_SIZE_INVALID",
     "EXPORT_SAVE_FAILED",
 ]);
@@ -53,10 +57,17 @@ export function CatalogControls({
     sync,
     confirmReplace,
     compact = false,
+    status = "unsupported",
+    reviewRequested = false,
+    onReviewStarted,
 }: {
     sync: DocumentSync;
     confirmReplace(): Promise<boolean>;
     compact?: boolean;
+    status?: CatalogStatus;
+    /** Set by the stale-draft notice: open the import review as soon as this section is shown. */
+    reviewRequested?: boolean;
+    onReviewStarted?(): void;
 }) {
     const { t } = useTranslation();
     const connection = useConnectionStore();
@@ -64,6 +75,9 @@ export function CatalogControls({
     const [review, setReview] = useState<CatalogRead | null>(null);
     const [phase, setPhase] = useState<Phase>(null);
     const [error, setError] = useState<string | null>(null);
+    const [size, setSize] = useState<ReturnType<typeof transferSizeDetail>>(null);
+    // A failed or cancelled import never touches the draft; say so, since the draft may be stale.
+    const [draftKept, setDraftKept] = useState(false);
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const operation = useRef<Operation | null>(null);
     const closeButton = useRef<HTMLButtonElement>(null);
@@ -115,13 +129,16 @@ export function CatalogControls({
             operation.current = null;
         };
     }, []);
-    const fail = (reason: unknown) => {
+    const fail = (reason: unknown, importing = false) => {
         const code = reason instanceof Error ? reason.message : "";
         setError(errorCodes.has(code) ? code : "REQUEST_FAILED");
+        setSize(transferSizeDetail(reason));
+        setDraftKept(importing);
         if (
             reason instanceof PluginHttpError &&
             reason.body &&
-            typeof reason.body === "object"
+            typeof reason.body === "object" &&
+            transferSizeDetail(reason)?.limitBytes == null
         ) {
             const parsed = diagnosticSchema
                 .array()
@@ -142,6 +159,8 @@ export function CatalogControls({
         };
         operation.current = active;
         setError(null);
+        setSize(null);
+        setDraftKept(false);
         setDiagnostics([]);
         return active;
     };
@@ -159,7 +178,7 @@ export function CatalogControls({
             setPhase("review");
         } catch (reason) {
             if (current(active)) {
-                fail(reason);
+                fail(reason, true);
                 close();
             }
         }
@@ -186,11 +205,12 @@ export function CatalogControls({
             if (saved) close();
             else {
                 setError("REPLACE_FAILED");
+                setDraftKept(true);
                 setPhase("review");
             }
         } catch (reason) {
             if (current(active)) {
-                fail(reason);
+                fail(reason, true);
                 setPhase("review");
             }
         }
@@ -222,6 +242,14 @@ export function CatalogControls({
             if (current(active)) close();
         }
     };
+    const section = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (!reviewRequested) return;
+        onReviewStarted?.();
+        section.current?.scrollIntoView({ block: "start" });
+        // read() takes its inputs from refs and stores, so only a new request needs to start it.
+        void read();
+    }, [reviewRequested]);
     const exportRequirement =
         document.schemaVersion !== 2
             ? "CATALOG_UPGRADE_REQUIRED"
@@ -237,6 +265,37 @@ export function CatalogControls({
             {error && (
                 <p className="error" role="alert" data-testid="catalog-error">
                     {t(`catalogTransfer.errors.${error}`)}
+                    {size?.limitBytes != null && (
+                        <>
+                            {" "}
+                            {t(
+                                size.actualBytes == null
+                                    ? "catalogTransfer.size.overLimit"
+                                    : "catalogTransfer.size.measured",
+                                {
+                                    actual: formatBytes(size.actualBytes ?? 0),
+                                    limit: formatBytes(size.limitBytes),
+                                },
+                            )}
+                        </>
+                    )}
+                    {size && (
+                        <>
+                            {" "}
+                            {t(
+                                connection.info?.capabilities.includes(
+                                    "transfer.limits",
+                                )
+                                    ? "catalogTransfer.size.recovery"
+                                    : "catalogTransfer.size.legacyRecovery",
+                            )}
+                        </>
+                    )}
+                </p>
+            )}
+            {error && draftKept && (
+                <p className="catalog-draft-kept" data-testid="catalog-draft-kept">
+                    {t("catalogTransfer.draftKept")}
                 </p>
             )}
             {diagnostics.length > 0 && (
@@ -254,6 +313,7 @@ export function CatalogControls({
                     : "settings-section catalog-controls"
             }
             data-testid="catalog-controls"
+            ref={section}
         >
             {!compact && <h3>{t("catalogTransfer.heading")}</h3>}
             <div className="catalog-commands">
@@ -299,6 +359,19 @@ export function CatalogControls({
             {!readSupported && !exportSupported && (
                 <p className="muted small">
                     {t("catalogTransfer.unavailable")}
+                </p>
+            )}
+            {!compact && sync.ready && status !== "unsupported" && (
+                <p
+                    className={
+                        status === "changed"
+                            ? "catalog-baseline catalog-baseline-changed small"
+                            : "catalog-baseline muted small"
+                    }
+                    data-testid="catalog-baseline-status"
+                    data-status={status}
+                >
+                    {t(`catalogTransfer.baseline.${status}`)}
                 </p>
             )}
             {!compact && exportSupported && (

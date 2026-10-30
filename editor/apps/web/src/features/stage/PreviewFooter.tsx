@@ -3,6 +3,7 @@ import { Popover } from "@base-ui/react/popover";
 import {
     CircleAlert,
     Columns2,
+    FileWarning,
     MoveVertical,
     ScanLine,
     ShieldCheck,
@@ -17,6 +18,7 @@ import { SelectField } from "../common/SelectField.js";
 import { PersonaPanel } from "./PersonaPanel.js";
 import type { PreviewBundle } from "../preview/usePreview.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
+import type { CatalogStatus } from "../settings/useCatalogStatus.js";
 import "./previewFooter.css";
 
 function FooterPopover({
@@ -90,16 +92,20 @@ function FooterPopover({
 export function PreviewFooter({
     preview,
     onOpenDiagnostics,
+    catalogStatus,
+    onReviewCatalog,
     active,
 }: {
     preview: PreviewBundle;
     onOpenDiagnostics(): void;
+    catalogStatus: CatalogStatus;
+    onReviewCatalog?(): void;
     active: boolean;
 }) {
     const { t } = useTranslation();
     const store = useEditorStore();
     const [popup, setPopup] = useState<
-        "persona" | "fidelity" | "height" | null
+        "persona" | "fidelity" | "height" | "baseline" | null
     >(null);
     useEffect(() => {
         if (!active) setPopup(null);
@@ -180,6 +186,47 @@ export function PreviewFooter({
                 </button>
             </div>
             <div className="preview-footer-status">
+                {/* Editing a draft whose YAML moved on is legitimate, but it must never look like live config. */}
+                {catalogStatus === "changed" && (
+                    <FooterPopover
+                        open={popup === "baseline"}
+                        onOpenChange={(open) =>
+                            setPopup(open ? "baseline" : null)
+                        }
+                        label={t("catalogTransfer.baseline.title")}
+                        testId="catalog-baseline"
+                        align="end"
+                        trigger={
+                            <>
+                                <FileWarning size={15} />
+                                <span className="footer-control-label">
+                                    {t("catalogTransfer.baseline.short")}
+                                </span>
+                            </>
+                        }
+                    >
+                        <div
+                            className="footer-height-limit"
+                            data-testid="catalog-baseline-notice"
+                        >
+                            <p>{t("catalogTransfer.baseline.changed")}</p>
+                            {onReviewCatalog && (
+                                <p>
+                                    <button
+                                        type="button"
+                                        data-testid="catalog-baseline-review"
+                                        onClick={() => {
+                                            setPopup(null);
+                                            onReviewCatalog();
+                                        }}
+                                    >
+                                        {t("catalogTransfer.baseline.review")}
+                                    </button>
+                                </p>
+                            )}
+                        </div>
+                    </FooterPopover>
+                )}
                 {heightLimit !== DEFAULT_MAXIMUM_HEIGHT_PIXELS && (
                     <FooterPopover
                         open={popup === "height"}

@@ -385,7 +385,9 @@
             "saving": "Saving changes…",
             "conflict": "Drafts differ: load server draft",
             "error": "Save failed — retry",
-            "offline": "Plugin API unavailable"
+            "offline": "Plugin API unavailable",
+            "tooLarge": "The draft was not saved: the document is {{actual}} and the plugin accepts {{limit}}.",
+            "tooLargeUnmeasured": "The draft was not saved: the document is larger than the plugin accepts ({{limit}})."
         },
         "mode": {
             "items": "Items",
@@ -1347,6 +1349,23 @@
         "messages": "Localized messages",
         "changes": "Added: {{added}}, removed: {{removed}}, changed: {{changed}}",
         "unchanged": "Unchanged",
+        "size": {
+            "measured": "The document is {{actual}}; the plugin accepts {{limit}}.",
+            "overLimit": "The transfer exceeds {{limit}}.",
+            "recovery": "Reduce the configuration, for example by disabling or removing unused items, translations or assets, then try again.",
+            "legacyRecovery": "The connected plugin accepts at most 2 MiB. Update the plugin to transfer documents up to 16 MiB."
+        },
+        "draftKept": "The saved editor draft was not changed.",
+        "baseline": {
+            "changed": "The server YAML changed after this draft was imported. You are editing the saved draft, not the live configuration.",
+            "unknown": "This draft has no import fingerprint, so the editor cannot tell whether it matches the server YAML.",
+            "current": "This draft matches the server YAML it was imported from.",
+            "checking": "Checking the server YAML…",
+            "unavailable": "The server YAML could not be checked. The editor checks again when this window is focused.",
+            "short": "YAML changed",
+            "title": "Server YAML changed since import",
+            "review": "Review server configuration"
+        },
         "settings": {
             "schemaVersion": "Document format",
             "namespace": "Namespace",
@@ -1375,15 +1394,17 @@
         "errors": {
             "CATALOG_SETTINGS_INVALID": "Server configuration settings are invalid.",
             "CATALOG_INVALID": "The server configuration could not be validated. Review the diagnostics.",
-            "CATALOG_DOCUMENT_TOO_LARGE": "The imported document exceeds the supported size.",
+            "CATALOG_DOCUMENT_TOO_LARGE": "The server configuration is too large to import as one editor document.",
             "CATALOG_UPGRADE_REQUIRED": "Export requires document format 2. Review the upgrade in Document settings first.",
             "CATALOG_DEFAULTS_REQUIRED": "Choose a default layout and theme in Document settings before exporting.",
             "CATALOG_ASSET_METADATA_MISSING": "Some assets are missing the source metadata required for YAML export.",
             "CATALOG_EXPORT_INVALID": "The exported configuration did not pass server validation.",
             "CATALOG_EXPORT_LOSSY": "Export would change the configuration's behavior. Review the diagnostics.",
-            "CATALOG_RESPONSE_TOO_LARGE": "The configuration response exceeds the 2 MiB limit.",
-            "RESPONSE_TOO_LARGE": "The server response exceeds the 2 MiB limit.",
-            "REQUEST_TOO_LARGE": "The document exceeds the request size limit.",
+            "CATALOG_RESPONSE_TOO_LARGE": "The configuration response is larger than the plugin can send.",
+            "RESPONSE_TOO_LARGE": "The server response is larger than this connection accepts.",
+            "REQUEST_TOO_LARGE": "The document is larger than the plugin accepts in one request.",
+            "DOCUMENT_TOO_LARGE": "The document is larger than the plugin can store as a draft.",
+            "EDITOR_BUSY": "The plugin is processing other large documents. Try again in a moment.",
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "The connected plugin does not support this document format.",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "Upgrade the connected plugin to use frame decorations. The document has been preserved.",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "Upgrade the connected plugin to use compound field constraints. The document has been preserved.",

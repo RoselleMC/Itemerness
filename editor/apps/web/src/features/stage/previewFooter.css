@@ -53,7 +53,8 @@
     font-size: 11px;
     background: transparent;
 }
-.preview-footer-button[data-testid="height-limit"] {
+.preview-footer-button[data-testid="height-limit"],
+.preview-footer-button[data-testid="catalog-baseline"] {
     color: var(--warn);
 }
 .footer-height-limit p {

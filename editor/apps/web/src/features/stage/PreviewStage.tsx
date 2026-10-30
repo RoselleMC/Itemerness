@@ -17,16 +17,21 @@ import { Undo2, Redo2 } from "lucide-react";
 import { commitInlineEditor } from "../common/inlineEdit.js";
 import { previewAccessibleText } from "./previewAccessibleText.js";
 import { PreviewFooter } from "./PreviewFooter.js";
+import type { CatalogStatus } from "../settings/useCatalogStatus.js";
 
 export function PreviewStage({
     preview,
     onGeometry,
     onOpenDiagnostics,
+    catalogStatus = "unsupported",
+    onReviewCatalog,
     active = true,
 }: {
     preview: PreviewBundle;
     onGeometry: (geometry: TooltipGeometry, sprites: boolean) => void;
     onOpenDiagnostics(): void;
+    catalogStatus?: CatalogStatus;
+    onReviewCatalog?(): void;
     active?: boolean;
 }) {
     const { t } = useTranslation();
@@ -362,6 +367,8 @@ export function PreviewStage({
             <PreviewFooter
                 preview={preview}
                 onOpenDiagnostics={onOpenDiagnostics}
+                catalogStatus={catalogStatus}
+                onReviewCatalog={onReviewCatalog}
                 active={active}
             />
         </section>

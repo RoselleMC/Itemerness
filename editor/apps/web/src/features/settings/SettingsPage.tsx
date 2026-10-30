@@ -9,6 +9,7 @@ import { SelectField } from "../common/SelectField.js";
 import { describeContext } from "../../state/interface.js";
 import { ProjectSettings } from "./ProjectSettings.js";
 import { CatalogControls } from "./CatalogControls.js";
+import type { CatalogStatus } from "./useCatalogStatus.js";
 import { LocalOperationsTool } from "./LocalOperationsTool.js";
 import { ServerWorkspaceSettings } from "./ServerWorkspaceSettings.js";
 import type { DocumentSync } from "../document/useDocumentSync.js";
@@ -20,9 +21,15 @@ import "./settingsNavigation.css";
 export function SettingsPage({
     sync,
     confirmReplace,
+    catalogStatus,
+    catalogReview,
+    onCatalogReviewStarted,
 }: {
     sync: DocumentSync;
     confirmReplace(): Promise<boolean>;
+    catalogStatus?: CatalogStatus;
+    catalogReview?: boolean;
+    onCatalogReviewStarted?(): void;
 }) {
     const { t } = useTranslation();
     const preferences = usePreferences();
@@ -337,6 +344,9 @@ export function SettingsPage({
                     <CatalogControls
                         sync={sync}
                         confirmReplace={confirmReplace}
+                        status={catalogStatus}
+                        reviewRequested={catalogReview}
+                        onReviewStarted={onCatalogReviewStarted}
                     />,
                 )}
                 <h2 className="settings-group-heading" id="settings-tools">

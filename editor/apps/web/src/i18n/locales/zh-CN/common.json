@@ -384,7 +384,9 @@
             "saving": "正在保存更改…",
             "conflict": "草稿不同：载入服务器草稿",
             "error": "保存失败——重试",
-            "offline": "插件 API 不可用"
+            "offline": "插件 API 不可用",
+            "tooLarge": "草稿未保存：文档大小为 {{actual}}，插件上限为 {{limit}}。",
+            "tooLargeUnmeasured": "草稿未保存：文档超过插件上限（{{limit}}）。"
         },
         "mode": {
             "items": "物品",
@@ -1334,6 +1336,23 @@
         "messages": "本地化消息",
         "changes": "新增：{{added}}，移除：{{removed}}，修改：{{changed}}",
         "unchanged": "未改变",
+        "size": {
+            "measured": "文档大小为 {{actual}}，插件上限为 {{limit}}。",
+            "overLimit": "传输内容超过 {{limit}}。",
+            "recovery": "请精简配置（例如停用或移除未使用的物品、翻译或资源）后重试。",
+            "legacyRecovery": "当前连接的插件最多接收 2 MiB。请更新插件以传输最大 16 MiB 的文档。"
+        },
+        "draftKept": "已保存的编辑器草稿未被修改。",
+        "baseline": {
+            "changed": "导入此草稿后，服务器 YAML 已发生变化。你正在编辑的是已保存的草稿，而不是正在运行的配置。",
+            "unknown": "此草稿没有导入指纹，编辑器无法判断它是否与服务器 YAML 一致。",
+            "current": "此草稿与导入时的服务器 YAML 一致。",
+            "checking": "正在检查服务器 YAML…",
+            "unavailable": "无法检查服务器 YAML。窗口重新获得焦点时编辑器会再次检查。",
+            "short": "YAML 已变化",
+            "title": "导入后服务器 YAML 已变化",
+            "review": "查看服务器配置"
+        },
         "settings": {
             "schemaVersion": "文档格式",
             "namespace": "命名空间",
@@ -1362,15 +1381,17 @@
         "errors": {
             "CATALOG_SETTINGS_INVALID": "服务器配置设置无效。",
             "CATALOG_INVALID": "服务器配置未通过验证，请查看诊断。",
-            "CATALOG_DOCUMENT_TOO_LARGE": "导入文档超过支持的大小。",
+            "CATALOG_DOCUMENT_TOO_LARGE": "服务器配置过大，无法作为一个编辑器文档导入。",
             "CATALOG_UPGRADE_REQUIRED": "导出需要文档格式 2。请先在文档设置中审核升级。",
             "CATALOG_DEFAULTS_REQUIRED": "请先在文档设置中选择默认布局和主题，再导出。",
             "CATALOG_ASSET_METADATA_MISSING": "部分资源缺少 YAML 导出所需的来源元数据。",
             "CATALOG_EXPORT_INVALID": "导出的配置未通过服务器验证。",
             "CATALOG_EXPORT_LOSSY": "导出将改变配置行为，请查看诊断。",
-            "CATALOG_RESPONSE_TOO_LARGE": "配置响应超过 2 MiB 上限。",
-            "RESPONSE_TOO_LARGE": "服务器响应超过 2 MiB 上限。",
-            "REQUEST_TOO_LARGE": "文档超过请求大小上限。",
+            "CATALOG_RESPONSE_TOO_LARGE": "配置响应超过插件可发送的大小。",
+            "RESPONSE_TOO_LARGE": "服务器响应超过当前连接可接收的大小。",
+            "REQUEST_TOO_LARGE": "文档超过插件单次请求可接收的大小。",
+            "DOCUMENT_TOO_LARGE": "文档超过插件可保存的草稿大小。",
+            "EDITOR_BUSY": "插件正在处理其他大型文档，请稍后重试。",
             "DOCUMENT_SCHEMA_INCOMPATIBLE": "当前插件不支持此文档格式。",
             "SEGMENTED_FRAME_DECORATIONS_UNSUPPORTED": "使用边框装饰需要升级当前插件。文档内容已保留。",
             "DATA_FIELD_CONSTRAINTS_UNSUPPORTED": "使用复合字段约束需要升级当前插件。文档内容已保留。",

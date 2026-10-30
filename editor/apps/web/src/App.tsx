@@ -22,6 +22,7 @@ import { useBuiltinMetrics } from "./features/assets/useBuiltinMetrics.js";
 import { useDocumentSync } from "./features/document/useDocumentSync.js";
 import { useEditingShortcuts } from "./features/document/useEditingShortcuts.js";
 import { SettingsPage } from "./features/settings/SettingsPage.js";
+import { useCatalogStatus } from "./features/settings/useCatalogStatus.js";
 import { useSaveCommands } from "./features/document/useSaveCommands.js";
 import { useUnsavedChanges } from "./features/document/useUnsavedChanges.js";
 import { InterfaceHost } from "./features/common/InterfaceHost.js";
@@ -81,6 +82,8 @@ export function App() {
         documentSync.ready && !interactionBlocked,
     );
     const [page, setPage] = useState<WorkspacePage>("editor");
+    const catalogStatus = useCatalogStatus(documentSync.ready);
+    const [catalogReview, setCatalogReview] = useState(false);
     const workspaceRestored = useServerWorkspace(documentSync.ready);
     useAssetRuntime(
         documentSync.ready &&
@@ -253,6 +256,12 @@ export function App() {
                                     onOpenDiagnostics={() =>
                                         showPage("diagnostics")
                                     }
+                                    catalogStatus={catalogStatus}
+                                    onReviewCatalog={() => {
+                                        if (!commitInlineEditor()) return;
+                                        setCatalogReview(true);
+                                        setPage("settings");
+                                    }}
                                     active={
                                         page === "editor" && !interactionBlocked
                                     }
@@ -313,6 +322,11 @@ export function App() {
                                     sync={documentSync}
                                     confirmReplace={
                                         unsavedChanges.confirmReplace
+                                    }
+                                    catalogStatus={catalogStatus}
+                                    catalogReview={catalogReview}
+                                    onCatalogReviewStarted={() =>
+                                        setCatalogReview(false)
                                     }
                                 />
                             )}

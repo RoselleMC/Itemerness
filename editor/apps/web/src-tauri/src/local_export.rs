@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
-const MAX_CATALOG_ARCHIVE: usize = 4 * 1024 * 1024;
+// Matches MAX_CATALOG_ARCHIVE_BYTES: a 17 MiB export response plus ZIP headers.
+const MAX_CATALOG_ARCHIVE: usize = 18 * 1024 * 1024;
 const MAX_LOCAL_YAML: usize = 2 * 1024 * 1024;
 static SAVE_DIALOG_OPEN: AtomicBool = AtomicBool::new(false);
 

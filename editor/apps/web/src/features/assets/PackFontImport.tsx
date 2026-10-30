@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FileInput, X } from "lucide-react";
 import type { MountedPack } from "@itemerness/mc-assets";
 import { useEditorStore } from "../../state/store.js";
+import { useConnectionStore } from "../../state/connection.js";
 import {
     packFontIds,
     proposePackFontImport,
@@ -23,6 +24,9 @@ export function PackFontImport({
     const { t } = useTranslation();
     const store = useEditorStore();
     const fonts = useMemo(() => packFontIds(pack), [pack]);
+    const documentLimit = useConnectionStore(
+        (state) => state.client?.transferLimits.documentBytes,
+    );
     const [font, setFont] = useState(fonts[0] ?? "");
     const [failure, setFailure] = useState<string | null>(null);
     const source = useMemo(() => {
@@ -42,7 +46,11 @@ export function PackFontImport({
         try {
             return {
                 value: source.value
-                    ? proposePackFontImport(store.document, source.value)
+                    ? proposePackFontImport(
+                          store.document,
+                          source.value,
+                          documentLimit,
+                      )
                     : null,
                 error: null,
             };
@@ -52,7 +60,7 @@ export function PackFontImport({
                 error: error instanceof Error ? error.message : String(error),
             };
         }
-    }, [source, store.document]);
+    }, [source, store.document, documentLimit]);
     const issue = failure ?? source.error ?? proposal.error;
     const apply = () => {
         if (!commitInlineEditor() || !source.value) return;
@@ -63,7 +71,11 @@ export function PackFontImport({
         )
             return;
         try {
-            const next = proposePackFontImport(current.document, source.value);
+            const next = proposePackFontImport(
+                current.document,
+                source.value,
+                documentLimit,
+            );
             if (next.added === 0) return;
             current.updateDocument(() => next.document);
             onClose();

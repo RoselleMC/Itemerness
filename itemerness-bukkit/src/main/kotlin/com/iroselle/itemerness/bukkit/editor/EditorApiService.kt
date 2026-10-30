@@ -67,6 +67,7 @@ internal class EditorApiService(
         onFailure = { logger.log(Level.WARNING, "Editor API request failed (${it.javaClass.simpleName})") },
         readCatalog = catalogReader::read,
         exportCatalog = catalogExporter::export,
+        catalogStatus = catalogReader::status,
         serverMetadata = serverMetadata,
         budgets = { settings().budgets },
     ) }

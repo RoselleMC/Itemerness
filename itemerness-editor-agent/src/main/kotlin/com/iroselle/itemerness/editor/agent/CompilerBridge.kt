@@ -59,8 +59,34 @@ class CompilerBridge(
     ) -> List<CatalogDiagnostic> = { _, _, _ -> emptyList() },
 ) {
     private val documentCompiler = DocumentCompiler(builtinFontMetrics, budgets, validateRuntimeContent)
+    private val recentCompilations = LinkedHashMap<Pair<String, PresentationBudgets>, Pair<Long, DocumentCompiler.Result>>()
+    private val compilations = java.util.concurrent.atomic.AtomicInteger()
+    /** Whole-document compilations performed so far; previews served from [compiled] do not count. */
+    val compilationCount: Int get() = compilations.get()
 
-    fun validateDocument(document: JsonValue): List<JsonValue> = when (val result = documentCompiler.compile(Json.canonicalize(document))) {
+    /**
+     * Compiles a document once for all of its previews. Previewing another item, or warming several, sends
+     * the same document again, and a production catalog takes hundreds of milliseconds to compile. Results
+     * are immutable snapshots, so concurrent previews can share them. An entry also matches the current
+     * budgets and expires, because runtime validation reads server registries that a reload can change.
+     */
+    private fun compiled(canonicalDocument: String, hash: String = documentDigest(canonicalDocument)): DocumentCompiler.Result {
+        val key = hash to budgets()
+        val now = System.nanoTime()
+        synchronized(recentCompilations) {
+            recentCompilations[key]?.takeIf { now - it.first < COMPILATION_LIFETIME_NANOS }?.let { return it.second }
+        }
+        compilations.incrementAndGet()
+        val result = documentCompiler.compile(canonicalDocument)
+        synchronized(recentCompilations) {
+            recentCompilations.remove(key)
+            recentCompilations[key] = now to result
+            while (recentCompilations.size > RECENT_COMPILATIONS) recentCompilations.remove(recentCompilations.keys.first())
+        }
+        return result
+    }
+
+    fun validateDocument(document: JsonValue): List<JsonValue> = when (val result = compiled(Json.canonicalize(document))) {
         is DocumentCompiler.Result.Valid -> emptyList()
         is DocumentCompiler.Result.Invalid -> result.diagnostics.map { diagnosticJson(it.code, it.messageKey, it.params) } +
             diagnosticJson(result.code, result.messageKey, result.params)
@@ -134,7 +160,7 @@ class CompilerBridge(
             )
         }
 
-        val compilation = when (val result = documentCompiler.compile(canonicalDocument)) {
+        val compilation = when (val result = compiled(canonicalDocument, actualSnapshotHash)) {
             is DocumentCompiler.Result.Valid -> result
             is DocumentCompiler.Result.Invalid -> {
                 diagnostics += result.diagnostics.map { diagnosticJson(it.code, it.messageKey, it.params) }
@@ -422,6 +448,10 @@ class CompilerBridge(
     }
 
     private companion object {
+        /** The current document and the one before it, for example an export racing a newer preview. */
+        const val RECENT_COMPILATIONS = 2
+        val COMPILATION_LIFETIME_NANOS: Long = java.util.concurrent.TimeUnit.SECONDS.toNanos(60)
+
         fun text(value: String): JsonValue = JsonValue.Text(value)
 
         fun num(value: Double): JsonValue = JsonValue.Num(value)
