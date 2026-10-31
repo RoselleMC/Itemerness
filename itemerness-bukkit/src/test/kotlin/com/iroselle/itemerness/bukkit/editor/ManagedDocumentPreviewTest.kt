@@ -92,6 +92,29 @@ class ManagedDocumentPreviewTest {
         line.requiredObjects("runs").joinToString("") { it.requiredString("text") }
 
     @Test
+    fun `a held snapshot previews by reference exactly as the uploaded document`() {
+        val canonical = Json.canonicalize(Json.parse(documentJson))
+        val held = CompilerBridge(
+            BundledBuiltinFontMetrics(BuiltinFontMetricsLoader.bundled("26.1.2")),
+            agentVersion = "test",
+            snapshotDocuments = { hash -> canonical.takeIf { hash == snapshotHash } },
+        )
+        fun artifact(outcome: CompilerBridge.Outcome?) = when (outcome) {
+            is CompilerBridge.Outcome.Rendered -> JsonObject.of(Json.parse(outcome.json), "artifact")
+            is CompilerBridge.Outcome.Rejected -> JsonObject.of(Json.parse(outcome.json), "artifact")
+            null -> null
+        }
+        val uploaded = render("itemerness:ember-blade")
+        val referenced = requireNotNull(artifact(held.compileSnapshot(context("itemerness:ember-blade"))))
+        val verified = requireNotNull(artifact(held.compileVerified(canonical, context("itemerness:ember-blade"))))
+        for (candidate in listOf(referenced, verified)) {
+            assertEquals(uploaded.raw("display"), candidate.raw("display"))
+            assertEquals(uploaded.requiredObject("digests").raw("documentSchema"), candidate.requiredObject("digests").raw("documentSchema"))
+        }
+        assertEquals(null, held.compileSnapshot(context("itemerness:ember-blade", hash = "sha256:" + "0".repeat(64))))
+    }
+
+    @Test
     fun `renders the ember blade with formatted values through the production compiler`() {
         val artifact = render("itemerness:ember-blade")
         assertEquals("agent", artifact.requiredString("origin"))

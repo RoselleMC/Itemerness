@@ -49,6 +49,7 @@ const errorCodes = new Set([
     "TARGET_SERVER_MISMATCH",
     "CATALOG_BUSY",
     "EDITOR_BUSY",
+    "REQUEST_TIMEOUT",
     "EXPORT_SIZE_INVALID",
     "EXPORT_SAVE_FAILED",
 ]);

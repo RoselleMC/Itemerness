@@ -277,7 +277,9 @@
             "UNAUTHORIZED": "The plugin rejected this access token.",
             "TOKEN_REQUIRED": "This plugin requires an access token.",
             "ORIGIN_FORBIDDEN": "This browser origin is not allowed by the plugin.",
-            "CONNECTION_FAILED": "Could not connect. Check the address, certificate, and plugin API settings."
+            "CONNECTION_FAILED": "Could not connect. Check the address, certificate, and plugin API settings.",
+            "REQUEST_TIMEOUT": "The plugin stopped responding for 15 seconds during a transfer. Large documents need a steady connection; check the network and try again.",
+            "RESPONSE_TOO_LARGE": "The plugin sent more data than this editor accepts. Update the editor to match the plugin."
         }
     },
     "settings": {
@@ -1439,6 +1441,7 @@
             "TOKEN_REQUIRED": "This server requires a valid API token.",
             "TARGET_SERVER_MISMATCH": "The connection no longer matches the requested server.",
             "CATALOG_BUSY": "The server is processing another configuration transfer. Try again shortly.",
+            "REQUEST_TIMEOUT": "The transfer stalled for 15 seconds and was stopped. The saved editor draft was not changed; check the network and try again.",
             "EXPORT_SIZE_INVALID": "The export is empty or exceeds its file size limit.",
             "EXPORT_SAVE_FAILED": "The export file could not be saved.",
             "REPLACE_FAILED": "The new draft could not be saved. The previous editor document is still available.",

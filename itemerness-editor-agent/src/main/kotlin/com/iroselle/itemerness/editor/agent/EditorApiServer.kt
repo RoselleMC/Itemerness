@@ -25,7 +25,8 @@ class EditorApiServer(
     allowedOrigins: Collection<String>,
     private val metadata: Metadata,
     private val drafts: EditorDraftStore,
-    private val compile: (JsonValue) -> JsonValue,
+    /** Null means the request referenced a snapshot the server does not hold. */
+    private val compile: (PreviewInput) -> JsonValue?,
     private val worker: Executor,
     private val scheduler: AgentScheduler,
     private val onFailure: (Throwable) -> Unit,
@@ -40,7 +41,9 @@ class EditorApiServer(
     /** Transfer limits follow the server's catalog directory budget, which a reload may change. */
     private val limits: () -> EditorTransferLimits = { EditorTransferLimits() },
     /** Lists provider scenarios for one item of a draft; null when the platform offers no providers. */
-    private val previewScenarios: ((JsonValue) -> JsonValue)? = null,
+    private val previewScenarios: ((PreviewInput) -> JsonValue?)? = null,
+    private val idleMillis: Long = IDLE_MILLIS,
+    private val totalMillis: Long = TOTAL_MILLIS,
 ) : AutoCloseable {
     data class Metadata(
         val serverId: String,
@@ -94,11 +97,12 @@ class EditorApiServer(
     }
 
     private fun handle(exchange: HttpExchange) {
-        val deadline = scheduler.schedule(15_000, exchange::close)
-        if (deadline == null) {
+        val watchdog = Watchdog(exchange)
+        if (!watchdog.arm()) {
             exchange.close()
             return
         }
+        current.set(watchdog)
         // One snapshot per request, so a reload cannot change the limits halfway through a body.
         val transfer = limits()
         val held = HeldPermits()
@@ -200,11 +204,9 @@ class EditorApiServer(
                     if (request.raw("scenario") != null && previewScenarios == null) return error(exchange, 422, "PREVIEW_PROVIDERS_UNSUPPORTED")
                     val target = request.optionalString("targetServerId")
                     if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
-                    val document = request.raw("document") ?: throw JsonException("Missing document")
-                    if (EditorDraftStore.digest(Json.canonicalize(document)) != request.requiredString("snapshotHash")) {
-                        return error(exchange, 400, "SNAPSHOT_MISMATCH")
-                    }
-                    respond(exchange, 200, obj("artifact" to compile(requestValue), "stale" to JsonValue.Bool(false)))
+                    val input = previewInput(requestValue, request) ?: return error(exchange, 400, "SNAPSHOT_MISMATCH")
+                    val artifact = compile(input) ?: return error(exchange, 409, "SNAPSHOT_UNKNOWN")
+                    respond(exchange, 200, obj("artifact" to artifact, "stale" to JsonValue.Bool(false)))
                 }
                 "/api/v2/preview/scenarios" -> {
                     if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
@@ -215,8 +217,8 @@ class EditorApiServer(
                         .rejectUnknown("document", "itemId", "locale", "snapshotHash", "targetServerId")
                     val target = request.optionalString("targetServerId")
                     if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
-                    if (request.raw("document") == null) throw JsonException("Missing document")
-                    respond(exchange, 200, list(requestValue))
+                    val input = previewInput(requestValue, request) ?: return error(exchange, 400, "SNAPSHOT_MISMATCH")
+                    respond(exchange, 200, list(input) ?: return error(exchange, 409, "SNAPSHOT_UNKNOWN"))
                 }
                 else -> error(exchange, 404, "NOT_FOUND")
             }
@@ -247,7 +249,8 @@ class EditorApiServer(
             runCatching { error(exchange, 500, "INTERNAL_ERROR") }
         } finally {
             if (held.permits > 0) largeSlots.release(held.permits)
-            deadline.cancel()
+            watchdog.cancel()
+            current.remove()
             exchange.close()
         }
     }
@@ -256,17 +259,28 @@ class EditorApiServer(
         if (exchange.requestHeaders.getFirst("Content-Type")?.substringBefore(';')?.trim() != "application/json") {
             throw JsonException("Expected JSON")
         }
-        val head = exchange.requestBody.readNBytes(EditorTransferLimits.SMALL_MESSAGE_BYTES + 1)
+        val head = read(exchange, EditorTransferLimits.SMALL_MESSAGE_BYTES + 1)
         val bytes = if (head.size <= EditorTransferLimits.SMALL_MESSAGE_BYTES) head else {
             // The slot is held until the handler finishes, because the decoded tree lives that long.
             val permits = transfer.largeMessagePermits
             if (!largeSlots.tryAcquire(permits, EditorTransferLimits.LARGE_MESSAGE_WAIT_MILLIS, TimeUnit.MILLISECONDS)) throw Busy()
             held.permits = permits
-            head + exchange.requestBody.readNBytes(transfer.messageBytes + 1 - head.size)
+            head + read(exchange, transfer.messageBytes + 1 - head.size)
         }
         if (bytes.size > transfer.messageBytes) throw TooLarge()
         val decoder = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
         return Json.parse(decoder.decode(ByteBuffer.wrap(bytes)).toString())
+    }
+
+    /**
+     * Canonicalizes a sent document once and checks it against the request's hash. A request without
+     * a document references a snapshot by hash; the compiler decides whether it holds that snapshot.
+     */
+    private fun previewInput(requestValue: JsonValue, request: JsonObject): PreviewInput? {
+        val hash = request.requiredString("snapshotHash")
+        val canonical = request.raw("document")?.let(Json::canonicalize)
+        if (canonical != null && EditorDraftStore.digest(canonical) != hash) return null
+        return PreviewInput(requestValue, canonical, hash)
     }
 
     private fun handshake(transfer: EditorTransferLimits): JsonValue = obj(
@@ -294,7 +308,7 @@ class EditorApiServer(
             "catalog.base-components.attributes-enchantments", "catalog.data-keys.field-constraints",
             "catalog.data-schemas.owner", "presentation.theme-selectors", "assets.resource-pack-bindings.delivery",
             "presentation.shown-flags", "presentation.groups", "presentation.composition", "presentation.hiding",
-            "transfer.limits",
+            "transfer.limits", "preview.snapshot-reference",
         ) +
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
@@ -334,8 +348,89 @@ class EditorApiServer(
     private fun respond(exchange: HttpExchange, status: Int, body: JsonValue) {
         val bytes = Json.canonicalize(body).toByteArray(Charsets.UTF_8)
         exchange.responseHeaders.set("Content-Type", "application/json; charset=utf-8")
+        val watchdog = current.get()
+        watchdog?.transferring()
         exchange.sendResponseHeaders(status, bytes.size.toLong())
-        exchange.responseBody.write(bytes)
+        var offset = 0
+        while (offset < bytes.size) {
+            val length = minOf(CHUNK_BYTES, bytes.size - offset)
+            exchange.responseBody.write(bytes, offset, length)
+            offset += length
+            watchdog?.progress()
+        }
+    }
+
+    /** Reads at most [limit] bytes in chunks, so a slow but steady upload keeps its connection. */
+    private fun read(exchange: HttpExchange, limit: Int): ByteArray {
+        val watchdog = current.get()
+        watchdog?.transferring()
+        val output = java.io.ByteArrayOutputStream(minOf(limit, CHUNK_BYTES))
+        val buffer = ByteArray(CHUNK_BYTES)
+        try {
+            while (output.size() < limit) {
+                val count = exchange.requestBody.read(buffer, 0, minOf(buffer.size, limit - output.size()))
+                if (count < 0) break
+                output.write(buffer, 0, count)
+                watchdog?.progress()
+            }
+        } finally {
+            watchdog?.working()
+        }
+        return output.toByteArray()
+    }
+
+    /**
+     * Closes a request that stops making progress. Transfers may take as long as the link needs, but
+     * an upload or download idle for [idleMillis] ends the exchange, and every request ends after
+     * [totalMillis]. Work between reading the body and responding is bounded only by the total, so a
+     * large catalog read is not mistaken for a stalled client. This replaces a fixed 15 second deadline
+     * that cut off large documents on slower links.
+     */
+    private inner class Watchdog(private val exchange: HttpExchange) {
+        private val started = System.nanoTime()
+        @Volatile private var lastProgress = started
+        @Volatile private var idleCounts = false
+        @Volatile private var finished = false
+        @Volatile private var task: AgentTask? = null
+
+        fun arm(): Boolean = schedule(idleMillis)
+
+        fun progress() {
+            lastProgress = System.nanoTime()
+        }
+
+        fun transferring() {
+            progress()
+            idleCounts = true
+        }
+
+        fun working() {
+            idleCounts = false
+        }
+
+        fun cancel() {
+            finished = true
+            task?.cancel()
+        }
+
+        private fun schedule(delayMillis: Long): Boolean {
+            if (finished) return true
+            val next = scheduler.schedule(maxOf(1, delayMillis), ::check) ?: return false
+            task = next
+            return true
+        }
+
+        private fun check() {
+            if (finished) return
+            val now = System.nanoTime()
+            val total = TimeUnit.NANOSECONDS.toMillis(now - started)
+            val idle = TimeUnit.NANOSECONDS.toMillis(now - lastProgress)
+            val remaining = totalMillis - total
+            when {
+                remaining <= 0 || (idleCounts && idle >= idleMillis) -> exchange.close()
+                !schedule(minOf(remaining, if (idleCounts) idleMillis - idle else idleMillis)) -> exchange.close()
+            }
+        }
     }
 
     /**
@@ -347,11 +442,20 @@ class EditorApiServer(
         var permits: Int = 0
     }
 
+    /** A preview request: the parsed body and, when the document was sent, its verified canonical form. */
+    class PreviewInput(val request: JsonValue, val canonicalDocument: String?, val snapshotHash: String)
+
     private class TooLarge : RuntimeException()
     private class Busy : RuntimeException()
 
+    private val current = ThreadLocal<Watchdog>()
+
     companion object {
         const val PROTOCOL: String = "2.0"
+        /** A transfer idle this long is abandoned; see [Watchdog]. */
+        const val IDLE_MILLIS: Long = 15_000
+        const val TOTAL_MILLIS: Long = 300_000
+        private const val CHUNK_BYTES = 64 * 1024
         const val LAYOUT_HEADER: String = "X-Itemerness-Catalog-Layout"
         private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
         /** What a document without a `budgets` object decodes to. */

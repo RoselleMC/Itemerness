@@ -54,6 +54,8 @@ class CompilerBridge(
     private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
     /** Plugin-computed values for preview scenarios; null when the platform offers no providers. */
     private val previewData: PreviewDataSource? = null,
+    /** The canonical document for a snapshot hash the server holds, such as the saved draft. */
+    private val snapshotDocuments: (String) -> String? = { null },
     private val validateRuntimeContent: (
         ProjectDocumentCodec.Decoded,
         CatalogSnapshot,
@@ -165,13 +167,47 @@ class CompilerBridge(
             )
         }
 
-        val compilation = when (val result = compiled(canonicalDocument, actualSnapshotHash)) {
+        return render(compiled(canonicalDocument, actualSnapshotHash), context, diagnostics, started)
+    }
+
+    /**
+     * Previews a canonical document whose hash the caller already verified against
+     * [PreviewContext.snapshotHash], without parsing or hashing it again. A large document costs
+     * several copies of its size each time it is re-encoded.
+     */
+    fun compileVerified(canonicalDocument: String, context: PreviewContext): Outcome =
+        render(compiled(canonicalDocument, context.snapshotHash), context, ArrayList(), System.nanoTime())
+
+    /**
+     * Previews a snapshot the server already holds, either compiled recently or available from
+     * [snapshotDocuments], so the editor need not upload an unchanged document again. Null means the
+     * snapshot is unknown and the caller must send the document.
+     */
+    fun compileSnapshot(context: PreviewContext): Outcome? {
+        val started = System.nanoTime()
+        val compilation = recent(context.snapshotHash)
+            ?: snapshotDocuments(context.snapshotHash)?.let { compiled(it, context.snapshotHash) }
+            ?: return null
+        return render(compilation, context, ArrayList(), started)
+    }
+
+    private fun recent(hash: String): DocumentCompiler.Result? {
+        val now = System.nanoTime()
+        return synchronized(recentCompilations) {
+            recentCompilations[hash to budgets()]?.takeIf { now - it.first < COMPILATION_LIFETIME_NANOS }?.second
+        }
+    }
+
+    private fun render(result: DocumentCompiler.Result, requestContext: PreviewContext, diagnostics: MutableList<JsonValue>, started: Long): Outcome {
+        val compilation = when (result) {
             is DocumentCompiler.Result.Valid -> result
             is DocumentCompiler.Result.Invalid -> {
                 diagnostics += result.diagnostics.map { diagnosticJson(it.code, it.messageKey, it.params) }
-                return reject(result.code, result.messageKey, result.params, context, diagnostics, started)
+                return reject(result.code, result.messageKey, result.params, requestContext, diagnostics, started)
             }
         }
+        val context = if (requestContext.documentSchemaVersion != null) requestContext
+            else requestContext.withSnapshotHash(requestContext.snapshotHash, compilation.decoded.schemaVersion)
         val decoded = compilation.decoded
         val domainCatalog = compilation.domain
         val catalog = compilation.presentation
@@ -385,11 +421,26 @@ class CompilerBridge(
      * unknown item yields no providers and a failure code, so the editor can explain the empty list.
      */
     fun previewScenarios(documentJson: String, snapshotHash: String, itemId: String, locale: String): JsonValue {
-        fun failed(code: String) = obj("itemId" to text(itemId), "providers" to JsonValue.Arr(emptyList()), "failure" to text(code))
-        val canonical = try { Json.canonicalize(Json.parse(documentJson)) } catch (_: JsonException) { return failed("DECODE_FAILED") }
-        val hash = documentDigest(canonical)
-        if (hash != snapshotHash) return failed("SNAPSHOT_MISMATCH")
-        val compilation = compiled(canonical, hash) as? DocumentCompiler.Result.Valid ?: return failed("DOCUMENT_INVALID")
+        val canonical = try { Json.canonicalize(Json.parse(documentJson)) } catch (_: JsonException) { return scenariosFailed(itemId, "DECODE_FAILED") }
+        if (documentDigest(canonical) != snapshotHash) return scenariosFailed(itemId, "SNAPSHOT_MISMATCH")
+        return previewScenarios(compiled(canonical, snapshotHash), itemId, locale)
+    }
+
+    /** As above for a verified canonical document, or a held snapshot when [canonicalDocument] is null; null if unknown. */
+    fun previewScenariosVerified(canonicalDocument: String?, snapshotHash: String, itemId: String, locale: String): JsonValue? {
+        val result = canonicalDocument?.let { compiled(it, snapshotHash) }
+            ?: recent(snapshotHash)
+            ?: snapshotDocuments(snapshotHash)?.let { compiled(it, snapshotHash) }
+            ?: return null
+        return previewScenarios(result, itemId, locale)
+    }
+
+    private fun scenariosFailed(itemId: String, code: String) =
+        obj("itemId" to text(itemId), "providers" to JsonValue.Arr(emptyList()), "failure" to text(code))
+
+    private fun previewScenarios(result: DocumentCompiler.Result, itemId: String, locale: String): JsonValue {
+        fun failed(code: String) = scenariosFailed(itemId, code)
+        val compilation = result as? DocumentCompiler.Result.Valid ?: return failed("DOCUMENT_INVALID")
         val itemKey = try { ItemKey.parse(itemId) } catch (_: IllegalArgumentException) { return failed("UNKNOWN_ITEM") }
         val definition = compilation.domain.findItem(itemKey) as? CatalogItemDefinition ?: return failed("UNKNOWN_ITEM")
         val source = previewData ?: return obj("itemId" to text(itemId), "providers" to JsonValue.Arr(emptyList()), "failure" to JsonValue.Null)

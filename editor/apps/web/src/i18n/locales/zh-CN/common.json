@@ -276,7 +276,9 @@
             "UNAUTHORIZED": "插件拒绝了此访问令牌。",
             "TOKEN_REQUIRED": "此插件需要访问令牌。",
             "ORIGIN_FORBIDDEN": "插件未允许此浏览器来源。",
-            "CONNECTION_FAILED": "无法连接，请检查地址、证书和插件 API 配置。"
+            "CONNECTION_FAILED": "无法连接，请检查地址、证书和插件 API 配置。",
+            "REQUEST_TIMEOUT": "传输过程中插件 15 秒没有响应。大文档需要稳定的连接，请检查网络后重试。",
+            "RESPONSE_TOO_LARGE": "插件发送的数据超过本编辑器可接收的大小。请更新编辑器以匹配插件版本。"
         }
     },
     "settings": {
@@ -1426,6 +1428,7 @@
             "TOKEN_REQUIRED": "此服务器需要有效的 API 令牌。",
             "TARGET_SERVER_MISMATCH": "当前连接与请求的目标服务器不再一致。",
             "CATALOG_BUSY": "服务器正在处理另一项配置传输，请稍后重试。",
+            "REQUEST_TIMEOUT": "传输停滞 15 秒后已停止。已保存的编辑器草稿未被修改，请检查网络后重试。",
             "EXPORT_SIZE_INVALID": "导出内容为空或超过文件大小上限。",
             "EXPORT_SAVE_FAILED": "无法保存导出文件。",
             "REPLACE_FAILED": "新草稿未能保存，原编辑器文档仍然保留。",

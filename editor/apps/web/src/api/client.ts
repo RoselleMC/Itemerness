@@ -139,6 +139,7 @@ export function normalizeApiUrl(value: string): string {
 async function responseJson(
     response: Response,
     limit: number,
+    progress: () => void = () => {},
 ): Promise<unknown> {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("INVALID_API_RESPONSE");
@@ -148,6 +149,7 @@ async function responseJson(
         while (true) {
             const chunk = await reader.read();
             if (chunk.done) break;
+            progress();
             size += chunk.value.length;
             if (size > limit)
                 throw new TransferSizeError("RESPONSE_TOO_LARGE", limit, null);
@@ -185,22 +187,55 @@ function metadata(body: unknown) {
     return { snapshotHash: value.snapshotHash, revision: value.revision };
 }
 
-function requestDeadline(signals: readonly AbortSignal[]) {
+/** Documents above this size are previewed by snapshot reference before uploading them. */
+const REFERENCE_THRESHOLD_BYTES = 256 * 1024;
+
+/** Idle time after which a stalled request fails; mirrors the plugin's watchdog. */
+const IDLE_MILLIS = 15_000;
+const TOTAL_MILLIS = 300_000;
+/** A conservative upload rate: the browser cannot report upload progress, so time is budgeted. */
+const UPLOAD_BYTES_PER_SECOND = 256 * 1024;
+
+/**
+ * Fails a request that stops making progress instead of one that is merely long: the budget covers
+ * the upload at a conservative rate, and every received response chunk renews it.
+ */
+function requestDeadline(signals: readonly AbortSignal[], uploadBytes = 0) {
     const controller = new AbortController();
+    const started = Date.now();
+    let timedOut = false;
     const abort = () => controller.abort();
     for (const signal of signals) {
         if (signal.aborted) abort();
         signal.addEventListener("abort", abort, { once: true });
     }
-    const timer = setTimeout(abort, 15_000);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = (millis: number) => {
+        if (timer !== null) clearTimeout(timer);
+        timer = setTimeout(
+            () => {
+                timedOut = true;
+                abort();
+            },
+            Math.max(0, Math.min(millis, started + TOTAL_MILLIS - Date.now())),
+        );
+    };
+    arm(IDLE_MILLIS + (uploadBytes / UPLOAD_BYTES_PER_SECOND) * 1000);
     return {
         signal: controller.signal,
+        get timedOut() {
+            return timedOut;
+        },
+        progress() {
+            arm(IDLE_MILLIS);
+        },
         check() {
+            if (timedOut) throw new Error("REQUEST_TIMEOUT");
             if (controller.signal.aborted)
                 throw new DOMException("Request cancelled", "AbortError");
         },
         dispose() {
-            clearTimeout(timer);
+            if (timer !== null) clearTimeout(timer);
             for (const signal of signals)
                 signal.removeEventListener("abort", abort);
         },
@@ -359,16 +394,16 @@ export class PluginClient {
     }
 
     async preview(request: PreviewRequest, signal?: AbortSignal) {
-        this.assertDocumentSendable(request.document);
         // Plugins without providers reject the field; a scenario is meaningless to them.
-        const { scenario, ...base } = request;
+        const { scenario, document, ...base } = request;
         const providers = this.capabilities.includes("preview.providers");
+        const fields = scenario && providers ? { ...base, scenario } : base;
         const body = record(
-            await this.json(
-                "/api/v2/preview",
-                "POST",
-                scenario && providers ? { ...base, scenario } : base,
-                signal,
+            await this.withSnapshot(
+                document,
+                request.snapshotHash,
+                (included) =>
+                    this.json("/api/v2/preview", "POST", { ...fields, ...included }, signal),
             ),
         );
         const artifact = previewArtifactSchema.parse(body.artifact);
@@ -397,23 +432,62 @@ export class PluginClient {
         locale: string,
         signal?: AbortSignal,
     ) {
-        this.assertDocumentSendable(document);
+        const snapshotHash = contentHash(document);
         const result = previewProvidersSchema.parse(
-            await this.json(
-                "/api/v2/preview/scenarios",
-                "POST",
-                {
-                    document,
-                    snapshotHash: contentHash(document),
-                    itemId,
-                    locale,
-                    targetServerId: this.serverId,
-                },
-                signal,
+            await this.withSnapshot(document, snapshotHash, (included) =>
+                this.json(
+                    "/api/v2/preview/scenarios",
+                    "POST",
+                    {
+                        ...included,
+                        snapshotHash,
+                        itemId,
+                        locale,
+                        targetServerId: this.serverId,
+                    },
+                    signal,
+                ),
             ),
         );
         if (result.itemId !== itemId) throw new Error("INVALID_PREVIEW_RESPONSE");
         return result;
+    }
+
+    private readonly documentSizes = new Map<string, number>();
+
+    /**
+     * Sends a large document by reference first: the plugin usually still holds the snapshot, as its
+     * saved draft or a recent compilation, so the upload is only repeated when it answers
+     * `SNAPSHOT_UNKNOWN`. A reference also works for a draft above the current request limit.
+     */
+    private async withSnapshot(
+        document: ProjectDocument,
+        snapshotHash: string,
+        send: (included: { document?: ProjectDocument }) => Promise<unknown>,
+    ): Promise<unknown> {
+        let bytes = this.documentSizes.get(snapshotHash);
+        if (bytes === undefined) {
+            bytes = utf8Length(JSON.stringify(document));
+            this.documentSizes.set(snapshotHash, bytes);
+            if (this.documentSizes.size > 8)
+                this.documentSizes.delete(this.documentSizes.keys().next().value!);
+        }
+        if (
+            bytes > REFERENCE_THRESHOLD_BYTES &&
+            this.capabilities.includes("preview.snapshot-reference")
+        ) {
+            try {
+                return await send({});
+            } catch (error) {
+                if (
+                    !(error instanceof PluginHttpError) ||
+                    error.message !== "SNAPSHOT_UNKNOWN"
+                )
+                    throw error;
+            }
+        }
+        this.assertDocumentSendable(document);
+        return send({ document });
     }
 
     private assertResponseIdentity(body: unknown): void {
@@ -504,15 +578,14 @@ export class PluginClient {
         if (path !== "/api/handshake" && !this.protocol)
             throw new Error("HANDSHAKE_REQUIRED");
         // Avoid AbortSignal.any/timeout: older supported WKWebView releases lack them.
-        const deadline = requestDeadline([
-            this.abort.signal,
-            ...(signal ? [signal] : []),
-        ]);
+        const encoded = body === undefined ? undefined : JSON.stringify(body);
+        const requestBytes = encoded ? utf8Length(encoded) : 0;
+        const deadline = requestDeadline(
+            [this.abort.signal, ...(signal ? [signal] : [])],
+            requestBytes,
+        );
         try {
             deadline.check();
-            const encoded =
-                body === undefined ? undefined : JSON.stringify(body);
-            const requestBytes = encoded ? utf8Length(encoded) : 0;
             if (requestBytes > this.limits.requestBytes)
                 throw new TransferSizeError(
                     "REQUEST_TOO_LARGE",
@@ -567,9 +640,11 @@ export class PluginClient {
                     },
                 });
                 status = response.status;
+                deadline.progress();
                 decoded = await responseJson(
                     response,
                     this.limits.responseBytes,
+                    deadline.progress,
                 );
             }
             deadline.check();
@@ -594,6 +669,10 @@ export class PluginClient {
                 throw new PluginHttpError(status, decoded, code);
             }
             return decoded;
+        } catch (error) {
+            // A deadline abort surfaces as a generic AbortError; say that the request stalled.
+            if (deadline.timedOut) throw new Error("REQUEST_TIMEOUT");
+            throw error;
         } finally {
             deadline.dispose();
         }

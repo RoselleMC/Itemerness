@@ -26,10 +26,15 @@ class EditorTransferLimits(val documentBytes: Int = DEFAULT_DOCUMENT_BYTES) {
      */
     val largeMessagePermits: Int get() = if (documentBytes <= DEFAULT_DOCUMENT_BYTES) 1 else LARGE_MESSAGE_SLOTS
 
+    /**
+     * Requests follow the current budget, but responses may reach the hard ceiling: a draft saved
+     * under a higher budget must still open after the operator lowers it, and the server already
+     * holds whatever it sends.
+     */
     fun json(): JsonValue = JsonValue.Obj(mapOf(
         "documentBytes" to JsonValue.Num(documentBytes.toDouble()),
         "requestBytes" to JsonValue.Num(messageBytes.toDouble()),
-        "responseBytes" to JsonValue.Num(messageBytes.toDouble()),
+        "responseBytes" to JsonValue.Num((MAXIMUM_DOCUMENT_BYTES + ENVELOPE_BYTES).toDouble()),
     ))
 
     fun requireDocument(canonical: String) {

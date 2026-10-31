@@ -14,6 +14,7 @@ import {
     transferSizeDetail,
 } from "../src/api/client.js";
 import { formatBytes } from "../src/features/common/formatBytes.js";
+import { contentHash } from "@itemerness/protocol";
 
 const MiB = 1024 * 1024;
 const limits = {
@@ -255,5 +256,118 @@ describe("catalog status", () => {
         const [url, init] = fetch.mock.calls[1]!;
         expect(String(url)).toBe("https://example.test/api/v2/catalog/status");
         expect((init as RequestInit).method).toBe("GET");
+    });
+});
+
+describe("slow transfers", () => {
+    afterEach(() => vi.useRealTimers());
+
+    /** A response whose body arrives in chunks the test releases; like real fetch, an abort errors it. */
+    function trickle() {
+        let controller!: ReadableStreamDefaultController<Uint8Array>;
+        const body = new ReadableStream<Uint8Array>({
+            start(value) {
+                controller = value;
+            },
+        });
+        return {
+            respond(init: RequestInit) {
+                init.signal?.addEventListener("abort", () =>
+                    controller.error(new DOMException("Aborted", "AbortError")),
+                );
+                return new Response(body);
+            },
+            push: (text: string) => controller.enqueue(new TextEncoder().encode(text)),
+            end: () => controller.close(),
+        };
+    }
+
+    it("keeps a long transfer alive while data arrives and fails one that stalls", async () => {
+        vi.useFakeTimers();
+        const steady = trickle();
+        const stalled = trickle();
+        const replies = [steady, stalled];
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string, init: RequestInit) =>
+                url.endsWith("/api/handshake")
+                    ? response(handshake)
+                    : replies.shift()!.respond(init),
+            ),
+        );
+        const client = new PluginClient("https://example.test", "");
+        await client.handshake();
+        const read = client.catalogStatus();
+        const json = JSON.stringify({ serverId: "test", sourceHash: "sha256:" + "4".repeat(64) });
+        // Forty seconds in total, never more than ten without data: longer than the old fixed deadline.
+        for (const piece of json.match(/.{1,16}/g)!) {
+            await vi.advanceTimersByTimeAsync(10_000);
+            steady.push(piece);
+        }
+        steady.end();
+        await expect(read).resolves.toMatchObject({ serverId: "test" });
+
+        const stalledRead = client.catalogStatus();
+        const failure = expect(stalledRead).rejects.toThrow("REQUEST_TIMEOUT");
+        stalled.push("{");
+        await vi.advanceTimersByTimeAsync(15_001);
+        await failure;
+    });
+});
+
+describe("previews by snapshot reference", () => {
+    it("send a large document only when the plugin does not hold it", async () => {
+        const document = sized(400 * 1024);
+        const requests: Record<string, unknown>[] = [];
+        let known = false;
+        const artifact = (request: Record<string, unknown>) => ({
+            schemaVersion: 1,
+            origin: "agent",
+            itemId: request.itemId,
+            viewer: request.viewer,
+            display: null,
+            fidelity: [],
+            diagnostics: [],
+            digests: { snapshot: request.snapshotHash },
+            failure: null,
+        });
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string, init: RequestInit) => {
+                if (url.endsWith("/api/handshake"))
+                    return response({
+                        ...handshake,
+                        capabilities: [...handshake.capabilities, "preview.compile", "preview.snapshot-reference"],
+                    });
+                const body = JSON.parse(String(init.body));
+                requests.push(body);
+                if (!body.document && !known)
+                    return response({ code: "SNAPSHOT_UNKNOWN" }, 409);
+                known = true;
+                return response({ artifact: artifact(body), stale: false });
+            }),
+        );
+        const client = new PluginClient("https://example.test", "");
+        await client.handshake();
+        const request = {
+            document,
+            itemId: "itemerness:ember-blade",
+            viewer: {
+                locale: "en_us",
+                requestedTheme: null,
+                assetProfile: null,
+                capabilities: [],
+                metricsRevision: null,
+                resourcePackLoaded: false,
+                managesVanillaTooltipLines: false,
+                direction: "LEFT_TO_RIGHT" as const,
+            },
+            snapshotHash: contentHash(document),
+            targetServerId: "test",
+        };
+        await client.preview(request);
+        expect(requests.map((body) => "document" in body)).toEqual([false, true]);
+        await client.preview({ ...request, itemId: "itemerness:travel-token" });
+        expect(requests.map((body) => "document" in body)).toEqual([false, true, false]);
     });
 });

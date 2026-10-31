@@ -47,13 +47,17 @@ internal class EditorApiService(
     private val metrics = BundledBuiltinFontMetrics(builtinFontMetrics)
     private val validator = RuntimeCatalogValidator()
     private val previewBroker = previewData
-    private val bridge = CompilerBridge(metrics, agentVersion, { settings().budgets }, previewData = previewData) { decoded, domain, presentation ->
+    private val bridge = CompilerBridge(metrics, agentVersion, { settings().budgets }, previewData = previewData,
+        snapshotDocuments = { hash -> drafts.read()?.takeIf { it.snapshotHash == hash }?.let { Json.canonicalize(it.document) } },
+    ) { decoded, domain, presentation ->
         validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
     }
     private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
     private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge, catalogReader::currentSourceHash, directoryBytes = { settings().catalogDirectoryBytes })
     /** Editor documents may be as large as one catalog directory is allowed to be. */
     private val transferLimits = { EditorTransferLimits(settings().catalogDirectoryBytes.toInt()) }
+    /** The saved draft is also a snapshot previews may reference instead of uploading it again. */
+    private val drafts = EditorDraftStore(draftPath, transferLimits) { ProjectDocumentCodec.decode(it, metrics) }
     private val serverMetadata by lazy {
         ServerMetadataStore(draftPath.resolveSibling("server-metadata.json"), ServerIdentity.loadOrCreate(draftPath.resolveSibling("server-id")))
     }
@@ -67,7 +71,7 @@ internal class EditorApiService(
             persistentIdentity = true,
             dataComponentTypes = ShownComponentNotice.serverComponents().orEmpty().map(ItemKey::toString),
         ),
-        drafts = EditorDraftStore(draftPath, transferLimits) { ProjectDocumentCodec.decode(it, metrics) },
+        drafts = drafts,
         compile = ::compile,
         worker = worker,
         scheduler = scheduler,
@@ -107,21 +111,20 @@ internal class EditorApiService(
         previewBroker?.close()
     }
 
-    private fun scenarios(payload: JsonValue): JsonValue {
-        val request = JsonObject.of(payload, "scenarios")
-        return bridge.previewScenarios(
-            Json.canonicalize(requireNotNull(request.raw("document"))),
-            request.requiredString("snapshotHash"),
+    private fun scenarios(input: EditorApiServer.PreviewInput): JsonValue? {
+        val request = JsonObject.of(input.request, "scenarios")
+        return bridge.previewScenariosVerified(
+            input.canonicalDocument,
+            input.snapshotHash,
             request.requiredString("itemId"),
             request.optionalString("locale") ?: "en_us",
         )
     }
 
-    private fun compile(payload: JsonValue): JsonValue {
-        val request = JsonObject.of(payload, "preview")
-        val documentJson = Json.canonicalize(requireNotNull(request.raw("document")))
+    private fun compile(input: EditorApiServer.PreviewInput): JsonValue? {
+        val request = JsonObject.of(input.request, "preview")
         val viewer = request.optionalObject("viewer")
-        val outcome = bridge.compilePreview(documentJson, CompilerBridge.PreviewContext(
+        val context = CompilerBridge.PreviewContext(
             itemId = request.requiredString("itemId"),
             locale = viewer?.optionalString("locale") ?: "en_us",
             requestedTheme = viewer?.optionalString("requestedTheme"),
@@ -138,7 +141,9 @@ internal class EditorApiService(
                     parameters = (scenario.raw("parameters") as? JsonValue.Obj) ?: JsonValue.Obj(emptyMap()),
                 )
             },
-        ))
+        )
+        // The server verified the hash of a sent document; without one, only a held snapshot can be previewed.
+        val outcome = input.canonicalDocument?.let { bridge.compileVerified(it, context) } ?: bridge.compileSnapshot(context) ?: return null
         return Json.parse(when (outcome) {
             is CompilerBridge.Outcome.Rendered -> outcome.json
             is CompilerBridge.Outcome.Rejected -> outcome.json

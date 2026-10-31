@@ -36,6 +36,8 @@ class EditorApiServerTest {
                         compile: (JsonValue) -> JsonValue = { JsonValue.Text("compiled") },
                         limits: () -> EditorTransferLimits = { EditorTransferLimits() },
                         previewScenarios: ((JsonValue) -> JsonValue)? = null,
+                        knownSnapshots: Set<String>? = null,
+                        idleMillis: Long = EditorApiServer.IDLE_MILLIS,
                         action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
         val clock = Executors.newSingleThreadScheduledExecutor()
@@ -51,12 +53,17 @@ class EditorApiServerTest {
             InetSocketAddress("127.0.0.1", 0), apiToken, listOf("http://127.0.0.1:5173"),
             EditorApiServer.Metadata("test", "0.1.0", version, "Folia", "sha256:" + "0".repeat(64), "Test Server", persistentIdentity),
             EditorDraftStore(directory.resolve("draft.json"), limits) { Json.parse(it) },
-            { compiles.incrementAndGet(); compile(it) }, workers, scheduler, { throw AssertionError(it) },
+            { input ->
+                // A referenced snapshot is known only if the fixture says so; sent documents always compile.
+                if (input.canonicalDocument == null && knownSnapshots?.contains(input.snapshotHash) != true) null
+                else { compiles.incrementAndGet(); compile(input.request) }
+            }, workers, scheduler, { throw AssertionError(it) },
             readCatalog, exportCatalog, catalogStatus,
             serverMetadata = if (persistentIdentity) ServerMetadataStore(directory.resolve("server-metadata.json"), "test") else null,
             budgets = { budgets },
             limits = limits,
-            previewScenarios = previewScenarios,
+            previewScenarios = previewScenarios?.let { list -> { input -> list(input.request) } },
+            idleMillis = idleMillis,
         )
         try { api.start(); action(api, compiles) } finally {
             api.close(); workers.shutdownNow(); clock.shutdownNow()
@@ -284,7 +291,8 @@ class EditorApiServerTest {
         val limits = handshake.requiredObject("limits")
         assertEquals(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES, limits.requiredInt("documentBytes"))
         assertEquals(EditorTransferLimits.DEFAULT_MESSAGE_BYTES, limits.requiredInt("requestBytes"))
-        assertEquals(EditorTransferLimits.DEFAULT_MESSAGE_BYTES, limits.requiredInt("responseBytes"))
+        // Responses may reach the hard ceiling, so a draft saved under a higher budget always opens.
+        assertEquals(EditorTransferLimits.MAXIMUM_DOCUMENT_BYTES + EditorTransferLimits.ENVELOPE_BYTES, limits.requiredInt("responseBytes"))
     }
 
     @Test
@@ -436,6 +444,42 @@ class EditorApiServerTest {
             assertEquals(200, request(api, "/api/v2/preview", "POST", preview).statusCode())
             assertEquals(1, count.get())
         }
+    }
+
+    @Test
+    fun `previews may reference a snapshot the server holds instead of uploading it`() {
+        val hash = EditorDraftStore.digest(Json.canonicalize(document))
+        val reference = Json.canonicalize(JsonValue.Obj(mapOf("snapshotHash" to JsonValue.Text(hash), "itemId" to JsonValue.Text("itemerness:a"))))
+        fixture(knownSnapshots = setOf(hash)) { api, count ->
+            assertTrue(request(api, "/api/handshake").body().contains("\"preview.snapshot-reference\""))
+            assertEquals(200, request(api, "/api/v2/preview", "POST", reference).statusCode())
+            assertEquals(1, count.get())
+            val unknown = request(api, "/api/v2/preview", "POST", reference.replace(hash, "sha256:" + "f".repeat(64)))
+            assertEquals(409, unknown.statusCode())
+            assertEquals("SNAPSHOT_UNKNOWN", JsonObject.parse(unknown.body(), "refusal").requiredString("code"))
+            assertEquals(1, count.get())
+        }
+    }
+
+    @Test
+    fun `slow but steady uploads complete while stalled ones are closed`() = fixture(idleMillis = 400) { api, _ ->
+        val body = saveBody().toByteArray(Charsets.UTF_8)
+        fun upload(pauseMillis: Long, stallAt: Int? = null): String = java.net.Socket("127.0.0.1", api.port).use { socket ->
+            socket.soTimeout = 5_000
+            val output = socket.getOutputStream()
+            output.write(("PUT /api/v2/document HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\n" +
+                "X-Itemerness-Protocol: 2.0\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray())
+            output.flush()
+            val pieces = body.toList().chunked(maxOf(1, body.size / 8))
+            pieces.forEachIndexed { index, piece ->
+                if (index == stallAt) Thread.sleep(1_200) else Thread.sleep(pauseMillis)
+                runCatching { output.write(piece.toByteArray()); output.flush() }
+            }
+            runCatching { socket.getInputStream().readAllBytes().toString(Charsets.UTF_8) }.getOrDefault("")
+        }
+        // Eight pieces 150 ms apart take over a second, longer than the idle limit, yet never stall.
+        assertTrue(upload(150).startsWith("HTTP/1.1 200"), "a steady upload completes")
+        assertFalse(upload(50, stallAt = 4).startsWith("HTTP/1.1 200"), "an upload that stalls is closed")
     }
 
     @Test

@@ -17,11 +17,17 @@ mod mac_exit;
 // limits negotiated with each plugin.
 const MAX_JSON: usize = 65 * 1024 * 1024;
 
-fn client(timeout: u64) -> Result<Client, String> {
+/// Large documents on slow links take longer than any fixed deadline, so a request fails when a
+/// read stalls rather than when it is merely long; the total bound matches the plugin's own.
+const IDLE_SECONDS: u64 = 15;
+const TOTAL_SECONDS: u64 = 300;
+
+fn client(total_seconds: u64) -> Result<Client, String> {
     Client::builder()
         .redirect(Policy::none())
         .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(timeout))
+        .read_timeout(Duration::from_secs(IDLE_SECONDS))
+        .timeout(Duration::from_secs(total_seconds))
         .build()
         .map_err(|_| "NETWORK_UNAVAILABLE".into())
 }
@@ -50,13 +56,17 @@ async fn bounded_body(mut response: reqwest::Response, limit: usize) -> Result<V
         return Err("RESPONSE_TOO_LARGE".into());
     }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| "NETWORK_UNAVAILABLE")? {
+    while let Some(chunk) = response.chunk().await.map_err(transport_error)? {
         if bytes.len() + chunk.len() > limit {
             return Err("RESPONSE_TOO_LARGE".into());
         }
         bytes.extend_from_slice(&chunk);
     }
     Ok(bytes)
+}
+
+fn transport_error(error: reqwest::Error) -> String {
+    if error.is_timeout() { "REQUEST_TIMEOUT" } else { "NETWORK_UNAVAILABLE" }.into()
 }
 
 #[derive(Serialize)]
@@ -99,7 +109,7 @@ async fn plugin_request(
     if path != "/api/handshake" && protocol.as_deref() != Some("2.0") {
         return Err("PROTOCOL_INCOMPATIBLE".into());
     }
-    let mut request = client(15)?.request(
+    let mut request = client(TOTAL_SECONDS)?.request(
         Method::from_bytes(method.as_bytes()).map_err(|_| "INVALID_REQUEST")?,
         base + &path,
     );
@@ -118,7 +128,7 @@ async fn plugin_request(
             .header("Content-Type", "application/json")
             .body(body);
     }
-    let response = request.send().await.map_err(|_| "NETWORK_UNAVAILABLE")?;
+    let response = request.send().await.map_err(transport_error)?;
     if response.status().is_redirection() {
         return Err("REDIRECT_FORBIDDEN".into());
     }
