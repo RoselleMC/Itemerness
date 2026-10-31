@@ -27,6 +27,7 @@
         "export_lossy": "导出会改变 {{path}} 的配置。",
         "source_invalid": "无法加载 YAML 配置：{{detail}}",
         "export_invalid": "导出的 YAML 无法加载：{{detail}}",
+        "export_file_too_large": "{{path}} 导出后会有 {{codePoints}} 个字符，加载器每个文件最多接受 {{limit}} 个。请把其中部分对象分到其他文件，或缩短内容。",
         "document_too_large": "该配置作为编辑器文档为 {{actualBytes}} 字节，上限为 {{limitBytes}} 字节。",
         "response_too_large": "响应为 {{actualBytes}} 字节，上限为 {{limitBytes}} 字节。",
         "source_changed_since_import": "导入此文档后，服务器上的 YAML 已发生变化。替换前请将导出的文件与当前配置逐一核对。",

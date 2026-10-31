@@ -75,6 +75,52 @@ class LargeCatalogTransferTest {
         println("large catalog: $bytes bytes, read ${readMillis}ms, previews $previews ms, export ${exportMillis}ms")
     }
 
+    @Test
+    fun `an exported file above the loader's per-file limits is split into parts that reload`() {
+        fixture()
+        val bridge = CompilerBridge(BundledBuiltinFontMetrics(metrics), "test")
+        val exporter = EditorCatalogExporter(metrics, bridge, currentSourceHash = { reader().currentSourceHash() })
+        // Every copy assigned to one file, as a hand-written catalog with anchors might be.
+        val grown = grow(document(reader().read(includeLayout = true)), ITEMS) { "items/weapons.yml" }
+        val files = JsonObject.of(exportOrFail(exporter, grown), "export").requiredObjects("files")
+        val parts = files.filter { it.requiredString("path").startsWith("items/weapons") }
+        assertTrue(parts.size > 1, parts.map { it.requiredString("path") }.toString())
+        assertEquals(parts.indices.map { "items/weapons-part-${(it + 1).toString().padStart(2, '0')}.yml" }, parts.map { it.requiredString("path") })
+        parts.forEach { part ->
+            val content = part.requiredString("content")
+            assertTrue(content.codePointCount(0, content.length) <= com.iroselle.itemerness.bukkit.config.StrictYaml.MAX_CODE_POINTS)
+        }
+        write(files)
+        val reread = document(reader().read(includeLayout = true))
+        assertEquals(ITEMS, (reread.entries.getValue("items") as JsonValue.Arr).values.size)
+        // The next import records each object's part, so a later export keeps the same split.
+        val layout = ((reread.entries.getValue("sourceLayout") as JsonValue.Obj).entries.getValue("files") as JsonValue.Obj).entries.values
+            .map { (it as JsonValue.Text).value }.toSet()
+        assertTrue(parts.all { it.requiredString("path") in layout })
+    }
+
+    @Test
+    fun `files that cannot be split are all reported with their sizes`() {
+        fixture()
+        val bridge = CompilerBridge(BundledBuiltinFontMetrics(metrics), "test")
+        val seed = document(reader().read(includeLayout = true))
+        val padded = JsonValue.Obj(seed.entries + ("locales" to JsonValue.Arr((seed.entries.getValue("locales") as JsonValue.Arr).values.map { value ->
+            val locale = value as JsonValue.Obj
+            val messages = locale.entries.getValue("messages") as JsonValue.Obj
+            JsonValue.Obj(locale.entries + ("messages" to JsonValue.Obj(messages.entries + (0 until 70).associate { "item.padding-$it.lore" to JsonValue.Text("x".repeat(16_000)) })))
+        })))
+        val failure = assertThrows(CatalogTransferException::class.java) { EditorCatalogExporter(metrics, bridge).export(padded) }
+        assertEquals("CATALOG_EXPORT_INVALID", failure.code)
+        val reported = failure.diagnostics.map { JsonObject.of(it, "diagnostic") }
+        assertEquals((seed.entries.getValue("locales") as JsonValue.Arr).values.size, reported.size, "every oversized locale file is listed")
+        reported.forEach { diagnostic ->
+            assertEquals("CATALOG.EXPORT_FILE_TOO_LARGE", diagnostic.requiredString("code"))
+            val params = diagnostic.requiredObject("params")
+            assertTrue(params.requiredString("path").startsWith("locales/"))
+            assertTrue(params.requiredString("codePoints").toInt() > params.requiredString("limit").toInt())
+        }
+    }
+
     private fun exportOrFail(exporter: EditorCatalogExporter, document: JsonValue): JsonValue = try { exporter.export(document) } catch (failure: CatalogTransferException) {
         throw AssertionError(failure.code + ": " + Json.canonicalize(JsonValue.Arr(failure.diagnostics)).take(3000))
     }
@@ -82,7 +128,7 @@ class LargeCatalogTransferTest {
     private fun document(response: JsonValue): JsonValue.Obj = JsonObject.of(response, "response").raw("document") as JsonValue.Obj
 
     /** Repeats the enabled bundled items with fresh identities and longer content until [count] items exist. */
-    private fun grow(source: JsonValue.Obj, count: Int): JsonValue.Obj {
+    private fun grow(source: JsonValue.Obj, count: Int, file: (Int) -> String = { "items/generated-${it / 50}.yml" }): JsonValue.Obj {
         val originals = (source.entries.getValue("items") as JsonValue.Arr).values.map { it as JsonValue.Obj }
         val template = originals.single { (it.entries.getValue("id") as JsonValue.Text).value.endsWith("ember-blade") }
         var next = 0
@@ -110,7 +156,7 @@ class LargeCatalogTransferTest {
         val layout = source.entries.getValue("sourceLayout") as JsonValue.Obj
         val files = layout.entries.getValue("files") as JsonValue.Obj
         val placed = copies.mapIndexed { index, item ->
-            (item.entries.getValue("uuid") as JsonValue.Text).value to JsonValue.Text("items/generated-${index / 50}.yml")
+            (item.entries.getValue("uuid") as JsonValue.Text).value to JsonValue.Text(file(index))
         }
         // Each copy also carries its own translated text, as production items do.
         val locales = (source.entries.getValue("locales") as JsonValue.Arr).values.map { value ->

@@ -27,6 +27,7 @@
         "export_lossy": "Export would change the configuration at {{path}}.",
         "source_invalid": "The YAML configuration could not be loaded: {{detail}}",
         "export_invalid": "The exported YAML could not be loaded: {{detail}}",
+        "export_file_too_large": "{{path}} would be {{codePoints}} characters of YAML; the loader accepts at most {{limit}} per file. Assign some of its objects to another file, or shorten its content.",
         "document_too_large": "The configuration is {{actualBytes}} bytes as an editor document; the limit is {{limitBytes}} bytes.",
         "response_too_large": "The response is {{actualBytes}} bytes; the limit is {{limitBytes}} bytes.",
         "source_changed_since_import": "The YAML on the server changed after this document was imported. Review the exported files against the current configuration before replacing it.",

@@ -19,9 +19,10 @@ internal class StrictYamlException(
  * collections escaping into a published catalog candidate.
  */
 internal object StrictYaml {
-    private const val MAX_CODE_POINTS = 1_000_000
+    const val MAX_CODE_POINTS = 1_000_000
     private const val MAX_DEPTH = 64
-    private const val MAX_NODES = 100_000
+    /** Values in one file; mapping keys are not counted. */
+    const val MAX_NODES = 100_000
 
     fun load(path: Path): Map<String, Any?> =
         Files.newBufferedReader(path, Charsets.UTF_8).use { reader ->

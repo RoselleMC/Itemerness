@@ -3,6 +3,7 @@ package com.iroselle.itemerness.bukkit.editor
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.bukkit.catalog.CatalogSourceLoader
 import com.iroselle.itemerness.bukkit.config.DirectoryByteLimit
+import com.iroselle.itemerness.bukkit.config.StrictYaml
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
@@ -49,7 +50,12 @@ internal class EditorCatalogExporter(
         fun grouped(collection: String, section: String, default: String, entries: Map<String, Any?>, vararg header: Pair<String, Any?>) {
             if (entries.isEmpty()) return file(default, YamlEncoding.document(*header, section to entries))
             entries.entries.groupBy { (id, _) -> layout.path(collection, id, default) }.forEach { (path, group) ->
-                file(path, YamlEncoding.document(*header, section to group.associate { it.key to it.value }))
+                // Exported YAML is expanded block style, often twice the size of hand-written files with
+                // anchors; a file over the loader's per-file limits is split into numbered parts.
+                val parts = fittingParts(group.map { it.key to it.value }) { YamlEncoding.document(*header, section to linkedMapOf(*it.toTypedArray())) }
+                parts.forEachIndexed { index, part ->
+                    file(if (parts.size == 1) path else partPath(path, index + 1, parts.size), YamlEncoding.document(*header, section to linkedMapOf(*part.toTypedArray())))
+                }
             }
         }
         fun groupedThemes(themes: Map<String, Any?>, selectors: Map<String, Any?>) {
@@ -85,6 +91,15 @@ internal class EditorCatalogExporter(
         )
         grouped("viewerFacts", "facts", "viewer-facts/editor.yml", decoded.presentation.viewerFacts.associate { it.id to PresentationYamlEncoding.fact(it) })
         splitAssets(AssetYamlEncoding.encode(root, decoded.presentation), layout).forEach { (path, content) -> file(path, content) }
+        // Files that cannot be split (one schema or locale per file, or a single oversized object) are
+        // all reported at once, with their sizes, before the slower verification runs.
+        val oversized = files.mapNotNull { (path, content) ->
+            val codePoints = content.codePointCount(0, content.length)
+            if (codePoints > StrictYaml.MAX_CODE_POINTS) obj("code" to "CATALOG.EXPORT_FILE_TOO_LARGE", "severity" to "ERROR", "origin" to "agent",
+                "messageKey" to "diagnostics.catalog.export_file_too_large",
+                "params" to obj("path" to path, "codePoints" to codePoints.toString(), "limit" to StrictYaml.MAX_CODE_POINTS.toString())) else null
+        }
+        if (oversized.isNotEmpty()) throw CatalogTransferException("CATALOG_EXPORT_INVALID", oversized)
         try {
             verify(root, decoded, files)
         } catch (failure: StrictYamlException) {
@@ -107,6 +122,33 @@ internal class EditorCatalogExporter(
         }
         return obj("files" to files.map { (path, content) -> obj("path" to path, "content" to content) },
             "settingsPatch" to YamlEncoding.dump(settingsPatch), "diagnostics" to warnings)
+    }
+
+    /**
+     * Splits [entries] into consecutive parts whose encoded file stays below the loader's per-file
+     * code point and value budgets, halving until each part fits. A single object that is too large
+     * on its own stays in one part and is reported by the size check.
+     */
+    private fun fittingParts(entries: List<Pair<String, Any?>>, document: (List<Pair<String, Any?>>) -> Map<String, Any?>): List<List<Pair<String, Any?>>> {
+        if (entries.size <= 1) return listOf(entries)
+        val encoded = document(entries)
+        val text = YamlEncoding.dump(encoded)
+        if (text.codePointCount(0, text.length) <= PART_CODE_POINTS && nodes(encoded) <= PART_NODES) return listOf(entries)
+        val middle = entries.size / 2
+        return fittingParts(entries.subList(0, middle), document) + fittingParts(entries.subList(middle, entries.size), document)
+    }
+
+    private fun nodes(value: Any?): Int = 1 + when (value) {
+        is Map<*, *> -> value.values.sumOf(::nodes)
+        is List<*> -> value.sumOf(::nodes)
+        else -> 0
+    }
+
+    /** Zero-padded, because the loader reads files in name order and the parts must keep the object order. */
+    private fun partPath(path: String, part: Int, parts: Int): String {
+        val extension = path.substringAfterLast('.')
+        val number = part.toString().padStart(maxOf(2, parts.toString().length), '0')
+        return "${path.removeSuffix(".$extension")}-part-$number.$extension"
     }
 
     /** Splits the asset document by recorded file; singleton policies follow their own recorded file. */
@@ -195,5 +237,11 @@ internal class EditorCatalogExporter(
     private fun JsonObject.itemKey(namespace: String, version: Int): ItemKey {
         val id = requiredString("id")
         return ItemKey.parse(if (version >= 2 && ':' in id) id else "$namespace:$id")
+    }
+
+    private companion object {
+        /** A tenth below the loader's limits leaves room for the header each part repeats. */
+        const val PART_CODE_POINTS = StrictYaml.MAX_CODE_POINTS / 10 * 9
+        const val PART_NODES = StrictYaml.MAX_NODES / 10 * 9
     }
 }
