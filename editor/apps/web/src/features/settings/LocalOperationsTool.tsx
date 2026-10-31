@@ -431,6 +431,11 @@ export function LocalOperationsTool() {
                                     ["catalog", "default-namespace"],
                                     t("namespace"),
                                 )}
+                                {field(
+                                    ["catalog", "maximum-directory-mebibytes"],
+                                    t("directoryLimit"),
+                                    { numeric: true, optional: true },
+                                )}
                                 {field(["locale", "default"], t("locale"))}
                                 {field(
                                     ["presentation", "default-layout"],

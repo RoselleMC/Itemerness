@@ -15,7 +15,7 @@ mod mac_exit;
 
 // A fixed transport ceiling matching EDITOR_TRANSFER_CEILING; the web layer applies the smaller
 // limits negotiated with each plugin.
-const MAX_JSON: usize = 17 * 1024 * 1024;
+const MAX_JSON: usize = 65 * 1024 * 1024;
 
 fn client(timeout: u64) -> Result<Client, String> {
     Client::builder()

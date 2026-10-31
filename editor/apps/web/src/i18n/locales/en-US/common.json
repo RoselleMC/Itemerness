@@ -1352,7 +1352,7 @@
         "size": {
             "measured": "The document is {{actual}}; the plugin accepts {{limit}}.",
             "overLimit": "The transfer exceeds {{limit}}.",
-            "recovery": "Reduce the configuration, for example by disabling or removing unused items, translations or assets, then try again.",
+            "recovery": "Reduce the configuration, for example by removing unused items, translations or assets, or raise catalog.maximum-directory-mebibytes in the server's config.yml (up to 64), then try again.",
             "legacyRecovery": "The connected plugin accepts at most 2 MiB. Update the plugin to transfer documents up to 16 MiB."
         },
         "draftKept": "The saved editor draft was not changed.",

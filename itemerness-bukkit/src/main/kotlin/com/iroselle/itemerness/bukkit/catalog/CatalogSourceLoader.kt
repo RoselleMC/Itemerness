@@ -2,6 +2,7 @@ package com.iroselle.itemerness.bukkit.catalog
 
 import com.iroselle.itemerness.api.ItemInstanceMode
 import com.iroselle.itemerness.api.ItemKey
+import com.iroselle.itemerness.bukkit.config.DirectoryByteLimit
 import com.iroselle.itemerness.bukkit.config.StrictYaml
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.bukkit.config.YamlObject
@@ -32,9 +33,9 @@ import java.util.Locale
 import kotlin.io.path.extension
 
 internal class CatalogSourceLoader {
-    fun load(dataFolder: Path): LoadedCatalogSource {
-        val schemaFiles = yamlFiles(dataFolder.resolve("data-keys"))
-        val itemFiles = yamlFiles(dataFolder.resolve("items"))
+    fun load(dataFolder: Path, maximumDirectoryBytes: Long = DirectoryByteLimit.DEFAULT_BYTES): LoadedCatalogSource {
+        val schemaFiles = yamlFiles(dataFolder.resolve("data-keys"), maximumDirectoryBytes)
+        val itemFiles = yamlFiles(dataFolder.resolve("items"), maximumDirectoryBytes)
         val schemas = schemaFiles.map(::parseSchema)
         val parsedItems = itemFiles.flatMap(::parseItemDocument)
         return LoadedCatalogSource(
@@ -46,7 +47,7 @@ internal class CatalogSourceLoader {
         )
     }
 
-    private fun yamlFiles(root: Path): List<Path> {
+    private fun yamlFiles(root: Path, maximumBytes: Long): List<Path> {
         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
             throw StrictYamlException("Catalog directory does not exist or is not a directory: $root")
         }
@@ -64,9 +65,7 @@ internal class CatalogSourceLoader {
             throw StrictYamlException("Catalog directory $root exceeds the file limit")
         }
         val totalBytes = files.sumOf(Files::size)
-        if (totalBytes > MAX_BYTES_PER_DOMAIN) {
-            throw StrictYamlException("Catalog directory $root exceeds the byte limit")
-        }
+        if (totalBytes > maximumBytes) throw DirectoryByteLimit.exceeded("Catalog", root, totalBytes, maximumBytes)
         return files
     }
 
@@ -613,7 +612,6 @@ internal class CatalogSourceLoader {
         const val SUPPORTED_SOURCE_FORMAT = 1
         const val MAX_PLUGIN_NAME_LENGTH = 64
         const val MAX_FILES_PER_DOMAIN = 1_024
-        const val MAX_BYTES_PER_DOMAIN = 16L * 1024L * 1024L
     }
 }
 

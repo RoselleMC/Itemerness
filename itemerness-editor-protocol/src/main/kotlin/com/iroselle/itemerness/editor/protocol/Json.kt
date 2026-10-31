@@ -53,11 +53,11 @@ object JsonLimits {
     const val MAXIMUM_DEPTH: Int = 64
     const val MAXIMUM_STRING_LENGTH: Int = 1 shl 20
     /**
-     * Production documents average about 20 bytes per value, so a document at the editor's 16 MiB limit
-     * holds under a million values. The byte limit bounds memory; this only keeps a document of tiny
-     * values from costing far more parse work than its size suggests.
+     * Production documents average about 20 bytes per value, so a document at the editor's 64 MiB
+     * ceiling holds under four million values. The byte limit bounds memory; this only keeps a document
+     * of tiny values from costing far more parse work than its size suggests.
      */
-    const val MAXIMUM_ELEMENTS: Int = 1 shl 22
+    const val MAXIMUM_ELEMENTS: Int = 1 shl 23
 }
 
 object Json {

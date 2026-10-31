@@ -35,7 +35,7 @@ class LargeCatalogTransferTest {
         val bridge = CompilerBridge(BundledBuiltinFontMetrics(metrics), "test")
         val seed = document(reader().read(includeLayout = true))
         val grown = grow(seed, ITEMS)
-        val exporter = EditorCatalogExporter(metrics, bridge) { reader().currentSourceHash() }
+        val exporter = EditorCatalogExporter(metrics, bridge, currentSourceHash = { reader().currentSourceHash() })
         val files = JsonObject.of(exportOrFail(exporter, grown), "export").requiredObjects("files")
         write(files)
 

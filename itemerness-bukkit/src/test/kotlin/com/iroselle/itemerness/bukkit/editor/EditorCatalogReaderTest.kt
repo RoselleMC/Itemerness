@@ -751,6 +751,25 @@ class EditorCatalogReaderTest {
     }
 
     @Test
+    fun `the catalog directory budget bounds reads and verified exports`() {
+        fixture()
+        val document = requireNotNull(JsonObject.of(reader().read(), "response").raw("document"))
+        // An export larger than the server's budget would not load once installed, so it is refused.
+        val failure = assertThrows(CatalogTransferException::class.java) {
+            EditorCatalogExporter(metrics, CompilerBridge(BundledBuiltinFontMetrics(metrics), "test"), directoryBytes = { 1024 }).export(document)
+        }
+        assertEquals("CATALOG_EXPORT_INVALID", failure.code)
+        val detail = Json.canonicalize(JsonValue.Arr(failure.diagnostics))
+        assertTrue(detail.contains("bytes of YAML; the limit is 1,024 bytes"), detail)
+        assertTrue(detail.contains("catalog.maximum-directory-mebibytes"), detail)
+
+        val config = directory.resolve("config.yml")
+        Files.writeString(config, Files.readString(config).replace("maximum-directory-mebibytes: 16", "maximum-directory-mebibytes: 32"))
+        assertEquals(reader().currentSourceHash(), reader().status())
+        read()
+    }
+
+    @Test
     fun `a configured tooltip height limit reaches documents previews and exports`() {
         fixture()
         val config = directory.resolve("config.yml")

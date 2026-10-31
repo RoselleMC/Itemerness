@@ -4,8 +4,8 @@ import { notify } from "../../state/toasts.js";
 import { useEditorStore } from "../../state/store.js";
 
 export type LocalExportKind = "catalog" | "config" | "access";
-/** An export response is at most 17 MiB; the archive adds file headers, and compression only shrinks it. */
-export const MAX_CATALOG_ARCHIVE_BYTES = 18 * 1024 * 1024;
+/** An export response is at most 65 MiB; the archive adds file headers, and compression only shrinks it. */
+export const MAX_CATALOG_ARCHIVE_BYTES = 66 * 1024 * 1024;
 export const MAX_LOCAL_YAML_BYTES = 2 * 1024 * 1024;
 
 const exports = {

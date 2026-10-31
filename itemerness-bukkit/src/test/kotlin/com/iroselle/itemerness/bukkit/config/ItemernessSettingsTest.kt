@@ -99,4 +99,20 @@ class ItemernessSettingsTest {
             assertThrows(StrictYamlException::class.java) { ItemernessSettings.from(presentation("maximum-height-pixels" to invalid), "config.yml") }
         }
     }
+
+    @Test
+    fun `the catalog directory budget defaults to 16 MiB and is configurable within its range`() {
+        val mebibyte = 1024L * 1024L
+        assertEquals(16 * mebibyte, ItemernessSettings.from(validDocument(), "config.yml").catalogDirectoryBytes)
+        fun catalog(vararg extra: Pair<String, Any?>): Map<String, Any?> =
+            validDocument() + ("catalog" to mapOf("default-namespace" to "itemerness", *extra))
+        assertEquals(16 * mebibyte, ItemernessSettings.from(catalog(), "config.yml").catalogDirectoryBytes)
+        assertEquals(64 * mebibyte, ItemernessSettings.from(catalog("maximum-directory-mebibytes" to 64), "config.yml").catalogDirectoryBytes)
+        for (invalid in listOf(15, 65, "large")) {
+            val failure = assertThrows(StrictYamlException::class.java) {
+                ItemernessSettings.from(catalog("maximum-directory-mebibytes" to invalid), "config.yml")
+            }
+            if (invalid is Int) assertTrue(failure.message!!.contains("between 16 and 64"), failure.message)
+        }
+    }
 }

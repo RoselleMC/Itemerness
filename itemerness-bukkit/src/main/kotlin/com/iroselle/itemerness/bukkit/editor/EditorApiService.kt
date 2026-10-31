@@ -13,6 +13,7 @@ import com.iroselle.itemerness.editor.agent.AgentScheduler
 import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorApiServer
 import com.iroselle.itemerness.editor.agent.EditorDraftStore
+import com.iroselle.itemerness.editor.agent.EditorTransferLimits
 import com.iroselle.itemerness.editor.agent.ServerIdentity
 import com.iroselle.itemerness.editor.agent.ServerMetadataStore
 import com.iroselle.itemerness.editor.protocol.Json
@@ -46,7 +47,9 @@ internal class EditorApiService(
         validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
     }
     private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
-    private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge, catalogReader::currentSourceHash)
+    private val catalogExporter = EditorCatalogExporter(builtinFontMetrics, bridge, catalogReader::currentSourceHash, directoryBytes = { settings().catalogDirectoryBytes })
+    /** Editor documents may be as large as one catalog directory is allowed to be. */
+    private val transferLimits = { EditorTransferLimits(settings().catalogDirectoryBytes.toInt()) }
     private val serverMetadata by lazy {
         ServerMetadataStore(draftPath.resolveSibling("server-metadata.json"), ServerIdentity.loadOrCreate(draftPath.resolveSibling("server-id")))
     }
@@ -60,7 +63,7 @@ internal class EditorApiService(
             persistentIdentity = true,
             dataComponentTypes = ShownComponentNotice.serverComponents().orEmpty().map(ItemKey::toString),
         ),
-        drafts = EditorDraftStore(draftPath) { ProjectDocumentCodec.decode(it, metrics) },
+        drafts = EditorDraftStore(draftPath, transferLimits) { ProjectDocumentCodec.decode(it, metrics) },
         compile = ::compile,
         worker = worker,
         scheduler = scheduler,
@@ -70,6 +73,7 @@ internal class EditorApiService(
         catalogStatus = catalogReader::status,
         serverMetadata = serverMetadata,
         budgets = { settings().budgets },
+        limits = transferLimits,
     ) }
     private val api by apiDelegate
     private var stopped = false

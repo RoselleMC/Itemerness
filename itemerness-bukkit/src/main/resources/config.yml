@@ -3,6 +3,10 @@ config-version: 3
 
 catalog:
   default-namespace: itemerness
+  # YAML each catalog directory (items/, locales/, ...) may hold, in MiB. 16-64; 16 when
+  # omitted. A directory is read and parsed in memory at once, and editor documents may
+  # grow to the same size, so raise it only as far as the catalog needs.
+  maximum-directory-mebibytes: 16
 
 # The desktop editor connects to this plugin's HTTP API. Disabled by default.
 # Empty token disables token authentication: anyone who can reach the API can edit drafts.

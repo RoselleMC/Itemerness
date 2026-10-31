@@ -12,6 +12,7 @@ import com.iroselle.itemerness.api.NamespacedKeyDataValue
 import com.iroselle.itemerness.api.StringDataValue
 import com.iroselle.itemerness.api.UuidDataValue
 import com.iroselle.itemerness.bukkit.catalog.LoadedCatalogSource
+import com.iroselle.itemerness.bukkit.config.DirectoryByteLimit
 import com.iroselle.itemerness.bukkit.config.StrictYaml
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.bukkit.config.YamlObject
@@ -106,15 +107,17 @@ internal class PresentationSourceLoader(
         defaultTheme: ItemKey? = null,
         revision: Long = 0,
         budgets: PresentationBudgets = PresentationBudgets(),
+        maximumDirectoryBytes: Long = DirectoryByteLimit.DEFAULT_BYTES,
     ): LoadedPresentationSource {
-        val formats = yamlFiles(root, "formats").flatMap(::parseFormats)
-        val locales = yamlFiles(root, "locales").map(::parseLocale)
-        val layouts = yamlFiles(root, "layouts").flatMap(::parseLayouts)
-        val themeFiles = yamlFiles(root, "themes").map(::parseThemeFile)
+        fun files(domain: String) = yamlFiles(root, domain, maximumDirectoryBytes)
+        val formats = files("formats").flatMap(::parseFormats)
+        val locales = files("locales").map(::parseLocale)
+        val layouts = files("layouts").flatMap(::parseLayouts)
+        val themeFiles = files("themes").map(::parseThemeFile)
         val themes = themeFiles.flatMap(ParsedThemeFile::themes)
         val themeSelectors = themeFiles.flatMap(ParsedThemeFile::selectors)
-        val assets = parseAssets(yamlFiles(root, "assets"))
-        val viewerFacts = parseViewerFacts(yamlFiles(root, "viewer-facts"))
+        val assets = parseAssets(files("assets"))
+        val viewerFacts = parseViewerFacts(files("viewer-facts"))
         val items = parseItems(catalog.itemDocuments, defaultLayout, defaultTheme)
         val source = PresentationSource(
             formats = formats,
@@ -1438,7 +1441,7 @@ internal class PresentationSourceLoader(
         }
     }
 
-    private fun yamlFiles(root: Path, domain: String): List<Path> {
+    private fun yamlFiles(root: Path, domain: String, maximumBytes: Long): List<Path> {
         val directory = root.resolve(domain)
         if (!Files.isDirectory(directory) || Files.isSymbolicLink(directory)) {
             throw StrictYamlException("Presentation directory is missing or unsafe: $directory")
@@ -1455,9 +1458,7 @@ internal class PresentationSourceLoader(
             throw StrictYamlException("Presentation directory $directory exceeds the file limit")
         }
         val bytes = files.sumOf(Files::size)
-        if (bytes > MAX_BYTES_PER_DOMAIN) {
-            throw StrictYamlException("Presentation directory $directory exceeds the byte limit")
-        }
+        if (bytes > maximumBytes) throw DirectoryByteLimit.exceeded("Presentation", directory, bytes, maximumBytes)
         return files
     }
 
@@ -1477,7 +1478,6 @@ internal class PresentationSourceLoader(
     private companion object {
         const val SUPPORTED_SCHEMA_VERSION = 1
         const val MAX_FILES_PER_DOMAIN = 1_024
-        const val MAX_BYTES_PER_DOMAIN = 16L * 1024L * 1024L
         val YAML_EXTENSIONS = setOf("yml", "yaml")
         val SEMANTIC_ID = Regex("[a-z0-9][a-z0-9._/-]*")
         val HIDING_KEYS = arrayOf("weight", "summary")

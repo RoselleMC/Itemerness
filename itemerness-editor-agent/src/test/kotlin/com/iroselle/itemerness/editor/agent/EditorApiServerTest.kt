@@ -34,6 +34,7 @@ class EditorApiServerTest {
                         persistentIdentity: Boolean = false,
                         budgets: PresentationBudgets = PresentationBudgets(),
                         compile: (JsonValue) -> JsonValue = { JsonValue.Text("compiled") },
+                        limits: () -> EditorTransferLimits = { EditorTransferLimits() },
                         action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
         val clock = Executors.newSingleThreadScheduledExecutor()
@@ -48,11 +49,12 @@ class EditorApiServerTest {
         val api = EditorApiServer(
             InetSocketAddress("127.0.0.1", 0), apiToken, listOf("http://127.0.0.1:5173"),
             EditorApiServer.Metadata("test", "0.1.0", version, "Folia", "sha256:" + "0".repeat(64), "Test Server", persistentIdentity),
-            EditorDraftStore(directory.resolve("draft.json")) { Json.parse(it) },
+            EditorDraftStore(directory.resolve("draft.json"), limits) { Json.parse(it) },
             { compiles.incrementAndGet(); compile(it) }, workers, scheduler, { throw AssertionError(it) },
             readCatalog, exportCatalog, catalogStatus,
             serverMetadata = if (persistentIdentity) ServerMetadataStore(directory.resolve("server-metadata.json"), "test") else null,
             budgets = { budgets },
+            limits = limits,
         )
         try { api.start(); action(api, compiles) } finally {
             api.close(); workers.shutdownNow(); clock.shutdownNow()
@@ -258,7 +260,7 @@ class EditorApiServerTest {
 
     @Test
     fun `oversized and malformed bodies are bounded and never saved`() = fixture { api, _ ->
-        assertEquals(413, request(api, "/api/v2/document", "PUT", "x".repeat(EditorTransferLimits.MESSAGE_BYTES + 1)).statusCode())
+        assertEquals(413, request(api, "/api/v2/document", "PUT", "x".repeat(EditorTransferLimits.DEFAULT_MESSAGE_BYTES + 1)).statusCode())
         assertEquals(400, request(api, "/api/v2/document", "PUT", "{").statusCode())
         assertFalse(Files.exists(directory.resolve("draft.json")))
     }
@@ -278,9 +280,9 @@ class EditorApiServerTest {
         val handshake = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake")
         assertTrue(JsonValue.Text("transfer.limits") in handshake.requiredArray("capabilities"))
         val limits = handshake.requiredObject("limits")
-        assertEquals(EditorTransferLimits.DOCUMENT_BYTES, limits.requiredInt("documentBytes"))
-        assertEquals(EditorTransferLimits.MESSAGE_BYTES, limits.requiredInt("requestBytes"))
-        assertEquals(EditorTransferLimits.MESSAGE_BYTES, limits.requiredInt("responseBytes"))
+        assertEquals(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES, limits.requiredInt("documentBytes"))
+        assertEquals(EditorTransferLimits.DEFAULT_MESSAGE_BYTES, limits.requiredInt("requestBytes"))
+        assertEquals(EditorTransferLimits.DEFAULT_MESSAGE_BYTES, limits.requiredInt("responseBytes"))
     }
 
     @Test
@@ -296,14 +298,14 @@ class EditorApiServerTest {
     @Test
     fun `a document above the limit is refused with its size and the saved draft is kept`() = fixture { api, _ ->
         val first = JsonObject.of(Json.parse(request(api, "/api/v2/document", "PUT", saveBody()).body()), "save")
-        val oversized = sized(EditorTransferLimits.DOCUMENT_BYTES + 1)
+        val oversized = sized(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES + 1)
         val body = Json.canonicalize(JsonValue.Obj(mapOf("document" to oversized, "expectedHash" to JsonValue.Text(first.requiredString("snapshotHash")))))
         val response = request(api, "/api/v2/document", "PUT", body)
         assertEquals(413, response.statusCode())
         val refusal = JsonObject.parse(response.body(), "refusal")
         assertEquals("DOCUMENT_TOO_LARGE", refusal.requiredString("code"))
-        assertEquals(EditorTransferLimits.DOCUMENT_BYTES + 1, refusal.requiredInt("actualBytes"))
-        assertEquals(EditorTransferLimits.DOCUMENT_BYTES, refusal.requiredInt("limitBytes"))
+        assertEquals(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES + 1, refusal.requiredInt("actualBytes"))
+        assertEquals(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES, refusal.requiredInt("limitBytes"))
         assertEquals(document, JsonObject.of(Json.parse(request(api, "/api/v2/document").body()), "load").raw("document"))
     }
 
@@ -331,6 +333,44 @@ class EditorApiServerTest {
             release.countDown()
             assertEquals(List(requests.size) { 200 }, requests.map { it.get(10, TimeUnit.SECONDS) })
             assertEquals(EditorTransferLimits.LARGE_MESSAGE_SLOTS, peak.get())
+        }
+    }
+
+    @Test
+    fun `a raised directory budget raises the document limit and decodes one large body at a time`() {
+        val raised = 32 * 1024 * 1024
+        var current = EditorTransferLimits(raised)
+        val release = CountDownLatch(1)
+        val running = AtomicInteger()
+        val peak = AtomicInteger()
+        fixture(limits = { current }, compile = {
+            peak.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            release.await(10, TimeUnit.SECONDS)
+            running.decrementAndGet()
+            JsonValue.Text("compiled")
+        }) { api, compiles ->
+            val limits = JsonObject.of(Json.parse(request(api, "/api/handshake").body()), "handshake").requiredObject("limits")
+            assertEquals(raised, limits.requiredInt("documentBytes"))
+            assertEquals(raised + EditorTransferLimits.ENVELOPE_BYTES, limits.requiredInt("requestBytes"))
+
+            val large = sized(EditorTransferLimits.DEFAULT_DOCUMENT_BYTES + 1)
+            val saved = request(api, "/api/v2/document", "PUT", Json.canonicalize(JsonValue.Obj(mapOf("document" to large, "expectedHash" to JsonValue.Text("")))))
+            assertEquals(200, saved.statusCode(), saved.body())
+
+            val body = Json.canonicalize(JsonValue.Obj(mapOf("document" to sized(2_500_000),
+                "snapshotHash" to JsonValue.Text(EditorDraftStore.digest(Json.canonicalize(sized(2_500_000)))))))
+            val requests = (1..2).map { CompletableFuture.supplyAsync { request(api, "/api/v2/preview", "POST", body).statusCode() } }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (compiles.get() < 1 && System.nanoTime() < deadline) Thread.sleep(20)
+            Thread.sleep(300)
+            assertEquals(1, compiles.get(), "with a raised budget the second large body waits")
+            release.countDown()
+            assertEquals(listOf(200, 200), requests.map { it.get(10, TimeUnit.SECONDS) })
+            assertEquals(1, peak.get())
+
+            // Lowering the budget again keeps the stored draft readable while refusing new oversized saves.
+            current = EditorTransferLimits()
+            assertEquals(large, JsonObject.of(Json.parse(request(api, "/api/v2/document").body()), "load").raw("document"))
         }
     }
 
@@ -481,14 +521,14 @@ class EditorApiServerTest {
 
     @Test
     fun `transfer response byte limits include the envelope and UTF8 expansion`() {
-        fixture(readCatalog = { _ -> JsonValue.Text("\u4e2d".repeat(EditorTransferLimits.MESSAGE_BYTES / 2)) }) { api, _ ->
+        fixture(readCatalog = { _ -> JsonValue.Text("\u4e2d".repeat(EditorTransferLimits.DEFAULT_MESSAGE_BYTES / 2)) }) { api, _ ->
             val response = request(api, "/api/v2/catalog")
             assertEquals(422, response.statusCode())
             val body = JsonObject.parse(response.body(), "response")
             assertEquals("CATALOG_RESPONSE_TOO_LARGE", body.requiredString("code"))
             val params = body.requiredObjects("diagnostics").single().requiredObject("params")
-            assertEquals((EditorTransferLimits.MESSAGE_BYTES / 2 * 3 + 2).toString(), params.requiredString("actualBytes"))
-            assertEquals(EditorTransferLimits.MESSAGE_BYTES.toString(), params.requiredString("limitBytes"))
+            assertEquals((EditorTransferLimits.DEFAULT_MESSAGE_BYTES / 2 * 3 + 2).toString(), params.requiredString("actualBytes"))
+            assertEquals(EditorTransferLimits.DEFAULT_MESSAGE_BYTES.toString(), params.requiredString("limitBytes"))
             assertFalse(Files.exists(directory.resolve("draft.json")))
         }
     }

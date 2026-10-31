@@ -25,6 +25,8 @@ internal data class ItemernessSettings(
     val editor: EditorEndpoint?,
     /** Output limits every compilation on this server uses, including editor previews. */
     val budgets: PresentationBudgets = PresentationBudgets(),
+    /** YAML bytes each catalog or presentation directory may hold; editor documents follow it. */
+    val catalogDirectoryBytes: Long = DEFAULT_CATALOG_DIRECTORY_MEBIBYTES * MEBIBYTE,
 ) {
     val pendingNameColorRgb: Int
         get() = NAMED_COLORS.getValue(pendingNameColor)
@@ -43,6 +45,14 @@ internal data class ItemernessSettings(
          * longer fit; above the maximum the 64-line Lore budget is reached long before the height.
          */
         val MAXIMUM_HEIGHT_PIXELS_RANGE = 60..1024
+
+        /**
+         * Every directory is read into memory and parsed at once, and editor documents of the same
+         * size are decoded on the server, so the ceiling bounds heap use rather than content.
+         */
+        val CATALOG_DIRECTORY_MEBIBYTES_RANGE = 16..64
+        const val DEFAULT_CATALOG_DIRECTORY_MEBIBYTES = 16L
+        const val MEBIBYTE = 1024L * 1024L
         private val NAMED_COLORS = mapOf(
             "black" to 0x000000,
             "dark_blue" to 0x0000AA,
@@ -94,8 +104,14 @@ internal data class ItemernessSettings(
                 )
             }
 
-            val catalog = root.requiredObject("catalog").rejectUnknown("default-namespace")
+            val catalog = root.requiredObject("catalog").rejectUnknown("default-namespace", "maximum-directory-mebibytes")
             val namespace = catalog.requiredString("default-namespace")
+            val directoryMebibytes = catalog.optionalInt("maximum-directory-mebibytes") ?: DEFAULT_CATALOG_DIRECTORY_MEBIBYTES.toInt()
+            if (directoryMebibytes !in CATALOG_DIRECTORY_MEBIBYTES_RANGE) {
+                throw StrictYamlException(
+                    "catalog.maximum-directory-mebibytes in $source must be between ${CATALOG_DIRECTORY_MEBIBYTES_RANGE.first} and ${CATALOG_DIRECTORY_MEBIBYTES_RANGE.last}",
+                )
+            }
             try {
                 ItemKey(namespace, "validation")
             } catch (exception: IllegalArgumentException) {
@@ -154,6 +170,7 @@ internal data class ItemernessSettings(
                 defaultTheme = defaultTheme,
                 editor = editor,
                 budgets = PresentationBudgets(maximumHeightPixels = maximumHeight),
+                catalogDirectoryBytes = directoryMebibytes * MEBIBYTE,
             )
         }
 

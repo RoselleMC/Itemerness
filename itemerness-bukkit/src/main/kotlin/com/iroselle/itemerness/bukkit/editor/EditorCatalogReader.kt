@@ -40,7 +40,10 @@ internal class EditorCatalogReader(
     }
 
     /** Hash of the catalog as it is on disk now, comparable with a document's import baseline. */
-    fun currentSourceHash(): String = sourceHash(EditorCatalogFiles.capture(root), settings())
+    fun currentSourceHash(): String {
+        val settings = settings()
+        return sourceHash(EditorCatalogFiles.capture(root, settings.catalogDirectoryBytes), settings)
+    }
 
     /** [currentSourceHash] for the API, where unreadable YAML is a catalog diagnostic, not a server failure. */
     fun status(): String = try {
@@ -67,7 +70,7 @@ internal class EditorCatalogReader(
             "pendingNameTemplate" to settings.pendingNameTemplate, "pendingNameColor" to settings.pendingNameColor)))
 
     private fun read(settings: ItemernessSettings, includeLayout: Boolean): JsonValue {
-        val files = EditorCatalogFiles.capture(root)
+        val files = EditorCatalogFiles.capture(root, settings.catalogDirectoryBytes)
         val sourceHash = sourceHash(files, settings)
         val document = files.withDirectory { directory ->
             val encoded = encode(directory, settings)
@@ -76,9 +79,10 @@ internal class EditorCatalogReader(
             JsonValue.Obj((encoded as JsonValue.Obj).entries + ("sourceLayout" to layout))
         }
         val documentBytes = Json.canonicalize(document).toByteArray(Charsets.UTF_8).size
-        if (documentBytes > EditorTransferLimits.DOCUMENT_BYTES) {
+        val limit = EditorTransferLimits(settings.catalogDirectoryBytes.toInt()).documentBytes
+        if (documentBytes > limit) {
             throw CatalogTransferException("CATALOG_DOCUMENT_TOO_LARGE", listOf(EditorTransferLimits.diagnostic(
-                "CATALOG.DOCUMENT_TOO_LARGE", "diagnostics.catalog.document_too_large", documentBytes, EditorTransferLimits.DOCUMENT_BYTES)))
+                "CATALOG.DOCUMENT_TOO_LARGE", "diagnostics.catalog.document_too_large", documentBytes, limit)))
         }
         val compiler = CompilerBridge(BundledBuiltinFontMetrics(metrics), agentVersion, { settings.budgets }) { decoded, domain, presentation ->
             validator.validateRuntimeContent(settings, decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
@@ -89,12 +93,13 @@ internal class EditorCatalogReader(
     }
 
     private fun encode(directory: Path, settings: ItemernessSettings): JsonValue {
-        val catalog = CatalogSourceLoader().load(directory)
+        val catalog = CatalogSourceLoader().load(directory, settings.catalogDirectoryBytes)
         val compilation = CatalogCompiler().compile(catalog.source)
         val candidate = compilation.candidate
         if (candidate == null || compilation.diagnostics.isNotEmpty()) rejectCatalog(compilation.diagnostics)
         val presentation = PresentationSourceLoader(metrics).loadAndCompile(directory, catalog,
-            settings.defaultLocale, settings.defaultLayout, settings.defaultTheme, budgets = settings.budgets)
+            settings.defaultLocale, settings.defaultLayout, settings.defaultTheme, budgets = settings.budgets,
+            maximumDirectoryBytes = settings.catalogDirectoryBytes)
         if (presentation.compilation.diagnostics.isNotEmpty()) {
             throw CatalogTransferException("CATALOG_INVALID", presentation.compilation.diagnostics.map { diagnostic -> obj(
                 "severity" to "ERROR", "origin" to "agent", "code" to "PRESENTATION.${diagnostic.code.name}",

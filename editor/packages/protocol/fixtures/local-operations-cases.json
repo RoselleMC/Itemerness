@@ -424,5 +424,47 @@
         "from": "\n  maximum-height-pixels: 180",
         "to": "",
         "valid": true
+    },
+    {
+        "name": "directory-limit-minimum",
+        "kind": "config",
+        "from": "maximum-directory-mebibytes: 16",
+        "to": "maximum-directory-mebibytes: 16",
+        "valid": true
+    },
+    {
+        "name": "directory-limit-maximum",
+        "kind": "config",
+        "from": "maximum-directory-mebibytes: 16",
+        "to": "maximum-directory-mebibytes: 64",
+        "valid": true
+    },
+    {
+        "name": "directory-limit-below",
+        "kind": "config",
+        "from": "maximum-directory-mebibytes: 16",
+        "to": "maximum-directory-mebibytes: 15",
+        "valid": false
+    },
+    {
+        "name": "directory-limit-above",
+        "kind": "config",
+        "from": "maximum-directory-mebibytes: 16",
+        "to": "maximum-directory-mebibytes: 65",
+        "valid": false
+    },
+    {
+        "name": "directory-limit-text",
+        "kind": "config",
+        "from": "maximum-directory-mebibytes: 16",
+        "to": "maximum-directory-mebibytes: large",
+        "valid": false
+    },
+    {
+        "name": "directory-limit-absent",
+        "kind": "config",
+        "from": "\n  maximum-directory-mebibytes: 16",
+        "to": "",
+        "valid": true
     }
 ]

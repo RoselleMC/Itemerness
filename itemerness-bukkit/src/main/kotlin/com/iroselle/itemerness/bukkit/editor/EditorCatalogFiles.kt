@@ -1,5 +1,6 @@
 package com.iroselle.itemerness.bukkit.editor
 
+import com.iroselle.itemerness.bukkit.config.DirectoryByteLimit
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
@@ -38,9 +39,8 @@ internal class EditorCatalogFiles private constructor(private val files: Map<Str
     companion object {
         val DOMAINS: Set<String> = java.util.Collections.unmodifiableSet(linkedSetOf("data-keys", "items", "formats", "locales", "layouts", "themes", "assets", "viewer-facts"))
         private const val MAX_FILES_PER_DOMAIN = 1024
-        private const val MAX_BYTES_PER_DOMAIN = 16 * 1024 * 1024
 
-        fun capture(root: Path): EditorCatalogFiles {
+        fun capture(root: Path, maximumDirectoryBytes: Long = DirectoryByteLimit.DEFAULT_BYTES): EditorCatalogFiles {
             val files = LinkedHashMap<String, ByteArray>()
             DOMAINS.forEach { domain ->
                 val directory = root.resolve(domain)
@@ -54,11 +54,15 @@ internal class EditorCatalogFiles private constructor(private val files: Map<Str
                         .sorted().limit((MAX_FILES_PER_DOMAIN + 1).toLong()).toList()
                 }
                 if (paths.size > MAX_FILES_PER_DOMAIN) throw StrictYamlException("Too many configuration files in $domain")
-                var remaining = MAX_BYTES_PER_DOMAIN
+                val total = paths.sumOf(Files::size)
+                if (total > maximumDirectoryBytes) throw DirectoryByteLimit.exceeded("Configuration", domain, total, maximumDirectoryBytes)
+                var remaining = maximumDirectoryBytes.toInt()
                 paths.forEach { path ->
                     // readNBytes applies the bound even when a file grows after discovery.
                     val bytes = Files.newInputStream(path, NOFOLLOW_LINKS).use { it.readNBytes(remaining + 1) }
-                    if (bytes.size > remaining) throw StrictYamlException("Configuration byte limit exceeded in $domain")
+                    if (bytes.size > remaining) {
+                        throw DirectoryByteLimit.exceeded("Configuration", domain, maximumDirectoryBytes - remaining + bytes.size, maximumDirectoryBytes)
+                    }
                     remaining -= bytes.size
                     files[root.relativize(path).joinToString("/")] = bytes
                 }
@@ -66,7 +70,8 @@ internal class EditorCatalogFiles private constructor(private val files: Map<Str
             return EditorCatalogFiles(files)
         }
 
-        fun from(files: Map<String, String>): EditorCatalogFiles {
+        /** Exported files must fit the same budget the loader will apply when they are installed. */
+        fun from(files: Map<String, String>, maximumDirectoryBytes: Long = DirectoryByteLimit.DEFAULT_BYTES): EditorCatalogFiles {
             val encoded = LinkedHashMap<String, ByteArray>()
             val sizes = HashMap<String, Int>()
             val counts = HashMap<String, Int>()
@@ -79,7 +84,8 @@ internal class EditorCatalogFiles private constructor(private val files: Map<Str
                 val bytes = value.toByteArray(Charsets.UTF_8)
                 val size = sizes.getOrDefault(parts.first(), 0).toLong() + bytes.size
                 val count = counts.getOrDefault(parts.first(), 0) + 1
-                require(size <= MAX_BYTES_PER_DOMAIN && count <= MAX_FILES_PER_DOMAIN) { "Configuration limit exceeded" }
+                require(count <= MAX_FILES_PER_DOMAIN) { "Configuration limit exceeded" }
+                if (size > maximumDirectoryBytes) throw DirectoryByteLimit.exceeded("Exported", parts.first(), size, maximumDirectoryBytes)
                 sizes[parts.first()] = size.toInt()
                 counts[parts.first()] = count
                 encoded[name] = bytes

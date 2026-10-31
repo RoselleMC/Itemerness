@@ -37,6 +37,8 @@ class EditorApiServer(
     private val serverMetadata: ServerMetadataStore? = null,
     /** The server's current output limits; a stored draft is realigned to them when read. */
     private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
+    /** Transfer limits follow the server's catalog directory budget, which a reload may change. */
+    private val limits: () -> EditorTransferLimits = { EditorTransferLimits() },
 ) : AutoCloseable {
     data class Metadata(
         val serverId: String,
@@ -95,6 +97,8 @@ class EditorApiServer(
             exchange.close()
             return
         }
+        // One snapshot per request, so a reload cannot change the limits halfway through a body.
+        val transfer = limits()
         try {
             exchange.responseHeaders.set("Cache-Control", "no-store")
             exchange.responseHeaders.set("X-Content-Type-Options", "nosniff")
@@ -121,7 +125,7 @@ class EditorApiServer(
             if (exchange.requestURI.rawQuery != null) return error(exchange, 400, "INVALID_REQUEST")
             val path = exchange.requestURI.rawPath
             if (path == "/api/handshake" && exchange.requestMethod == "GET") {
-                return respond(exchange, 200, handshake())
+                return respond(exchange, 200, handshake(transfer))
             }
             if (exchange.requestHeaders["X-Itemerness-Protocol"] != listOf(PROTOCOL)) {
                 return error(exchange, 426, "PROTOCOL_INCOMPATIBLE")
@@ -130,7 +134,7 @@ class EditorApiServer(
                 "/api/v2/server" -> {
                     if (exchange.requestMethod != "PUT") return error(exchange, 405, "METHOD_NOT_ALLOWED")
                     val store = serverMetadata ?: return error(exchange, 404, "NOT_FOUND")
-                    val request = JsonObject.of(body(exchange), "server").rejectUnknown("alias", "expectedAlias", "targetServerId")
+                    val request = JsonObject.of(body(exchange, transfer), "server").rejectUnknown("alias", "expectedAlias", "targetServerId")
                     if (request.requiredString("targetServerId") != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
                     val alias = request.requiredString("alias")
                     try { ServerMetadataStore.validate(alias) } catch (_: IllegalArgumentException) {
@@ -144,24 +148,24 @@ class EditorApiServer(
                     val read = readCatalog ?: return error(exchange, 404, "NOT_FOUND")
                     // Only clients that ask for it receive the additive sourceLayout field.
                     val layout = exchange.requestHeaders[LAYOUT_HEADER] == listOf("1")
-                    respondTransfer(exchange) { read(layout) }
+                    respondTransfer(exchange, transfer) { read(layout) }
                 }
                 "/api/v2/catalog/status" -> {
                     if (exchange.requestMethod != "GET") return error(exchange, 405, "METHOD_NOT_ALLOWED")
                     val status = catalogStatus ?: return error(exchange, 404, "NOT_FOUND")
-                    respondTransfer(exchange) { obj("serverId" to text(metadata.serverId), "sourceHash" to text(status())) }
+                    respondTransfer(exchange, transfer) { obj("serverId" to text(metadata.serverId), "sourceHash" to text(status())) }
                 }
                 "/api/v2/catalog/export" -> {
                     if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
                     val export = exportCatalog ?: return error(exchange, 404, "NOT_FOUND")
-                    val request = JsonObject.of(body(exchange), "export").rejectUnknown("document", "snapshotHash", "targetServerId")
+                    val request = JsonObject.of(body(exchange, transfer), "export").rejectUnknown("document", "snapshotHash", "targetServerId")
                     val target = request.optionalString("targetServerId")
                     if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
                     val document = request.raw("document") ?: throw JsonException("Missing document")
                     if (EditorDraftStore.digest(Json.canonicalize(document)) != request.requiredString("snapshotHash")) {
                         return error(exchange, 400, "SNAPSHOT_MISMATCH")
                     }
-                    respondTransfer(exchange) { export(document) }
+                    respondTransfer(exchange, transfer) { export(document) }
                 }
                 "/api/v2/document" -> when (exchange.requestMethod) {
                     "GET" -> {
@@ -170,7 +174,7 @@ class EditorApiServer(
                         respond(exchange, 200, JsonValue.Obj((snapshot.json() as JsonValue.Obj).entries + ("serverId" to text(metadata.serverId))))
                     }
                     "PUT" -> {
-                        val body = JsonObject.of(body(exchange), "save").rejectUnknown("document", "expectedHash", "targetServerId")
+                        val body = JsonObject.of(body(exchange, transfer), "save").rejectUnknown("document", "expectedHash", "targetServerId")
                         val target = body.optionalString("targetServerId")
                         if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
                         val document = body.raw("document") ?: throw JsonException("Missing document")
@@ -187,7 +191,7 @@ class EditorApiServer(
                 "/api/v2/preview" -> {
                     if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
                     if (metadata.minecraftVersion !in PREVIEW_VERSIONS) return error(exchange, 422, "PREVIEW_VERSION_UNSUPPORTED")
-                    val requestValue = body(exchange)
+                    val requestValue = body(exchange, transfer)
                     val request = JsonObject.of(requestValue, "preview")
                         .rejectUnknown("document", "itemId", "viewer", "snapshotHash", "targetServerId")
                     val target = request.optionalString("targetServerId")
@@ -208,7 +212,7 @@ class EditorApiServer(
             respond(exchange, 409, obj("code" to text("DRAFT_CONFLICT"), "actualHash" to text(conflict.actualHash)))
         } catch (_: TooLarge) {
             respond(exchange, 413, obj("code" to text("REQUEST_TOO_LARGE"), "serverId" to text(metadata.serverId),
-                "limitBytes" to JsonValue.Num(EditorTransferLimits.MESSAGE_BYTES.toDouble())))
+                "limitBytes" to JsonValue.Num(transfer.messageBytes.toDouble())))
         } catch (failure: EditorTransferLimits.DocumentTooLarge) {
             respond(exchange, 413, obj("code" to text("DOCUMENT_TOO_LARGE"), "serverId" to text(metadata.serverId),
                 "actualBytes" to JsonValue.Num(failure.actualBytes.toDouble()), "limitBytes" to JsonValue.Num(failure.limitBytes.toDouble())))
@@ -226,29 +230,30 @@ class EditorApiServer(
             onFailure(failure)
             runCatching { error(exchange, 500, "INTERNAL_ERROR") }
         } finally {
-            if (exchange.getAttribute(LARGE_SLOT) == true) largeSlots.release()
+            (exchange.getAttribute(LARGE_PERMITS) as? Int)?.let(largeSlots::release)
             deadline.cancel()
             exchange.close()
         }
     }
 
-    private fun body(exchange: HttpExchange): JsonValue {
+    private fun body(exchange: HttpExchange, transfer: EditorTransferLimits): JsonValue {
         if (exchange.requestHeaders.getFirst("Content-Type")?.substringBefore(';')?.trim() != "application/json") {
             throw JsonException("Expected JSON")
         }
         val head = exchange.requestBody.readNBytes(EditorTransferLimits.SMALL_MESSAGE_BYTES + 1)
         val bytes = if (head.size <= EditorTransferLimits.SMALL_MESSAGE_BYTES) head else {
             // The slot is held until the handler finishes, because the decoded tree lives that long.
-            if (!largeSlots.tryAcquire(EditorTransferLimits.LARGE_MESSAGE_WAIT_MILLIS, TimeUnit.MILLISECONDS)) throw Busy()
-            exchange.setAttribute(LARGE_SLOT, true)
-            head + exchange.requestBody.readNBytes(EditorTransferLimits.MESSAGE_BYTES + 1 - head.size)
+            val permits = transfer.largeMessagePermits
+            if (!largeSlots.tryAcquire(permits, EditorTransferLimits.LARGE_MESSAGE_WAIT_MILLIS, TimeUnit.MILLISECONDS)) throw Busy()
+            exchange.setAttribute(LARGE_PERMITS, permits)
+            head + exchange.requestBody.readNBytes(transfer.messageBytes + 1 - head.size)
         }
-        if (bytes.size > EditorTransferLimits.MESSAGE_BYTES) throw TooLarge()
+        if (bytes.size > transfer.messageBytes) throw TooLarge()
         val decoder = Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
         return Json.parse(decoder.decode(ByteBuffer.wrap(bytes)).toString())
     }
 
-    private fun handshake(): JsonValue = obj(
+    private fun handshake(transfer: EditorTransferLimits): JsonValue = obj(
         "product" to text("itemerness"),
         "authentication" to text(if (authorization == null) "none" else "bearer"),
         "serverId" to text(metadata.serverId),
@@ -267,7 +272,7 @@ class EditorApiServer(
             },
         ),
         "previewSchemas" to JsonValue.Arr(listOf(JsonValue.Num(1.0))),
-        "limits" to EditorTransferLimits.json(),
+        "limits" to transfer.json(),
         "capabilities" to JsonValue.Arr((listOf(
             "draft.read", "draft.write", "presentation.segmented-frame.decorations",
             "catalog.base-components.attributes-enchantments", "catalog.data-keys.field-constraints",
@@ -291,7 +296,7 @@ class EditorApiServer(
 
     private fun error(exchange: HttpExchange, status: Int, code: String) = respond(exchange, status, obj("code" to text(code), "serverId" to text(metadata.serverId)))
 
-    private fun respondTransfer(exchange: HttpExchange, transfer: () -> JsonValue) {
+    private fun respondTransfer(exchange: HttpExchange, limits: EditorTransferLimits, transfer: () -> JsonValue) {
         if (!transferSlot.tryAcquire()) {
             exchange.responseHeaders.set("Retry-After", "1")
             return error(exchange, 429, "CATALOG_BUSY")
@@ -299,9 +304,9 @@ class EditorApiServer(
         try {
             val body = transfer()
             val bytes = Json.canonicalize(body).toByteArray(Charsets.UTF_8).size
-            if (bytes > EditorTransferLimits.MESSAGE_BYTES) {
+            if (bytes > limits.messageBytes) {
                 throw CatalogTransferException("CATALOG_RESPONSE_TOO_LARGE", listOf(EditorTransferLimits.diagnostic(
-                    "CATALOG.RESPONSE_TOO_LARGE", "diagnostics.catalog.response_too_large", bytes, EditorTransferLimits.MESSAGE_BYTES)))
+                    "CATALOG.RESPONSE_TOO_LARGE", "diagnostics.catalog.response_too_large", bytes, limits.messageBytes)))
             }
             respond(exchange, 200, body)
         } finally {
@@ -322,7 +327,7 @@ class EditorApiServer(
     companion object {
         const val PROTOCOL: String = "2.0"
         const val LAYOUT_HEADER: String = "X-Itemerness-Catalog-Layout"
-        private const val LARGE_SLOT = "itemerness.large-slot"
+        private const val LARGE_PERMITS = "itemerness.large-permits"
         private val PREVIEW_VERSIONS = setOf("1.21.11", "26.1.1", "26.1.2", "26.2", "26.3")
         /** What a document without a `budgets` object decodes to. */
         private val DEFAULT_BUDGETS = ProjectDocumentEncoder.budgetsJson(PresentationBudgets())

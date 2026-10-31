@@ -79,7 +79,7 @@ internal class RuntimeCatalogManager(
         }
         val loaded = try {
             val settings = ItemernessSettings.load(dataFolder.resolve("config.yml"))
-            val source = loader.load(dataFolder)
+            val source = loader.load(dataFolder, settings.catalogDirectoryBytes)
             val domainCompilation = compiler.compile(source.source)
             val presentation = presentationLoader.loadAndCompile(
                 root = dataFolder,
@@ -88,6 +88,7 @@ internal class RuntimeCatalogManager(
                 defaultLayout = settings.defaultLayout,
                 defaultTheme = settings.defaultTheme,
                 budgets = settings.budgets,
+                maximumDirectoryBytes = settings.catalogDirectoryBytes,
             )
             LoadedRuntimeCandidate(
                 settings = settings,

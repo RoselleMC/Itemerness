@@ -2,6 +2,7 @@ package com.iroselle.itemerness.bukkit.editor
 
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.bukkit.catalog.CatalogSourceLoader
+import com.iroselle.itemerness.bukkit.config.DirectoryByteLimit
 import com.iroselle.itemerness.bukkit.config.StrictYamlException
 import com.iroselle.itemerness.bukkit.presentation.BuiltinFontMetricsArtifact
 import com.iroselle.itemerness.bukkit.presentation.PresentationSourceLoader
@@ -19,6 +20,8 @@ internal class EditorCatalogExporter(
     private val compiler: CompilerBridge,
     /** Hash of the catalog currently on disk, comparable with an imported document's baseline. */
     private val currentSourceHash: () -> String = { error("No source hash is available") },
+    /** The server's per-directory YAML budget; exported files are verified against it. */
+    private val directoryBytes: () -> Long = { DirectoryByteLimit.DEFAULT_BYTES },
 ) {
     fun export(document: JsonValue): JsonValue {
         val root = JsonObject.of(document, "document")
@@ -142,11 +145,13 @@ internal class EditorCatalogExporter(
             item.itemKey(decoded.namespace, decoded.schemaVersion).toString() to ProjectDocumentEncoder.ItemBindings(presentation.optionalString("layout"), presentation.optionalString("theme"))
         }
         val expected = encoder.encode(decoded.namespace, decoded.defaultLocale, decoded.catalog, decoded.presentation, root, policies, defaults, bindings)
-        val actual = EditorCatalogFiles.from(files).withDirectory { directory ->
-            val catalog = CatalogSourceLoader().load(directory)
+        val limit = directoryBytes()
+        val actual = EditorCatalogFiles.from(files, limit).withDirectory { directory ->
+            val catalog = CatalogSourceLoader().load(directory, limit)
             if (catalog.dataKeyIntegrations != decoded.runtimeIntegrations()) throw CatalogTransferException("CATALOG_EXPORT_LOSSY")
             val presentation = PresentationSourceLoader(metrics).loadAndCompile(directory, catalog, decoded.defaultLocale,
-                decoded.defaultLayout?.let(ItemKey::parse), decoded.defaultTheme?.let(ItemKey::parse), budgets = decoded.budgets)
+                decoded.defaultLayout?.let(ItemKey::parse), decoded.defaultTheme?.let(ItemKey::parse), budgets = decoded.budgets,
+                maximumDirectoryBytes = limit)
             if (presentation.compilation.diagnostics.isNotEmpty()) throw CatalogTransferException("CATALOG_EXPORT_INVALID")
             val restoredBindings = catalog.itemDocuments.mapKeys { it.key.toString() }.mapValues { (id, value) ->
                 val binding = com.iroselle.itemerness.bukkit.config.YamlObject.root(value, "items.$id").requiredObject("presentation")

@@ -43,6 +43,21 @@ class CatalogSourceLoaderTest {
     }
 
     @Test
+    fun `a directory over its byte budget is reported with both sizes and loads under a raised budget`() {
+        copyResource("data-keys/common.yml")
+        copyResource("items/examples.yml")
+        val itemBytes = Files.size(directory.resolve("items/examples.yml"))
+        val failure = assertThrows(com.iroselle.itemerness.bukkit.config.StrictYamlException::class.java) {
+            CatalogSourceLoader().load(directory, maximumDirectoryBytes = itemBytes - 1)
+        }
+        val message = failure.message!!
+        assertTrue(message.contains(String.format(java.util.Locale.ROOT, "%,d bytes of YAML", itemBytes)), message)
+        assertTrue(message.contains(String.format(java.util.Locale.ROOT, "the limit is %,d bytes", itemBytes - 1)), message)
+        assertTrue(message.contains("catalog.maximum-directory-mebibytes"), message)
+        assertEquals(5, CatalogSourceLoader().load(directory, maximumDirectoryBytes = itemBytes).source.items.size)
+    }
+
+    @Test
     fun `rejects an unknown key instead of silently changing item semantics`() {
         write(
             "data-keys/common.yml",

@@ -195,7 +195,7 @@ function validateValues(
         const catalog = object(
             root.get("catalog"),
             ["catalog"],
-            ["default-namespace"],
+            ["default-namespace", "maximum-directory-mebibytes"],
         );
         string(
             catalog.get("default-namespace"),
@@ -203,6 +203,18 @@ function validateValues(
             namespace,
             "namespace",
         );
+        // Optional; the plugin uses 16 when it is absent.
+        const directoryLimit = catalog.get("maximum-directory-mebibytes");
+        if (
+            directoryLimit !== undefined &&
+            (typeof directoryLimit !== "bigint" ||
+                directoryLimit < 16n ||
+                directoryLimit > 64n)
+        )
+            report(
+                ["catalog", "maximum-directory-mebibytes"],
+                "directoryLimit",
+            );
         const editor = object(
             root.get("editor"),
             ["editor"],

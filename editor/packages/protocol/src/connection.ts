@@ -58,13 +58,14 @@ export const LEGACY_TRANSFER_LIMITS: TransferLimits = {
 };
 
 /**
- * The most this editor sends or accepts whatever a plugin advertises. It matches the desktop transport
- * ceiling, so a plugin with larger limits is met with this editor's own bound rather than a failure.
+ * The most this editor sends or accepts whatever a plugin advertises: the largest catalog directory
+ * budget a plugin may be configured with, plus envelope. It matches the desktop transport ceiling, so
+ * a plugin with larger limits is met with this editor's own bound rather than a failure.
  */
 export const EDITOR_TRANSFER_CEILING: TransferLimits = {
-    documentBytes: 16 * 1024 * 1024,
-    requestBytes: 17 * 1024 * 1024,
-    responseBytes: 17 * 1024 * 1024,
+    documentBytes: 64 * 1024 * 1024,
+    requestBytes: 65 * 1024 * 1024,
+    responseBytes: 65 * 1024 * 1024,
 };
 
 /** Both peers apply the smaller of their limits, so neither accepts what the other must refuse. */

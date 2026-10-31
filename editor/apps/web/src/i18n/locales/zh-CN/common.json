@@ -1339,7 +1339,7 @@
         "size": {
             "measured": "文档大小为 {{actual}}，插件上限为 {{limit}}。",
             "overLimit": "传输内容超过 {{limit}}。",
-            "recovery": "请精简配置（例如停用或移除未使用的物品、翻译或资源）后重试。",
+            "recovery": "请精简配置（例如移除未使用的物品、翻译或资源），或在服务器 config.yml 中调高 catalog.maximum-directory-mebibytes（最大 64），然后重试。",
             "legacyRecovery": "当前连接的插件最多接收 2 MiB。请更新插件以传输最大 16 MiB 的文档。"
         },
         "draftKept": "已保存的编辑器草稿未被修改。",
