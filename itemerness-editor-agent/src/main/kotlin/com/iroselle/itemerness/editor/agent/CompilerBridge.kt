@@ -52,6 +52,8 @@ class CompilerBridge(
     private val agentVersion: String,
     /** Read per request so a catalog reload that changes the limits applies to the next preview. */
     private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
+    /** Plugin-computed values for preview scenarios; null when the platform offers no providers. */
+    private val previewData: PreviewDataSource? = null,
     private val validateRuntimeContent: (
         ProjectDocumentCodec.Decoded,
         CatalogSnapshot,
@@ -103,6 +105,8 @@ class CompilerBridge(
         val managesVanillaTooltipLines: Boolean,
         val snapshotHash: String,
         val documentSchemaVersion: Int? = null,
+        /** A provider scenario to compute instance data for; manual preview data still overrides it per key. */
+        val scenario: ScenarioSelection? = null,
     ) {
         val capabilities: List<String> = java.util.List.copyOf(capabilities)
 
@@ -118,6 +122,7 @@ class CompilerBridge(
                 managesVanillaTooltipLines = managesVanillaTooltipLines,
                 snapshotHash = snapshotHash,
                 documentSchemaVersion = documentSchemaVersion,
+                scenario = scenario,
             )
     }
 
@@ -207,9 +212,24 @@ class CompilerBridge(
             direction = TextDirection.LEFT_TO_RIGHT,
         )
 
+        // Definition data, then provider values, then manual preview data: a manual value deliberately
+        // overrides the provider for one key, for example to test an extreme width.
+        var provided = context.scenario?.let { selection ->
+            previewData?.provide(PreviewDataItem(definition, definition.definitionData, decoded, context.locale), selection)
+                ?: ProvidedPreviewData.Failed(selection.plugin, selection.scenario, null, "PROVIDERS_UNSUPPORTED", "This server offers no preview data providers")
+        }
+        val manual = decoded.previewData[context.itemId].orEmpty()
         val instance = try {
-            val created = domainCatalog.createInstance(itemKey)
-            val mutations = decoded.previewData[context.itemId].orEmpty().map { assignment ->
+            var created = domainCatalog.createInstance(itemKey)
+            (provided as? ProvidedPreviewData.Applied)?.takeIf { it.values.isNotEmpty() }?.let { applied ->
+                try {
+                    created = domainCatalog.editInstance(created, applied.values.map { (key, value) -> InstanceDataMutation.Set(key, value) })
+                } catch (exception: RuntimeException) {
+                    provided = ProvidedPreviewData.Failed(applied.plugin, applied.scenario, applied.revision, "VALUE_INVALID",
+                        exception.message ?: "The provider returned an invalid value")
+                }
+            }
+            val mutations = manual.map { assignment ->
                 val key = DataKey.parse(assignment.key)
                 val keyDefinition = requireNotNull(domainCatalog.dataKeyDefinition(itemKey, key)) {
                     "Data key $key is not defined for $itemKey"
@@ -236,6 +256,13 @@ class CompilerBridge(
         }
         val data = LinkedHashMap(definition.definitionData).apply {
             putAll(instance.data)
+        }
+        val provenance = provided?.let { provenanceJson(it, manual.map { assignment -> assignment.key }.toSet()) }
+        // An unavailable provider must not pass for a faithful runtime preview.
+        (provided as? ProvidedPreviewData.Failed)?.let { failed ->
+            diagnostics += diagnosticJson("PREVIEW.PROVIDER_FAILED", "diagnostics.preview.provider_failed", mapOf(
+                "plugin" to failed.plugin, "scenario" to failed.scenario, "code" to failed.code, "detail" to failed.detail.take(512),
+            ), severity = "WARNING")
         }
 
         val engine = PresentationEngine(catalog)
@@ -264,7 +291,7 @@ class CompilerBridge(
         return when (result) {
             is PresentationRenderResult.Rendered ->
                 Outcome.Rendered(
-                    artifactJson(result.display, context, diagnostics, failure = null, compileMillis = elapsed),
+                    artifactJson(result.display, context, diagnostics, failure = null, compileMillis = elapsed, previewData = provenance),
                     elapsed,
                 )
 
@@ -280,6 +307,7 @@ class CompilerBridge(
                             "params" to obj("detail" to text(result.failure.message)),
                         ),
                         compileMillis = elapsed,
+                        previewData = provenance,
                     ),
                     elapsed,
                 )
@@ -294,6 +322,7 @@ class CompilerBridge(
         diagnostics: List<JsonValue>,
         failure: JsonValue?,
         compileMillis: Long,
+        previewData: JsonValue? = null,
     ): String {
         val artifact = obj(
             "schemaVersion" to num(1.0),
@@ -314,8 +343,75 @@ class CompilerBridge(
             ),
             "compileMillis" to num(compileMillis.toDouble()),
             "failure" to (failure ?: JsonValue.Null),
+            "previewData" to (previewData ?: JsonValue.Null),
         )
         return Json.canonicalize(artifact)
+    }
+
+    /** Which values came from a provider and which a manual preview value overrode, so the editor can label them. */
+    private fun provenanceJson(provided: ProvidedPreviewData, manualKeys: Set<String>): JsonValue = when (provided) {
+        is ProvidedPreviewData.Applied -> {
+            val keys = provided.values.keys.map(DataKey::toString).sorted()
+            obj(
+                "plugin" to text(provided.plugin),
+                "scenario" to text(provided.scenario),
+                "revision" to text(provided.revision),
+                "status" to text("applied"),
+                "providedKeys" to JsonValue.Arr(keys.filter { it !in manualKeys }.map(::text)),
+                "overriddenKeys" to JsonValue.Arr(keys.filter { it in manualKeys }.map(::text)),
+                "messages" to JsonValue.Arr(provided.messages.take(16).map { text(it.take(512)) }),
+                // The values let the editor's local draft paint the same data until the next verified preview.
+                "values" to JsonValue.Arr(provided.values.entries.sortedBy { it.key.toString() }.map { (key, value) ->
+                    obj("key" to text(key.toString()), "value" to PreviewParameters.valueJson(value))
+                }),
+                "failure" to JsonValue.Null,
+            )
+        }
+        is ProvidedPreviewData.Failed -> obj(
+            "plugin" to text(provided.plugin),
+            "scenario" to text(provided.scenario),
+            "revision" to (provided.revision?.let(::text) ?: JsonValue.Null),
+            "status" to text("failed"),
+            "providedKeys" to JsonValue.Arr(emptyList()),
+            "overriddenKeys" to JsonValue.Arr(emptyList()),
+            "messages" to JsonValue.Arr(emptyList()),
+            "values" to JsonValue.Arr(emptyList()),
+            "failure" to obj("code" to text(provided.code), "detail" to text(provided.detail.take(512))),
+        )
+    }
+
+    /**
+     * The scenarios each provider offers for one item of a draft. A document that does not compile or an
+     * unknown item yields no providers and a failure code, so the editor can explain the empty list.
+     */
+    fun previewScenarios(documentJson: String, snapshotHash: String, itemId: String, locale: String): JsonValue {
+        fun failed(code: String) = obj("itemId" to text(itemId), "providers" to JsonValue.Arr(emptyList()), "failure" to text(code))
+        val canonical = try { Json.canonicalize(Json.parse(documentJson)) } catch (_: JsonException) { return failed("DECODE_FAILED") }
+        val hash = documentDigest(canonical)
+        if (hash != snapshotHash) return failed("SNAPSHOT_MISMATCH")
+        val compilation = compiled(canonical, hash) as? DocumentCompiler.Result.Valid ?: return failed("DOCUMENT_INVALID")
+        val itemKey = try { ItemKey.parse(itemId) } catch (_: IllegalArgumentException) { return failed("UNKNOWN_ITEM") }
+        val definition = compilation.domain.findItem(itemKey) as? CatalogItemDefinition ?: return failed("UNKNOWN_ITEM")
+        val source = previewData ?: return obj("itemId" to text(itemId), "providers" to JsonValue.Arr(emptyList()), "failure" to JsonValue.Null)
+        val providers = source.scenarios(PreviewDataItem(definition, definition.definitionData, compilation.decoded, locale)).map { offered ->
+            when (offered) {
+                is ProviderScenarios.Offered -> obj(
+                    "plugin" to text(offered.plugin),
+                    "status" to text("offered"),
+                    "revision" to text(offered.revision),
+                    "scenarios" to JsonValue.Arr(offered.scenarios.map(PreviewParameters::scenarioJson)),
+                    "failure" to JsonValue.Null,
+                )
+                is ProviderScenarios.Failed -> obj(
+                    "plugin" to text(offered.plugin),
+                    "status" to text("failed"),
+                    "revision" to JsonValue.Null,
+                    "scenarios" to JsonValue.Arr(emptyList()),
+                    "failure" to obj("code" to text(offered.code), "detail" to text(offered.detail.take(512))),
+                )
+            }
+        }
+        return obj("itemId" to text(itemId), "providers" to JsonValue.Arr(providers), "failure" to JsonValue.Null)
     }
 
     private fun viewerJson(context: PreviewContext): JsonValue =
@@ -405,10 +501,10 @@ class CompilerBridge(
         )
     }
 
-    private fun diagnosticJson(code: String, messageKey: String, params: Map<String, String>): JsonValue =
+    private fun diagnosticJson(code: String, messageKey: String, params: Map<String, String>, severity: String = "ERROR"): JsonValue =
         obj(
             "code" to text(code),
-            "severity" to text("ERROR"),
+            "severity" to text(severity),
             "origin" to text("agent"),
             "messageKey" to text(messageKey),
             "params" to obj(*params.map { it.key to text(it.value) }.toTypedArray()),

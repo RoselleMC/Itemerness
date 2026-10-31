@@ -124,3 +124,14 @@
         padding-inline: 5px;
     }
 }
+.footer-scenario p {
+    margin: 0 0 8px;
+    line-height: 1.45;
+}
+.footer-scenario .ui-select {
+    width: 100%;
+    margin-bottom: 8px;
+}
+.footer-scenario-parameter {
+    margin-bottom: 8px;
+}

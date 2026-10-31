@@ -1054,6 +1054,11 @@ export interface ComposeOptions {
     readonly itemId: string;
     readonly viewer: PreviewViewer;
     readonly fonts: PresentationFonts;
+    /**
+     * Values a preview data provider last returned for this item and scenario. They sit between the
+     * item's own data and its manual preview values, as on the server.
+     */
+    readonly providedData?: ReadonlyArray<{ key: string; value: DataValue }>;
 }
 
 export function composeLocalPreview(options: ComposeOptions): LocalPreview {
@@ -1108,7 +1113,7 @@ function composeAttempt(
         };
     }
 
-    const { data, dataTypes } = previewData(document, item);
+    const { data, dataTypes } = previewData(document, item, options.providedData ?? []);
     const facts = previewFacts(document);
     // A viewer override outranks the item binding; either may name a selector.
     const requestedTheme = selectTheme(
@@ -1461,6 +1466,7 @@ function validateDisplay(
 function previewData(
     document: ProjectDocument,
     item: ItemNode,
+    provided: ReadonlyArray<{ key: string; value: DataValue }>,
 ): { data: Map<string, DataValue>; dataTypes: Map<string, DataTypeNode> } {
     const dataTypes = new Map<string, DataTypeNode>();
     const data = new Map<string, DataValue>();
@@ -1479,6 +1485,7 @@ function previewData(
         data.set(assignment.key, assignment.value);
     for (const assignment of item.definition.definitionData)
         data.set(assignment.key, assignment.value);
+    for (const assignment of provided) data.set(assignment.key, assignment.value);
     for (const assignment of item.previewData)
         data.set(assignment.key, assignment.value);
     return { data, dataTypes };

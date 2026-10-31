@@ -38,6 +38,8 @@ export interface FidelityInputs {
     readonly itemIcon: "flat" | "unsupported" | "absent";
     /** The theme preserves vanilla-generated tooltip lines that Itemerness does not own. */
     readonly preservesVanillaLines: boolean;
+    /** A requested preview data provider failed, so the item data is not what the server would compute. */
+    readonly providerFailed?: boolean;
 }
 
 function claim(
@@ -69,7 +71,11 @@ export function buildFidelityClaims(inputs: FidelityInputs): FidelityClaim[] {
             : inputs.origin === "mock"
               ? "fidelity.content.mock"
               : "fidelity.content.local";
-    claims.push(claim("content", structureLevel, structureReason));
+    claims.push(
+        inputs.providerFailed
+            ? claim("content", "metric-faithful", "fidelity.content.provider_failed")
+            : claim("content", structureLevel, structureReason),
+    );
     claims.push(claim("locale", structureLevel, structureReason));
     claims.push(claim("theme-selection", structureLevel, structureReason));
 

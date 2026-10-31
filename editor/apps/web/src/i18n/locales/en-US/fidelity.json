@@ -1,6 +1,7 @@
 {
     "content": {
         "agent_verified": "The target server compiled this snapshot.",
+        "provider_failed": "The preview data provider for the selected scenario failed, so this item data is not what the server would compute.",
         "agent_stale": "The server result is for an older draft snapshot.",
         "mock": "Replayed from a stored fixture, not a live compiler.",
         "local": "Composed in the browser from the draft."

@@ -9,6 +9,7 @@ import {
     negotiateProtocol,
     negotiateTransferLimits,
     previewArtifactSchema,
+    previewProvidersSchema,
     projectDocumentSchema,
     supportsSegmentedFrameDecorations,
     supportsDataFieldConstraints,
@@ -359,14 +360,26 @@ export class PluginClient {
 
     async preview(request: PreviewRequest, signal?: AbortSignal) {
         this.assertDocumentSendable(request.document);
+        // Plugins without providers reject the field; a scenario is meaningless to them.
+        const { scenario, ...base } = request;
+        const providers = this.capabilities.includes("preview.providers");
         const body = record(
-            await this.json("/api/v2/preview", "POST", request, signal),
+            await this.json(
+                "/api/v2/preview",
+                "POST",
+                scenario && providers ? { ...base, scenario } : base,
+                signal,
+            ),
         );
         const artifact = previewArtifactSchema.parse(body.artifact);
         if (
             artifact.origin !== "agent" ||
             artifact.itemId !== request.itemId ||
-            contentHash(artifact.viewer) !== contentHash(request.viewer)
+            contentHash(artifact.viewer) !== contentHash(request.viewer) ||
+            (scenario &&
+                providers &&
+                (artifact.previewData?.plugin !== scenario.plugin ||
+                    artifact.previewData.scenario !== scenario.id))
         )
             throw new Error("INVALID_PREVIEW_RESPONSE");
         return {
@@ -375,6 +388,32 @@ export class PluginClient {
                 body.stale === true ||
                 artifact.digests.snapshot !== request.snapshotHash,
         };
+    }
+
+    /** Scenarios each provider offers for one item of this exact draft. */
+    async previewScenarios(
+        document: ProjectDocument,
+        itemId: string,
+        locale: string,
+        signal?: AbortSignal,
+    ) {
+        this.assertDocumentSendable(document);
+        const result = previewProvidersSchema.parse(
+            await this.json(
+                "/api/v2/preview/scenarios",
+                "POST",
+                {
+                    document,
+                    snapshotHash: contentHash(document),
+                    itemId,
+                    locale,
+                    targetServerId: this.serverId,
+                },
+                signal,
+            ),
+        );
+        if (result.itemId !== itemId) throw new Error("INVALID_PREVIEW_RESPONSE");
+        return result;
     }
 
     private assertResponseIdentity(body: unknown): void {

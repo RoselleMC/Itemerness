@@ -1,5 +1,5 @@
-import { itemKey, itemLayout } from "@itemerness/protocol";
-import { useMemo } from "react";
+import { contentHash, itemKey, itemLayout } from "@itemerness/protocol";
+import { useMemo, useRef } from "react";
 import { resolveItemIcon } from "@itemerness/mc-assets";
 import type { PreviewItemState } from "../../api/previewCache.js";
 import {
@@ -11,6 +11,7 @@ import {
 import {
     hasBlockingDiagnostics,
     type FidelityClaim,
+    type PreviewArtifact,
     type PreviewDisplay,
     type PreviewOrigin,
 } from "@itemerness/protocol";
@@ -149,6 +150,45 @@ export function usePreview(
         [personaViewer, targetShownFlags],
     );
 
+    const { current: server, items: itemStates } = useServerPreview(
+        state.document,
+        targetItemId,
+        personaViewer,
+        enabled && state.historyTransactionId === null,
+    );
+
+    // The local draft paints the values a provider last returned for this item and scenario, so a
+    // scenario's rows do not disappear while an edit waits for the server.
+    const scenario = targetItemId
+        ? state.previewScenarios[targetItemId]
+        : undefined;
+    const scenarioKey =
+        targetItemId && scenario
+            ? JSON.stringify([targetItemId, contentHash(scenario)])
+            : null;
+    const providedValues = useRef(
+        new Map<string, NonNullable<PreviewArtifact["previewData"]>["values"]>(),
+    );
+    const provenance =
+        server.status === "verified" ? server.artifact.previewData : null;
+    if (
+        scenarioKey &&
+        provenance?.status === "applied" &&
+        provenance.plugin === scenario?.plugin &&
+        provenance.scenario === scenario.id
+    ) {
+        providedValues.current.delete(scenarioKey);
+        providedValues.current.set(scenarioKey, provenance.values);
+        while (providedValues.current.size > 32)
+            providedValues.current.delete(
+                providedValues.current.keys().next().value!,
+            );
+    }
+    const providedData = scenarioKey
+        ? providedValues.current.get(scenarioKey)
+        : undefined;
+    const providerFailed = !!scenario && provenance?.status === "failed";
+
     const local = useMemo(() => {
         if (!targetItemId) return null;
         return composeLocalPreview({
@@ -156,8 +196,9 @@ export function usePreview(
             itemId: targetItemId,
             viewer,
             fonts,
+            providedData,
         });
-    }, [state.document, targetItemId, viewer, fonts]);
+    }, [state.document, targetItemId, viewer, fonts, providedData]);
 
     const comparison = useMemo(() => {
         if (!state.compareLocales || !targetItemId) return null;
@@ -170,6 +211,7 @@ export function usePreview(
             itemId: targetItemId,
             viewer: { ...viewer, locale: other.locale },
             fonts,
+            providedData,
         });
         return { locale: other.locale, display: preview.display };
     }, [
@@ -179,14 +221,8 @@ export function usePreview(
         state.viewerLocale,
         viewer,
         fonts,
+        providedData,
     ]);
-
-    const { current: server, items: itemStates } = useServerPreview(
-        state.document,
-        targetItemId,
-        personaViewer,
-        enabled && state.historyTransactionId === null,
-    );
     const validationStates = useMemo(
         () =>
             state.historyTransactionId === null
@@ -281,6 +317,7 @@ export function usePreview(
                 tooltipStyleRequested: display?.tooltipStyle != null,
                 itemIcon: itemIconKind,
                 preservesVanillaLines: !viewer.managesVanillaTooltipLines,
+                providerFailed,
             }),
         [
             origin,
@@ -292,6 +329,7 @@ export function usePreview(
             display,
             itemIconKind,
             viewer.managesVanillaTooltipLines,
+            providerFailed,
         ],
     );
 

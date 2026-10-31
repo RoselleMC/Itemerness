@@ -9,6 +9,14 @@ import com.iroselle.itemerness.api.ItemDataValue;
 import com.iroselle.itemerness.api.ItemDefinition;
 import com.iroselle.itemerness.api.ItemKey;
 import com.iroselle.itemerness.api.LongDataValue;
+import com.iroselle.itemerness.api.DecimalDataValue;
+import com.iroselle.itemerness.api.PreviewDataProvider;
+import com.iroselle.itemerness.api.PreviewDataRequest;
+import com.iroselle.itemerness.api.PreviewDataResult;
+import com.iroselle.itemerness.api.PreviewItem;
+import com.iroselle.itemerness.api.PreviewParameter;
+import com.iroselle.itemerness.api.PreviewParameterType;
+import com.iroselle.itemerness.api.PreviewScenario;
 import com.iroselle.itemerness.bukkit.api.BoundBukkitItemernessApi;
 import com.iroselle.itemerness.bukkit.api.BukkitItemIdentity;
 import com.iroselle.itemerness.bukkit.api.BukkitItemernessApi;
@@ -134,6 +142,62 @@ public final class ItemernessRuntimeProbePlugin extends JavaPlugin implements Li
             }
         } catch (Throwable failure) {
             reportFailure("contract", failure);
+        }
+        try {
+            registerPreviewProvider();
+        } catch (Throwable failure) {
+            getLogger().log(java.util.logging.Level.SEVERE, "ITEMERNESS_PREVIEW_PROVIDER_FAIL", failure);
+        }
+    }
+
+    /**
+     * Registers a preview data provider through the public API, the way a companion plugin would.
+     * It computes attack damage from the draft's required level so editor smoke tests can see
+     * draft-dependent, scenario-dependent values; it reads no world state.
+     */
+    private void registerPreviewProvider() {
+        BukkitItemernessApi service = Objects.requireNonNull(
+            getServer().getServicesManager().load(BukkitItemernessApi.class),
+            "BukkitItemernessApi service is not registered"
+        );
+        BoundBukkitItemernessApi api = requireSuccess(service.forPlugin(this), "bind preview provider");
+        requireSuccess(api.registerPreviewDataProvider(new ScalingPreviewProvider()), "register preview provider");
+        getLogger().info("ITEMERNESS_PREVIEW_PROVIDER_REGISTERED");
+    }
+
+    private static final class ScalingPreviewProvider implements PreviewDataProvider {
+        private static final DataKey REQUIRED_LEVEL = DataKey.parse("example:required-level");
+        private static final DataKey ATTACK_DAMAGE = DataKey.parse("example:attack-damage");
+
+        @Override
+        public String getRevision() {
+            return "runtime-probe:1";
+        }
+
+        @Override
+        public List<PreviewScenario> scenarios(PreviewItem item) {
+            if (level(item) == null) return List.of();
+            PreviewParameter scale = new PreviewParameter("scale", "Damage per level", PreviewParameterType.IntegerType.INSTANCE,
+                true, List.of(), 1.0, 10.0, new IntegerDataValue(3));
+            return List.of(
+                new PreviewScenario("base", "Base template", List.of(), "Three damage per required level."),
+                new PreviewScenario("build", "Build", List.of(scale), null)
+            );
+        }
+
+        @Override
+        public PreviewDataResult provide(PreviewDataRequest request) {
+            Integer level = Objects.requireNonNull(level(request.getItem()), "required level");
+            int scale = request.getParameters().get("scale") instanceof IntegerDataValue value ? value.getValue() : 3;
+            return new PreviewDataResult(
+                Map.of(ATTACK_DAMAGE, new DecimalDataValue(level * (double) scale)),
+                List.of("Computed by the runtime probe from required level " + level)
+            );
+        }
+
+        private static Integer level(PreviewItem item) {
+            return item.readData(REQUIRED_LEVEL) instanceof ApiCallResult.Success<?> success
+                && success.getValue() instanceof IntegerDataValue value ? value.getValue() : null;
         }
     }
 

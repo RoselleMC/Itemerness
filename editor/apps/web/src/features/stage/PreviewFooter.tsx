@@ -4,6 +4,7 @@ import {
     CircleAlert,
     Columns2,
     FileWarning,
+    FlaskConical,
     MoveVertical,
     ScanLine,
     ShieldCheck,
@@ -19,6 +20,8 @@ import { PersonaPanel } from "./PersonaPanel.js";
 import type { PreviewBundle } from "../preview/usePreview.js";
 import { commitInlineEditor } from "../common/inlineEdit.js";
 import type { CatalogStatus } from "../settings/useCatalogStatus.js";
+import { ScenarioPanel } from "./ScenarioPanel.js";
+import { useConnectionStore } from "../../state/connection.js";
 import "./previewFooter.css";
 
 function FooterPopover({
@@ -105,7 +108,7 @@ export function PreviewFooter({
     const { t } = useTranslation();
     const store = useEditorStore();
     const [popup, setPopup] = useState<
-        "persona" | "fidelity" | "height" | "baseline" | null
+        "persona" | "fidelity" | "height" | "baseline" | "scenario" | null
     >(null);
     useEffect(() => {
         if (!active) setPopup(null);
@@ -120,6 +123,12 @@ export function PreviewFooter({
     });
     // The server owns this limit; a non-default one is worth knowing while authoring tall items.
     const heightLimit = store.document.budgets.maximumHeightPixels;
+    const providers = useConnectionStore(
+        (state) => state.info?.capabilities.includes("preview.providers") ?? false,
+    );
+    const scenario = preview.targetItemId
+        ? store.previewScenarios[preview.targetItemId]
+        : undefined;
     const heightLabel = t("stage.heightLimit.label", { pixels: heightLimit });
     return (
         <footer className="preview-footer" data-testid="preview-footer">
@@ -153,6 +162,28 @@ export function PreviewFooter({
                 >
                     <PersonaPanel />
                 </FooterPopover>
+                {providers && preview.targetItemId && (
+                    <FooterPopover
+                        open={popup === "scenario"}
+                        onOpenChange={(open) =>
+                            setPopup(open ? "scenario" : null)
+                        }
+                        label={t("stage.scenario.title")}
+                        testId="open-scenario"
+                        trigger={
+                            <>
+                                <FlaskConical size={15} />
+                                <span className="footer-control-label">
+                                    {scenario
+                                        ? scenario.id
+                                        : t("stage.scenario.button")}
+                                </span>
+                            </>
+                        }
+                    >
+                        <ScenarioPanel preview={preview} />
+                    </FooterPopover>
+                )}
                 <button
                     type="button"
                     className="preview-footer-button"

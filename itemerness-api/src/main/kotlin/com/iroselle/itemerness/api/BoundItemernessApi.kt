@@ -37,6 +37,14 @@ interface BoundItemernessApi {
 
     /** Requests refresh scheduling; it does not expose or mutate a Bukkit inventory slot. */
     fun requestRefresh(request: RefreshRequest): ApiCallResult<RefreshReceipt>
+
+    /**
+     * Registers this caller's preview data provider, replacing its earlier one. The registration
+     * ends when the caller's plugin is disabled. Provider output is limited to data keys whose
+     * `access.write` names the caller, and definition reads follow the caller's `read-data` rules.
+     */
+    fun registerPreviewDataProvider(provider: PreviewDataProvider): ApiCallResult<PreviewDataRegistration> =
+        ApiCallResult.Denied(ApiDenialReason.PLATFORM_ACCESS_UNAVAILABLE, "This platform does not support preview data providers")
 }
 
 sealed interface ItemDataMutation {

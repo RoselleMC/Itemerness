@@ -14,6 +14,7 @@ import {
     type ProjectDocument,
 } from "@itemerness/protocol";
 import { useConnectionStore } from "../../state/connection.js";
+import { useEditorStore } from "../../state/store.js";
 import {
     PreviewCache,
     previewKey,
@@ -77,6 +78,14 @@ export function useServerPreview(
         info?.minecraftVersion,
     ]);
     const supported = !!info?.capabilities.includes("preview.compile");
+    const providers = !!info?.capabilities.includes("preview.providers");
+    const scenarios = useEditorStore((state) => state.previewScenarios);
+    const scenarioFor = (id: string | null) =>
+        (providers && id && scenarios[id]) || undefined;
+    const scenarioKey = (id: string | null) => {
+        const scenario = scenarioFor(id);
+        return scenario ? [contentHash(scenario)] : [];
+    };
     const cache = useMemo(
         () =>
             client
@@ -91,7 +100,12 @@ export function useServerPreview(
                 : null,
         [client, peerKey],
     );
-    const key = JSON.stringify([snapshotHash, itemId, targetViewerKey]);
+    const key = JSON.stringify([
+        snapshotHash,
+        itemId,
+        targetViewerKey,
+        ...scenarioKey(itemId),
+    ]);
     const revision = useSyncExternalStore(
         cache?.subscribe ?? noSubscription,
         cache?.version ?? zeroVersion,
@@ -110,6 +124,7 @@ export function useServerPreview(
                                       snapshotHash,
                                       id,
                                       keyFor(item),
+                                      ...scenarioKey(id),
                                   ]),
                               ),
                     ];
@@ -124,6 +139,8 @@ export function useServerPreview(
             unmanagedKey,
             supported,
             enabled,
+            scenarios,
+            providers,
         ],
     );
     const serverId = info?.serverId ?? null;
@@ -172,6 +189,7 @@ export function useServerPreview(
                         viewer: targetViewer,
                         snapshotHash,
                         targetServerId: serverId,
+                        scenario: scenarioFor(itemId),
                     },
                     true,
                 )
@@ -224,12 +242,14 @@ export function useServerPreview(
         if (!enabled || !cache || !supported) return;
         const timer = setTimeout(() => {
             for (const item of document.items.slice(0, PREWARM_ITEMS)) {
+                const id = itemKey(document, item);
                 const request = {
                     document,
-                    itemId: itemKey(document, item),
+                    itemId: id,
                     viewer: viewerFor(item),
                     snapshotHash,
                     targetServerId: serverId,
+                    scenario: scenarioFor(id),
                 };
                 if (!cache.peek(previewKey(request)))
                     void cache.load(request).catch(() => {});
@@ -247,6 +267,8 @@ export function useServerPreview(
         enabled,
         serverId,
         document,
+        scenarios,
+        providers,
     ]);
 
     if (!enabled || !itemId || !cache || !supported)

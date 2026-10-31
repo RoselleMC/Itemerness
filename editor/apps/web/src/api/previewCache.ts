@@ -20,12 +20,16 @@ interface Task {
 }
 
 export function previewKey(
-    request: Pick<PreviewRequest, "itemId" | "snapshotHash" | "viewer">,
+    request: Pick<PreviewRequest, "itemId" | "snapshotHash" | "viewer"> & {
+        scenario?: PreviewRequest["scenario"];
+    },
 ): string {
     return JSON.stringify([
         request.snapshotHash,
         request.itemId,
         contentHash(request.viewer),
+        // A provider scenario, including its revision, computes different data for the same draft.
+        ...(request.scenario ? [contentHash(request.scenario)] : []),
     ]);
 }
 

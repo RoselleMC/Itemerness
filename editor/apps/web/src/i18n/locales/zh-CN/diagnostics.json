@@ -50,5 +50,8 @@
         "spacing_unreachable": "{{pixels}} 像素的偏移超出了已声明的 spacing 范围。",
         "layer_undeclared": "画布图层资产 {{asset}} 不在 glyph 注册表中。"
     },
-    "preview": { "stale_snapshot": "一条对应旧草稿的服务端结果已被丢弃。" }
+    "preview": {
+        "stale_snapshot": "一条对应旧草稿的服务端结果已被丢弃。",
+        "provider_failed": "{{plugin}} 未为场景 {{scenario}} 提供预览数据（{{code}}）：{{detail}}。预览显示的是不含这些数据的物品。"
+    }
 }

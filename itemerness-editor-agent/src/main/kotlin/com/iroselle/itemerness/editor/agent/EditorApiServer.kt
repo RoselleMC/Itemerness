@@ -39,6 +39,8 @@ class EditorApiServer(
     private val budgets: () -> PresentationBudgets = { PresentationBudgets() },
     /** Transfer limits follow the server's catalog directory budget, which a reload may change. */
     private val limits: () -> EditorTransferLimits = { EditorTransferLimits() },
+    /** Lists provider scenarios for one item of a draft; null when the platform offers no providers. */
+    private val previewScenarios: ((JsonValue) -> JsonValue)? = null,
 ) : AutoCloseable {
     data class Metadata(
         val serverId: String,
@@ -193,7 +195,8 @@ class EditorApiServer(
                     if (metadata.minecraftVersion !in PREVIEW_VERSIONS) return error(exchange, 422, "PREVIEW_VERSION_UNSUPPORTED")
                     val requestValue = body(exchange, transfer)
                     val request = JsonObject.of(requestValue, "preview")
-                        .rejectUnknown("document", "itemId", "viewer", "snapshotHash", "targetServerId")
+                        .rejectUnknown("document", "itemId", "viewer", "snapshotHash", "targetServerId", "scenario")
+                    if (request.raw("scenario") != null && previewScenarios == null) return error(exchange, 422, "PREVIEW_PROVIDERS_UNSUPPORTED")
                     val target = request.optionalString("targetServerId")
                     if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
                     val document = request.raw("document") ?: throw JsonException("Missing document")
@@ -201,6 +204,18 @@ class EditorApiServer(
                         return error(exchange, 400, "SNAPSHOT_MISMATCH")
                     }
                     respond(exchange, 200, obj("artifact" to compile(requestValue), "stale" to JsonValue.Bool(false)))
+                }
+                "/api/v2/preview/scenarios" -> {
+                    if (exchange.requestMethod != "POST") return error(exchange, 405, "METHOD_NOT_ALLOWED")
+                    val list = previewScenarios ?: return error(exchange, 404, "NOT_FOUND")
+                    if (metadata.minecraftVersion !in PREVIEW_VERSIONS) return error(exchange, 422, "PREVIEW_VERSION_UNSUPPORTED")
+                    val requestValue = body(exchange, transfer)
+                    val request = JsonObject.of(requestValue, "scenarios")
+                        .rejectUnknown("document", "itemId", "locale", "snapshotHash", "targetServerId")
+                    val target = request.optionalString("targetServerId")
+                    if (target != null && target != metadata.serverId) return error(exchange, 409, "TARGET_MISMATCH")
+                    if (request.raw("document") == null) throw JsonException("Missing document")
+                    respond(exchange, 200, list(requestValue))
                 }
                 else -> error(exchange, 404, "NOT_FOUND")
             }
@@ -283,6 +298,7 @@ class EditorApiServer(
             (if (metadata.persistentIdentity) listOf("server.identity.persistent") else emptyList()) +
             (if (serverMetadata != null) listOf("server.alias.write") else emptyList()) +
             (if (metadata.minecraftVersion in PREVIEW_VERSIONS) listOf("preview.compile") else emptyList()) +
+            (if (previewScenarios != null && metadata.minecraftVersion in PREVIEW_VERSIONS) listOf("preview.providers") else emptyList()) +
             (if (readCatalog != null) listOf("catalog.read") else emptyList()) +
             (if (exportCatalog != null) listOf("catalog.export") else emptyList()) +
             (if (catalogStatus != null) listOf("catalog.status") else emptyList()) +

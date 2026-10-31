@@ -14,6 +14,7 @@ import com.iroselle.itemerness.editor.agent.CompilerBridge
 import com.iroselle.itemerness.editor.agent.EditorApiServer
 import com.iroselle.itemerness.editor.agent.EditorDraftStore
 import com.iroselle.itemerness.editor.agent.EditorTransferLimits
+import com.iroselle.itemerness.editor.agent.ScenarioSelection
 import com.iroselle.itemerness.editor.agent.ServerIdentity
 import com.iroselle.itemerness.editor.agent.ServerMetadataStore
 import com.iroselle.itemerness.editor.protocol.Json
@@ -40,10 +41,13 @@ internal class EditorApiService(
     worker: Executor,
     draftPath: Path,
     catalogPath: Path,
+    /** Absent in tests and on platforms without the plugin API; previews then offer no scenarios. */
+    previewData: PreviewDataBroker? = null,
 ) : EditorApiHandle {
     private val metrics = BundledBuiltinFontMetrics(builtinFontMetrics)
     private val validator = RuntimeCatalogValidator()
-    private val bridge = CompilerBridge(metrics, agentVersion, { settings().budgets }) { decoded, domain, presentation ->
+    private val previewBroker = previewData
+    private val bridge = CompilerBridge(metrics, agentVersion, { settings().budgets }, previewData = previewData) { decoded, domain, presentation ->
         validator.validateRuntimeContent(settings(), decoded.catalog, domain, presentation, decoded.runtimeIntegrations())
     }
     private val catalogReader = EditorCatalogReader(catalogPath, builtinFontMetrics, agentVersion, validator)
@@ -74,6 +78,7 @@ internal class EditorApiService(
         serverMetadata = serverMetadata,
         budgets = { settings().budgets },
         limits = transferLimits,
+        previewScenarios = previewData?.let { { request -> scenarios(request) } },
     ) }
     private val api by apiDelegate
     private var stopped = false
@@ -99,6 +104,17 @@ internal class EditorApiService(
     override fun stop() {
         stopped = true
         if (apiDelegate.isInitialized()) api.close()
+        previewBroker?.close()
+    }
+
+    private fun scenarios(payload: JsonValue): JsonValue {
+        val request = JsonObject.of(payload, "scenarios")
+        return bridge.previewScenarios(
+            Json.canonicalize(requireNotNull(request.raw("document"))),
+            request.requiredString("snapshotHash"),
+            request.requiredString("itemId"),
+            request.optionalString("locale") ?: "en_us",
+        )
     }
 
     private fun compile(payload: JsonValue): JsonValue {
@@ -115,6 +131,13 @@ internal class EditorApiService(
             resourcePackLoaded = viewer?.optionalBoolean("resourcePackLoaded", false) ?: false,
             managesVanillaTooltipLines = viewer?.optionalBoolean("managesVanillaTooltipLines", false) ?: false,
             snapshotHash = request.requiredString("snapshotHash"),
+            scenario = request.optionalObject("scenario")?.let { scenario ->
+                ScenarioSelection(
+                    plugin = scenario.requiredString("plugin"),
+                    scenario = scenario.requiredString("id"),
+                    parameters = (scenario.raw("parameters") as? JsonValue.Obj) ?: JsonValue.Obj(emptyMap()),
+                )
+            },
         ))
         return Json.parse(when (outcome) {
             is CompilerBridge.Outcome.Rendered -> outcome.json

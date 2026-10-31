@@ -11,6 +11,8 @@ import com.iroselle.itemerness.api.ItemDefinition
 import com.iroselle.itemerness.api.ItemInstanceMode
 import com.iroselle.itemerness.api.ItemKey
 import com.iroselle.itemerness.api.RefreshReceipt
+import com.iroselle.itemerness.api.PreviewDataProvider
+import com.iroselle.itemerness.api.PreviewDataRegistration
 import com.iroselle.itemerness.api.RefreshRequest
 import com.iroselle.itemerness.bukkit.access.AccessDecision
 import com.iroselle.itemerness.bukkit.access.AccessPolicy
@@ -137,6 +139,7 @@ internal class DefaultBukkitItemernessApi private constructor(
     private val slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
     private val pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
     private val resourcePackStatusSink: ResourcePackStatusSink? = null,
+    private val previewProviders: PreviewProviderRegistry = PreviewProviderRegistry(),
 ) : BukkitItemernessApi,
     Listener,
     AutoCloseable {
@@ -165,6 +168,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
         pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
         resourcePackStatusSink: ResourcePackStatusSink? = null,
+        previewProviders: PreviewProviderRegistry = PreviewProviderRegistry(),
     ) : this(
         ownerPlugin = ownerPlugin,
         snapshotProvider = {
@@ -196,6 +200,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         slotCompletionHandoff = slotCompletionHandoff,
         pluginRegistrationVerifier = pluginRegistrationVerifier,
         resourcePackStatusSink = resourcePackStatusSink,
+        previewProviders = previewProviders,
     )
 
     /** Test seam retained for platform-identity tests without a filesystem-backed runtime. */
@@ -218,6 +223,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         slotCompletionHandoff: SlotCompletionHandoff = SlotCompletionHandoff {},
         pluginRegistrationVerifier: ((Plugin) -> Boolean)? = null,
         resourcePackStatusSink: ResourcePackStatusSink? = null,
+        previewProviders: PreviewProviderRegistry = PreviewProviderRegistry(),
     ) : this(
         ownerPlugin = ownerPlugin,
         snapshotProvider = { ApiCatalogState(registry.snapshot(), accessPolicy, null, null) },
@@ -236,6 +242,7 @@ internal class DefaultBukkitItemernessApi private constructor(
         slotCompletionHandoff = slotCompletionHandoff,
         pluginRegistrationVerifier = pluginRegistrationVerifier,
         resourcePackStatusSink = resourcePackStatusSink,
+        previewProviders = previewProviders,
     )
 
     init {
@@ -296,6 +303,7 @@ internal class DefaultBukkitItemernessApi private constructor(
                         catalogCommitter = catalogCommitter,
                         slotCompletionHandoff = slotCompletionHandoff,
                         resourcePackStatusSink = resourcePackStatusSink,
+                        previewProviders = previewProviders,
                     )
                     facades[plugin] = facade
                     ApiCallResult.Success(facade)
@@ -343,6 +351,7 @@ internal class DefaultBukkitItemernessApi private constructor(
                 }
                 callerRegistry.retire(plugin)
                 viewerFacts.clearOwner(plugin.name, plugin)
+                previewProviders.retire(plugin.name)
             }
         } finally {
             BoundFacade.completeRetiredSlotEdits(retiredSlotEdits)
@@ -380,6 +389,7 @@ internal class DefaultBukkitItemernessApi private constructor(
                 cleanup { viewerFacts.clearOwner(plugin.name, plugin) }
             }
             facades.clear()
+            cleanup(previewProviders::clear)
             cleanup(callerRegistry::close)
         }
         BoundFacade.completeRetiredSlotEdits(retiredSlotEdits)
@@ -411,6 +421,7 @@ private class BoundFacade(
     private val catalogCommitter: CatalogCommitter?,
     private val slotCompletionHandoff: SlotCompletionHandoff,
     private val resourcePackStatusSink: ResourcePackStatusSink?,
+    private val previewProviders: PreviewProviderRegistry,
 ) : BoundBukkitItemernessApi,
     AutoCloseable {
     private val domainHandles = DomainHandleStore()
@@ -714,6 +725,12 @@ private class BoundFacade(
         } catch (failure: RuntimeException) {
             denied(ApiDenialReason.INVALID_VALUE, failure.message ?: "Invalid data mutation")
         }
+    }
+
+    @Synchronized
+    override fun registerPreviewDataProvider(provider: PreviewDataProvider): ApiCallResult<PreviewDataRegistration> {
+        activeCallerDenial()?.let { return it }
+        return ApiCallResult.Success(previewProviders.register(caller, provider))
     }
 
     @Synchronized

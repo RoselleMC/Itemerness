@@ -132,6 +132,36 @@ describe("composeLocalPreview", () => {
         ).toBe(true);
     });
 
+    it("paints provider values below manual preview values, as the server layers them", () => {
+        const document = structuredClone(baselineDocument);
+        const item = document.items.find(
+            (entry) => entry.id === "travel-token",
+        )!;
+        item.previewData = item.previewData.filter(
+            (entry) => entry.key !== "example:charges",
+        );
+        const runs = (
+            providedData?: { key: string; value: { kind: "integer"; value: string } }[],
+        ) =>
+            composeLocalPreview({
+                document,
+                itemId: "itemerness:travel-token",
+                viewer: packViewer,
+                fonts,
+                providedData,
+            }).display.lore.flatMap((line) => line.runs.map((run) => run.text));
+        const provided = [
+            { key: "example:charges", value: { kind: "integer" as const, value: "41" } },
+        ];
+        expect(runs(provided)).toContain("41");
+        item.previewData.push({
+            key: "example:charges",
+            value: { kind: "integer", value: "5" },
+        });
+        expect(runs(provided)).toContain("5");
+        expect(runs(provided)).not.toContain("41");
+    });
+
     it("ignores retained inactive frame geometry without mutating the authoring theme", () => {
         const document = structuredClone(baselineDocument);
         const plain = document.themes.find(

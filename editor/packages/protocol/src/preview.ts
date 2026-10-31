@@ -11,6 +11,10 @@ import {
 import { diagnosticSchema } from "./diagnostics.js";
 import { contentHash } from "./canonical.js";
 import { projectDocumentSchema } from "./document.js";
+import {
+    previewDataProvenanceSchema,
+    previewScenarioChoiceSchema,
+} from "./previewProviders.js";
 
 /**
  * The preview wire format.
@@ -180,6 +184,8 @@ export const previewArtifactSchema = z.object({
         })
         .nullable()
         .default(null),
+    /** Present when the preview was computed for a provider scenario; older plugins omit it. */
+    previewData: previewDataProvenanceSchema.nullable().default(null),
 });
 export type PreviewArtifact = z.infer<typeof previewArtifactSchema>;
 
@@ -197,6 +203,8 @@ export const previewRequestSchema = z
         /** Guards against a late response overwriting a newer draft. */
         snapshotHash: z.string().min(1).max(128),
         targetServerId: z.string().max(128).nullable().default(null),
+        /** A provider scenario; absent previews use manual preview values only. */
+        scenario: previewScenarioChoiceSchema.optional(),
     })
     .superRefine((request, context) => {
         if (contentHash(request.document) !== request.snapshotHash) {

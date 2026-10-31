@@ -3,6 +3,7 @@ export * from "./canonical.js";
 export * from "./diagnostics.js";
 export * from "./document.js";
 export * from "./preview.js";
+export * from "./previewProviders.js";
 export * from "./connection.js";
 export * from "./itemKeys.js";
 export * from "./presentationDefaults.js";

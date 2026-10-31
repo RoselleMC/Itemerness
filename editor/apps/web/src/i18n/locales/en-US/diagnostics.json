@@ -51,6 +51,7 @@
         "layer_undeclared": "Canvas layer asset {{asset}} is not in the glyph registry."
     },
     "preview": {
-        "stale_snapshot": "A server result arrived for an older draft and was discarded."
+        "stale_snapshot": "A server result arrived for an older draft and was discarded.",
+        "provider_failed": "{{plugin}} did not provide preview data for scenario {{scenario}} ({{code}}): {{detail}}. The preview shows the item without it."
     }
 }

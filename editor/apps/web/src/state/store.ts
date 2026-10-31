@@ -22,6 +22,7 @@ import {
     emptyProjectDocument,
     type Diagnostic,
     type ItemNode,
+    type PreviewScenarioChoice,
     type PreviewViewer,
     type ProjectDocument,
 } from "@itemerness/protocol";
@@ -89,6 +90,11 @@ interface EditorState {
      */
     managesVanillaTooltipLines: boolean;
     viewerLocale: string;
+    /**
+     * Provider scenario per item id. Viewer state like the persona: never stored in the document,
+     * and cleared with the session because providers belong to one server.
+     */
+    previewScenarios: Readonly<Record<string, PreviewScenarioChoice>>;
     themeOverride: string | null;
     guiScale: number;
     zoomMode: "manual" | "fit";
@@ -116,6 +122,7 @@ interface EditorState {
     setAssetProfileOverride(assetProfile: string | null): void;
     setManagesVanillaTooltipLines(manages: boolean): void;
     setViewerLocale(locale: string): void;
+    setPreviewScenario(itemId: string, choice: PreviewScenarioChoice | null): void;
     setThemeOverride(theme: string | null): void;
     setGuiScale(scale: number, mode?: "manual" | "fit"): void;
     setZoomMode(mode: "manual" | "fit"): void;
@@ -245,6 +252,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         assetProfileOverride: null,
         managesVanillaTooltipLines: true,
         viewerLocale: initialDocument.defaultLocale,
+        previewScenarios: {},
         themeOverride: null,
         guiScale: 3,
         zoomMode: "fit",
@@ -497,6 +505,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         setViewerLocale(viewerLocale) {
             set({ viewerLocale });
         },
+        setPreviewScenario(itemId, choice) {
+            const { [itemId]: _previous, ...rest } = get().previewScenarios;
+            set({ previewScenarios: choice ? { ...rest, [itemId]: choice } : rest });
+        },
         setThemeOverride(themeOverride) {
             set({ themeOverride });
         },
@@ -720,6 +732,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 assetProfileOverride: null,
                 managesVanillaTooltipLines: true,
                 viewerLocale: document.defaultLocale,
+                previewScenarios: {},
                 guiScale: 3,
                 zoomMode: "fit",
                 annotations: false,

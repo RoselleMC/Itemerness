@@ -35,6 +35,7 @@ class EditorApiServerTest {
                         budgets: PresentationBudgets = PresentationBudgets(),
                         compile: (JsonValue) -> JsonValue = { JsonValue.Text("compiled") },
                         limits: () -> EditorTransferLimits = { EditorTransferLimits() },
+                        previewScenarios: ((JsonValue) -> JsonValue)? = null,
                         action: (EditorApiServer, AtomicInteger) -> Unit) {
         val workers = Executors.newFixedThreadPool(8)
         val clock = Executors.newSingleThreadScheduledExecutor()
@@ -55,6 +56,7 @@ class EditorApiServerTest {
             serverMetadata = if (persistentIdentity) ServerMetadataStore(directory.resolve("server-metadata.json"), "test") else null,
             budgets = { budgets },
             limits = limits,
+            previewScenarios = previewScenarios,
         )
         try { api.start(); action(api, compiles) } finally {
             api.close(); workers.shutdownNow(); clock.shutdownNow()
@@ -371,6 +373,34 @@ class EditorApiServerTest {
             // Lowering the budget again keeps the stored draft readable while refusing new oversized saves.
             current = EditorTransferLimits()
             assertEquals(large, JsonObject.of(Json.parse(request(api, "/api/v2/document").body()), "load").raw("document"))
+        }
+    }
+
+    @Test
+    fun `provider scenarios are advertised listed and refused where unsupported`() {
+        val hash = EditorDraftStore.digest(Json.canonicalize(document))
+        val preview = Json.canonicalize(JsonValue.Obj(mapOf("document" to document, "snapshotHash" to JsonValue.Text(hash), "itemId" to JsonValue.Text("itemerness:a"),
+            "scenario" to JsonValue.Obj(mapOf("plugin" to JsonValue.Text("Runo"), "id" to JsonValue.Text("base"))))))
+        fixture { api, count ->
+            assertFalse(request(api, "/api/handshake").body().contains("preview.providers"))
+            assertEquals(404, request(api, "/api/v2/preview/scenarios", "POST", "{}").statusCode())
+            val refused = request(api, "/api/v2/preview", "POST", preview)
+            assertEquals(422, refused.statusCode())
+            assertEquals("PREVIEW_PROVIDERS_UNSUPPORTED", JsonObject.parse(refused.body(), "refusal").requiredString("code"))
+            assertEquals(0, count.get())
+        }
+        val requests = ArrayList<JsonValue>()
+        fixture(previewScenarios = { requests += it; JsonValue.Obj(mapOf("itemId" to JsonValue.Text("itemerness:a"), "providers" to JsonValue.Arr(emptyList()), "failure" to JsonValue.Null)) }) { api, count ->
+            assertTrue(request(api, "/api/handshake").body().contains("\"preview.providers\""))
+            val body = Json.canonicalize(JsonValue.Obj(mapOf("document" to document, "snapshotHash" to JsonValue.Text(hash), "itemId" to JsonValue.Text("itemerness:a"))))
+            val listed = request(api, "/api/v2/preview/scenarios", "POST", body)
+            assertEquals(200, listed.statusCode(), listed.body())
+            assertEquals("itemerness:a", JsonObject.parse(listed.body(), "listing").requiredString("itemId"))
+            assertEquals(405, request(api, "/api/v2/preview/scenarios").statusCode())
+            assertEquals(400, request(api, "/api/v2/preview/scenarios", "POST", body.dropLast(1) + ",\"extra\":1}").statusCode())
+            assertEquals(1, requests.size)
+            assertEquals(200, request(api, "/api/v2/preview", "POST", preview).statusCode())
+            assertEquals(1, count.get())
         }
     }
 

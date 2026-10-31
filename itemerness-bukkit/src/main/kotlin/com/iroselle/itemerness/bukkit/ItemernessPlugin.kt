@@ -5,6 +5,7 @@ import com.iroselle.itemerness.bukkit.access.AccessDecision
 import com.iroselle.itemerness.bukkit.api.BukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.DefaultBukkitItemernessApi
 import com.iroselle.itemerness.bukkit.api.PlayerSlotDispatcher
+import com.iroselle.itemerness.bukkit.api.PreviewProviderRegistry
 import com.iroselle.itemerness.bukkit.api.RefreshRequestDispatcher
 import com.iroselle.itemerness.bukkit.api.ResourcePackStatusSink
 import com.iroselle.itemerness.bukkit.api.ViewerRefreshDispatcher
@@ -14,6 +15,7 @@ import com.iroselle.itemerness.bukkit.editor.EditorApiService
 import com.iroselle.itemerness.bukkit.editor.EditorApiCoordinator
 import com.iroselle.itemerness.bukkit.editor.FoliaAgentScheduler
 import com.iroselle.itemerness.bukkit.editor.FoliaAsyncExecutor
+import com.iroselle.itemerness.bukkit.editor.PreviewDataBroker
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogManager
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogPublication
 import com.iroselle.itemerness.bukkit.catalog.RuntimeCatalogUpdate
@@ -149,6 +151,7 @@ class ItemernessPlugin : JavaPlugin() {
             val refreshDispatcher = RefreshRequestDispatcher { request ->
                 refreshCoordinator.request(request.playerId)
             }
+            val previewProviders = PreviewProviderRegistry()
             val bukkitApi = DefaultBukkitItemernessApi(
                 ownerPlugin = this,
                 catalog = catalog,
@@ -161,6 +164,7 @@ class ItemernessPlugin : JavaPlugin() {
                 viewerFacts = viewerFacts,
                 viewerAvailable = { viewerId -> projectionState.viewer(viewerId) != null },
                 resourcePackStatusSink = ResourcePackStatusSink(publisher::reportExternalPack),
+                previewProviders = previewProviders,
             )
             val editorApi = EditorApiCoordinator { endpoint ->
                 val asyncExecutor = FoliaAsyncExecutor(scheduler)
@@ -177,6 +181,9 @@ class ItemernessPlugin : JavaPlugin() {
                     worker = asyncExecutor,
                     draftPath = dataFolder.toPath().resolve("editor/draft.json"),
                     catalogPath = dataFolder.toPath(),
+                    previewData = PreviewDataBroker(this, previewProviders, accessPolicy = {
+                        requireNotNull(catalog.snapshot()) { "The runtime catalog is unavailable" }.accessPolicy
+                    }),
                 )
             }
 
