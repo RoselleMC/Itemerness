@@ -508,7 +508,8 @@ internal class NmsPersistentSurfaceCache(
         const val MAX_FALLBACK_BUNDLE_DEPTH = 64
         const val MAX_FALLBACK_PACKETS = 8_192
         const val MAX_METADATA_VALUES_PER_PACKET = 256
-        const val MAX_EQUIPMENT_VALUES_PER_PACKET = 6
+        /** One entry per slot this version defines; 1.21.5+ adds BODY and SADDLE, and a full update is valid vanilla. */
+        val MAX_EQUIPMENT_VALUES_PER_PACKET = EquipmentSlot.entries.size
         const val MAX_STORED_VALUES = 4_096
         const val MAX_STORED_VALUE_WIRE_BYTES = 256 * 1_024
         const val MAX_STORED_WIRE_BYTES = 8 * 1_024 * 1_024

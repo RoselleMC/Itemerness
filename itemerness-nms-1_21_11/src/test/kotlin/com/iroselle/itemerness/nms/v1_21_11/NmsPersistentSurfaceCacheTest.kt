@@ -244,7 +244,7 @@ class NmsPersistentSurfaceCacheTest {
         )
         val equipment = ClientboundSetEquipmentPacket(
             1,
-            List(7) { Pair.of(EquipmentSlot.HEAD, namedStack("item-$it")) },
+            List(EquipmentSlot.entries.size + 1) { Pair.of(EquipmentSlot.HEAD, namedStack("item-$it")) },
             true,
         )
 
@@ -255,6 +255,17 @@ class NmsPersistentSurfaceCacheTest {
             cache.observe(equipment)
         }
         assertTrue(cache.snapshot().isEmpty())
+    }
+
+    @Test
+    fun `an equipment update may carry every slot the version defines`() {
+        val cache = cache(entityCapacity = 2)
+        // Model plugins clear all slots of a hidden base entity in one packet, including BODY and SADDLE.
+        val slots = EquipmentSlot.entries.map { slot -> slot to namedStack("item-${slot.name}") }
+        assertEquals(8, slots.size)
+        cache.observe(equipment(3, true, *slots.toTypedArray()))
+        val stored = cache.snapshot().filterIsInstance<ClientboundSetEquipmentPacket>().flatMap { packet -> packet.slots }
+        assertEquals(EquipmentSlot.entries.toSet(), stored.map { entry -> entry.first }.toSet())
     }
 
     @Test
