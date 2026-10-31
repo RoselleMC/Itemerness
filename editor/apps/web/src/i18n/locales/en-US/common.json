@@ -1050,6 +1050,7 @@
         "fieldIconSlotPixelsHint": "Empty keeps each icon its own width."
     },
     "locales": {
+        "showMore": "Showing {{shown}} of {{total}} messages. Show more",
         "heading": "Locale matrix",
         "key": "Message key",
         "coverage": "Coverage",

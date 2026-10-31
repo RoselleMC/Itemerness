@@ -1041,6 +1041,7 @@
         "fieldIconSlotPixelsHint": "留空则每个图标保持自身宽度。"
     },
     "locales": {
+        "showMore": "已显示 {{shown}} / {{total}} 条消息，显示更多",
         "heading": "语言矩阵",
         "key": "消息键",
         "coverage": "覆盖率",

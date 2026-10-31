@@ -210,7 +210,7 @@ class CompilerBridge(
             else requestContext.withSnapshotHash(requestContext.snapshotHash, compilation.decoded.schemaVersion)
         val decoded = compilation.decoded
         val domainCatalog = compilation.domain
-        val catalog = compilation.presentation
+        val catalog = compilation.previewPresentation
 
         val itemKey =
             try {

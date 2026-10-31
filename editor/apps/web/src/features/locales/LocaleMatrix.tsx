@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditorStore } from "../../state/store.js";
 import { describeContext } from "../../state/interface.js";
@@ -29,7 +29,15 @@ import {
  * This is content translation, not interface translation. Editing here changes the project
  * document; the editor's own language lives in `src/i18n`.
  */
-export function LocaleMatrix() {
+/** Rows rendered at a time; a production catalog has thousands of messages per locale. */
+const ROW_BATCH = 100;
+
+/**
+ * Stays mounted while hidden, so its search and language survive navigation, but renders rows only
+ * while shown, and then in batches as the table scrolls: thousands of rows with one textarea per
+ * locale would otherwise block the tab whenever the document changes.
+ */
+export function LocaleMatrix({ active = true }: { active?: boolean }) {
     const { t } = useTranslation();
     const document = useEditorStore((state) => state.document);
     const updateDocument = useEditorStore((state) => state.updateDocument);
@@ -60,6 +68,36 @@ export function LocaleMatrix() {
     const visible = keys.filter((key) =>
         key.toLowerCase().includes(filter.toLowerCase()),
     );
+    // Strings every cell needs are resolved once per render rather than once per cell.
+    const labels = useMemo(
+        () => ({
+            missing: t("locales.missing"),
+            empty: t("locales.emptyTranslation"),
+            copyKey: t("menus.copyKey"),
+            clear: t("menus.clearTranslation"),
+            inherited: new Map(
+                document.locales.map((locale) => [
+                    locale.locale,
+                    t("locales.inheritedFrom", { locale: locale.locale }),
+                ]),
+            ),
+        }),
+        [t, document.locales],
+    );
+    const [limit, setLimit] = useState(ROW_BATCH);
+    useEffect(() => setLimit(ROW_BATCH), [filter, epoch]);
+    const sentinel = useRef<HTMLTableRowElement>(null);
+    const shown = active ? visible.slice(0, limit) : [];
+    useEffect(() => {
+        const target = sentinel.current;
+        if (!target || typeof IntersectionObserver === "undefined") return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting))
+                setLimit((current) => current + ROW_BATCH);
+        });
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [active, limit, visible.length]);
 
     return (
         <section className="locale-matrix" aria-label={t("locales.heading")}>
@@ -172,7 +210,7 @@ export function LocaleMatrix() {
                         </tr>
                     </thead>
                     <tbody>
-                        {visible.map((key) => (
+                        {shown.map((key) => (
                             <tr key={key}>
                                 <th
                                     scope="row"
@@ -215,13 +253,16 @@ export function LocaleMatrix() {
                                         resolved.source === "fallback" ||
                                         resolved.source === "default";
                                     const status = inherited
-                                        ? t("locales.inheritedFrom", {
+                                        ? (labels.inherited.get(
+                                              resolved.sourceLocale ?? "",
+                                          ) ??
+                                          t("locales.inheritedFrom", {
                                               locale: resolved.sourceLocale,
-                                          })
+                                          }))
                                         : resolved.source === "missing"
-                                          ? t("locales.missing")
+                                          ? labels.missing
                                           : resolved.text === ""
-                                            ? t("locales.emptyTranslation")
+                                            ? labels.empty
                                             : null;
                                     const statusId = `message-status-${locale.uuid}-${key}`;
                                     return (
@@ -313,12 +354,10 @@ export function LocaleMatrix() {
                                                 placeholder={
                                                     resolved.source ===
                                                     "missing"
-                                                        ? t("locales.missing")
+                                                        ? labels.missing
                                                         : inherited
                                                           ? resolved.text ||
-                                                            t(
-                                                                "locales.emptyTranslation",
-                                                            )
+                                                            labels.empty
                                                           : undefined
                                                 }
                                                 onChange={(event) =>
@@ -348,6 +387,27 @@ export function LocaleMatrix() {
                                 })}
                             </tr>
                         ))}
+                        {active && shown.length < visible.length && (
+                            <tr
+                                ref={sentinel}
+                                className="locale-more"
+                                data-testid="locale-more"
+                            >
+                                <td colSpan={document.locales.length + 1}>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setLimit((current) => current + ROW_BATCH)
+                                        }
+                                    >
+                                        {t("locales.showMore", {
+                                            shown: shown.length,
+                                            total: visible.length,
+                                        })}
+                                    </button>
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>

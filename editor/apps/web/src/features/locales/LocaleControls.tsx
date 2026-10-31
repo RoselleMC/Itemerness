@@ -332,14 +332,16 @@ export function MessageKeyControl({
     renamed(next: string): void;
 }) {
     const { t } = useTranslation();
-    const store = useEditorStore();
-    const dynamic = hasDynamicMessageReference(store.document, messageKey);
+    // One control per matrix row: subscribe to the document only, never to the whole store.
+    const document = useEditorStore((state) => state.document);
+    const updateDocument = useEditorStore((state) => state.updateDocument);
+    const dynamic = hasDynamicMessageReference(document, messageKey);
     const remove: MenuAction = {
         id: "delete-message",
         label: t("localeEditing.deleteMessage"),
         icon: Trash2,
         danger: true,
-        disabled: messageInUse(store.document, messageKey),
+        disabled: messageInUse(document, messageKey),
         run: async () => {
             if (
                 !commitInlineEditor() ||
@@ -387,13 +389,13 @@ export function MessageKeyControl({
                             ? t("localeEditing.invalidMessage")
                             : next !== messageKey &&
                                 collectDocumentMessageKeys(
-                                    store.document,
+                                    document,
                                 ).includes(next)
                               ? t("localeEditing.duplicateMessage")
                               : null
                     }
                     onCommit={(next) => {
-                        store.updateDocument((document) =>
+                        updateDocument((document) =>
                             renameMessage(document, messageKey, next),
                         );
                         renamed(next);

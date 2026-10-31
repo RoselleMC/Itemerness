@@ -25,7 +25,10 @@ internal class DocumentCompiler(
             val decoded: ProjectDocumentCodec.Decoded,
             val domain: CatalogSnapshot,
             val presentation: PresentationCatalogSnapshot,
-        ) : Result
+        ) : Result {
+            /** Renders disabled items too, so the editor can preview every item it lists. */
+            val previewPresentation: PresentationCatalogSnapshot by lazy { presentation.authoringView() }
+        }
         data class Invalid(
             val code: String,
             val messageKey: String,

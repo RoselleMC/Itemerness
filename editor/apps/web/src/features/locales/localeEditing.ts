@@ -138,18 +138,31 @@ export function removeLocale(
     };
 }
 
+// Documents are immutable snapshots, so their references can be computed once per snapshot.
+const referencedKeys = new WeakMap<ProjectDocument, ReadonlySet<string>>();
+const dynamicPatterns = new WeakMap<ProjectDocument, readonly RegExp[]>();
+
 /** Runtime-derived message references cannot be rewritten safely by renaming one concrete key. */
 export function hasDynamicMessageReference(
     document: ProjectDocument,
     key: string,
 ): boolean {
-    return document.formats.some((format) => {
+    let patterns = dynamicPatterns.get(document);
+    if (!patterns) {
+        patterns = messagePatterns(document);
+        dynamicPatterns.set(document, patterns);
+    }
+    return patterns.some((pattern) => pattern.test(key));
+}
+
+function messagePatterns(document: ProjectDocument): RegExp[] {
+    return document.formats.flatMap((format) => {
         if (
             format.kind !== "namespacedKey" ||
             format.mode !== "MESSAGE" ||
             !format.messagePattern
         )
-            return false;
+            return [];
         const pattern = format.messagePattern
             .split(/(\{namespace\}|\{path\})/)
             .map((part) =>
@@ -160,15 +173,18 @@ export function hasDynamicMessageReference(
                       : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
             )
             .join("");
-        return new RegExp(`^${pattern}$`).test(key);
+        return [new RegExp(`^${pattern}$`)];
     });
 }
 
+/** Called once per message row; a translation matrix has thousands, so this must not rescan the document. */
 export function messageInUse(document: ProjectDocument, key: string): boolean {
-    return (
-        collectReferencedMessageKeys(document).includes(key) ||
-        hasDynamicMessageReference(document, key)
-    );
+    let referenced = referencedKeys.get(document);
+    if (!referenced) {
+        referenced = new Set(collectReferencedMessageKeys(document));
+        referencedKeys.set(document, referenced);
+    }
+    return referenced.has(key) || hasDynamicMessageReference(document, key);
 }
 
 export function renameMessage(

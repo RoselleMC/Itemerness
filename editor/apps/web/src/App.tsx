@@ -336,7 +336,9 @@ export function App() {
                                         <AssetPanel />
                                     </div>
                                     <div hidden={page !== "translations"}>
-                                        <LocaleMatrix />
+                                        <LocaleMatrix
+                                            active={page === "translations"}
+                                        />
                                     </div>
                                     {page === "diagnostics" && (
                                         <DiagnosticsList

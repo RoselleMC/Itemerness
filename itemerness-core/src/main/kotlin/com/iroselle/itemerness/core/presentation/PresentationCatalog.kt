@@ -98,7 +98,15 @@ class PresentationCatalogSnapshot internal constructor(
     val validationItems: Map<ItemKey, CompiledItemPresentation> = immutableSortedMap(validationItems)
     val tooltipStyles: Set<ItemKey> = Collections.unmodifiableSet(java.util.TreeSet(tooltipStyles))
 
-    fun withRevision(revision: Long): PresentationCatalogSnapshot = PresentationCatalogSnapshot(
+    /**
+     * The same catalog with disabled items renderable, for editor previews only. Authors design items
+     * before enabling them; a published snapshot never uses this view.
+     */
+    fun authoringView(): PresentationCatalogSnapshot = withRevision(revision, validationItems)
+
+    fun withRevision(revision: Long): PresentationCatalogSnapshot = withRevision(revision, items)
+
+    private fun withRevision(revision: Long, items: Map<ItemKey, CompiledItemPresentation>): PresentationCatalogSnapshot = PresentationCatalogSnapshot(
         revision = revision,
         defaultLocale = defaultLocale,
         budgets = budgets,

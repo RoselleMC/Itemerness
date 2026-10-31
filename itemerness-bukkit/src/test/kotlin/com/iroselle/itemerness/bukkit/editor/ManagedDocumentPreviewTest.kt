@@ -92,6 +92,21 @@ class ManagedDocumentPreviewTest {
         line.requiredObjects("runs").joinToString("") { it.requiredString("text") }
 
     @Test
+    fun `a disabled item previews like an enabled one`() {
+        // Authors design items before enabling them; the editor lists them, so it must preview them.
+        val root = Json.parse(documentJson) as JsonValue.Obj
+        val disabled = JsonValue.Obj(root.entries + ("items" to JsonValue.Arr((root.entries.getValue("items") as JsonValue.Arr).values.map { value ->
+            val item = value as JsonValue.Obj
+            if ((item.entries.getValue("id") as JsonValue.Text).value.endsWith("ember-blade")) JsonValue.Obj(item.entries + ("enabled" to JsonValue.Bool(false))) else item
+        })))
+        val text = Json.canonicalize(disabled)
+        val hash = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
+        val artifact = compile(text, context("itemerness:ember-blade", hash = hash))
+        assertEquals(JsonValue.Null, artifact.raw("failure"), artifact.raw("failure").toString())
+        assertEquals(render("itemerness:ember-blade").raw("display"), artifact.raw("display"))
+    }
+
+    @Test
     fun `a held snapshot previews by reference exactly as the uploaded document`() {
         val canonical = Json.canonicalize(Json.parse(documentJson))
         val held = CompilerBridge(
