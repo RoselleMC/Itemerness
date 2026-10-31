@@ -339,6 +339,40 @@ class EditorApiServerTest {
     }
 
     @Test
+    fun `requests after a large one cannot release slots they never took`() {
+        val gate = java.util.concurrent.atomic.AtomicReference(CountDownLatch(0))
+        val running = AtomicInteger()
+        val peak = AtomicInteger()
+        fixture(compile = {
+            peak.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            gate.get().await(10, TimeUnit.SECONDS)
+            running.decrementAndGet()
+            JsonValue.Text("compiled")
+        }) { api, compiles ->
+            val large = sized(2_500_000)
+            val body = Json.canonicalize(JsonValue.Obj(mapOf("document" to large,
+                "snapshotHash" to JsonValue.Text(EditorDraftStore.digest(Json.canonicalize(large))))))
+            assertEquals(200, request(api, "/api/v2/preview", "POST", body).statusCode())
+            // The JDK keeps exchange attributes per context: a request-scoped marker would leak into these.
+            repeat(6) { assertEquals(200, request(api, "/api/handshake").statusCode()) }
+            assertEquals(200, request(api, "/api/v2/document", "PUT", saveBody()).statusCode())
+
+            gate.set(CountDownLatch(1))
+            val before = compiles.get()
+            val requests = (1..EditorTransferLimits.LARGE_MESSAGE_SLOTS + 2).map {
+                CompletableFuture.supplyAsync { request(api, "/api/v2/preview", "POST", body).statusCode() }
+            }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
+            while (compiles.get() - before < EditorTransferLimits.LARGE_MESSAGE_SLOTS && System.nanoTime() < deadline) Thread.sleep(20)
+            Thread.sleep(300)
+            assertEquals(EditorTransferLimits.LARGE_MESSAGE_SLOTS, compiles.get() - before, "later large requests still wait for a slot")
+            gate.get().countDown()
+            assertEquals(List(requests.size) { 200 }, requests.map { it.get(10, TimeUnit.SECONDS) })
+            assertEquals(EditorTransferLimits.LARGE_MESSAGE_SLOTS, peak.get())
+        }
+    }
+
+    @Test
     fun `a raised directory budget raises the document limit and decodes one large body at a time`() {
         val raised = 32 * 1024 * 1024
         var current = EditorTransferLimits(raised)
